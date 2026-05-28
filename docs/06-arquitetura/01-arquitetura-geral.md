@@ -1,7 +1,7 @@
 # Arquitetura Geral do Sistema
 
 > **Documento:** 06-arquitetura/01-arquitetura-geral.md  
-> **Status:** Rascunho  
+> **Status:** Vigente  
 > **Criado em:** Maio/2026  
 > **Atualizado em:** Maio/2026
 
@@ -13,8 +13,8 @@
                       ┌─────────────────────────────────┐
                       │                                 │
     [Colaborador]──▶ │   BrasilTerrenos                │──▶ [Power BI Service]
-    [Gerente]    ──▶ │   Portal Corporativo            │──▶ [Azure Active Directory]
-    [Admin]      ──▶ │                                 │──▶ [Serv. E-mail transacional]
+    [Gerente]    ──▶ │   Portal Corporativo            │
+    [Admin]      ──▶ │                                 │
                       │   Sistema de Governança         │
                       │   Analítica                     │
                       └─────────────────────────────────┘
@@ -29,32 +29,27 @@
 │                      BrasilTerrenos Portal                           │
 │                                                                      │
 │  ┌────────────────┐   HTTPS/REST    ┌──────────────────────────┐     │
-│  │   React SPA    │ ◀────────────▶ │    NestJS API (Backend)  │     │
+│  │   React SPA    │ ◀────────────▶ │    FastAPI (Backend)     │     │
 │  │  (Frontend)    │  + JWT Bearer   │                          │     │
-│  │  TypeScript    │                 │   Módulos:               │     │
-│  │  Vite          │                 │   - AuthModule           │     │
-│  │  React Query   │                 │   - UsersModule          │     │ 
-│  │  Zustand       │                 │   - WorkspacesModule     │     │ 
-│  │  powerbi-client│                 │   - ReportsModule        │     │ 
-│  └────────────────┘                 │   - PermissionsModule    │     │ 
-│                                     │   - ScheduleModule       │     │ 
-│                                     │   - AuditModule          │     │ 
-│                                     │   - PbiModule            │     │ 
-│                                     │   - SettingsModule       │     │
+│  │  TypeScript    │                 │   Módulos (roteadores):  │     │
+│  │  Vite          │                 │   - auth.py              │     │
+│  │  TanStack Query│                 │   - usuarios.py          │     │
+│  │  React Context │                 │   - workspaces.py        │     │
+│  │  powerbi-client│                 │   - relatorios.py        │     │
+│  └────────────────┘                 │   - permissoes.py        │     │
+│                                     │   - auditoria.py         │     │
 │                                     └──────────────┬───────────┘     │
-│                                                   │                  │
-│                                     ┌─────────────┼──────────────┐   │
-│                                     │             │              │   │
-│                              ┌──────▼──┐    ┌────▼────┐  ┌──────▼┐   │
-│                              │Postgres │    │  Redis  │  │ Queue │   │
-│                              │  (Dados)│    │ (Cache/ │  │(Jobs) │   │
-│                              │         │    │Sessions)│  │BullMQ │   │
-│                              └─────────┘    └─────────┘  └───────┘   │
+│                                                   │ pyodbc            │
+│                                     ┌─────────────▼──────────────┐   │
+│                                     │  SQL Server (on-premise)   │   │
+│                                     │  ODBC Driver 17            │   │
+│                                     │  SQLAlchemy 2.0            │   │
+│                                     └────────────────────────────┘   │
 └──────────────────────────────────────────────────────────────────────┘
                                     │
-              ┌─────────────────────┼──────────────────────┐
-              ▼                     ▼                       ▼
-    [Azure Active Directory]  [Power BI REST API]  [SMTP / SendGrid]
+                        ┌───────────▼──────────────┐
+                        ▼                          ▼
+              [Power BI REST API]        [SMTP — v1.1+]
 ```
 
 ---
@@ -70,129 +65,74 @@
 | Framework | React 18 + TypeScript | Componentização, tipagem |
 | Build | Vite | Bundling, HMR, otimização |
 | Roteamento | React Router v6 | Navegação client-side |
-| Estado servidor | TanStack Query (React Query) | Cache de dados, fetch, loading states |
-| Estado global | Zustand | Autenticação, preferências do usuário |
-| UI Components | Design system próprio (CSS vars do protótipo) | Componentes visuais padronizados |
+| Estado servidor | TanStack Query v5 | Cache de dados, fetch, loading states |
+| Estado de autenticação | React Context (AuthContext) | Usuário logado, token, funções entrar/sair |
+| Formulários | React Hook Form + Yup | Validação declarativa de formulários |
 | PBI Embed | powerbi-client (SDK oficial) | Renderização inline de relatórios |
-| HTTP | Axios + interceptors | Chamadas à API; renovação automática de token |
+| HTTP | Axios + interceptors | Chamadas à API; envio automático do token JWT |
 
 **Regras do Frontend:**
 - Sem lógica de negócio crítica no cliente
 - Toda validação de segurança ocorre no backend (RBAC, permissões)
-- Tokens armazenados apenas em memória React Query + `httpOnly cookies` para refresh
-- Nunca armazenar access token em localStorage ou sessionStorage
+- Token JWT armazenado no `localStorage` com a chave `token_acesso`
+- Em caso de 401 (token inválido/expirado): remove token e redireciona para `/login`
 
 ---
 
-### 3.2 Backend — API (NestJS)
+### 3.2 Backend — API (Python + FastAPI)
 
 **Responsabilidade:** Toda a lógica de negócio, autenticação, autorização, integração PBI e persistência.
 
-**Estrutura de módulos NestJS:**
+**Estrutura de arquivos:**
 
 ```
-src/
-├── modules/
-│   ├── auth/
-│   │   ├── auth.controller.ts       # POST /auth/login, /refresh, /logout
-│   │   ├── auth.service.ts          # Lógica de autenticação
-│   │   ├── strategies/              # local.strategy.ts, jwt.strategy.ts
-│   │   └── guards/                  # jwt.guard.ts, roles.guard.ts
-│   │
-│   ├── users/
-│   │   ├── users.controller.ts      # GET/POST/PUT/DELETE /users
-│   │   ├── users.service.ts
-│   │   └── dto/                     # CreateUserDto, UpdateUserDto
-│   │
-│   ├── workspaces/
-│   ├── reports/
-│   ├── permissions/
-│   ├── schedule/
-│   ├── exception-groups/
-│   ├── audit/
-│   │   ├── audit.service.ts         # log() — usado por todos os módulos
-│   │   └── audit.controller.ts      # GET /audit/logs (filtros, paginação)
-│   │
-│   ├── pbi/
-│   │   ├── pbi.service.ts           # Comunicação com Azure AD + PBI API
-│   │   └── pbi.controller.ts        # GET /reports/:id/embed-token
-│   │
-│   └── settings/
-│
-├── common/
-│   ├── guards/
-│   │   ├── jwt-auth.guard.ts
-│   │   └── roles.guard.ts
-│   ├── decorators/
-│   │   ├── current-user.decorator.ts
-│   │   └── roles.decorator.ts
-│   ├── interceptors/
-│   │   ├── logging.interceptor.ts
-│   │   └── transform.interceptor.ts
-│   ├── filters/
-│   │   └── http-exception.filter.ts
-│   └── pipes/
-│       └── validation.pipe.ts
-│
-├── database/
-│   ├── migrations/
-│   └── seeds/
-│
-└── config/
-    ├── database.config.ts
-    ├── jwt.config.ts
-    └── pbi.config.ts
+backend/
+├── main.py           ← inicializa o FastAPI, CORS, registra roteadores
+├── config.py         ← lê variáveis do .env com tipagem (pydantic-settings)
+├── database.py       ← cria a conexão com o SQL Server (engine + sessão)
+├── models.py         ← define as tabelas do banco (classes SQLAlchemy)
+├── schemas.py        ← define o formato dos dados de entrada e saída (Pydantic)
+├── auth.py           ← funções de JWT e bcrypt
+├── dependencies.py   ← funções reutilizáveis: obter_db, obter_usuario_atual, exigir_perfil
+└── routers/
+    ├── auth.py       ← POST /auth/entrar, POST /auth/sair, GET /auth/eu
+    ├── usuarios.py   ← CRUD de usuários
+    ├── workspaces.py ← CRUD de workspaces + concessão de acesso
+    ├── relatorios.py ← CRUD de relatórios + favoritos
+    ├── permissoes.py ← leitura e edição de permissões por perfil
+    └── auditoria.py  ← consulta read-only de logs de auditoria
 ```
 
 **Pipeline de uma requisição autenticada:**
 
 ```
 Request
-  → Helmet (headers de segurança)
-  → CORS
-  → Rate Limiter (ThrottlerGuard)
-  → JwtAuthGuard (valida token, carrega usuário)
-  → RolesGuard (verifica perfil)
-  → PermissionsGuard (verifica permissão granular)
-  → ValidationPipe (valida DTO)
-  → Controller → Service → Repository
-  → TransformInterceptor (normaliza resposta)
-  → LoggingInterceptor (loga métricas)
+  → CORS (verificação de origem)
+  → Roteador FastAPI
+  → Depends(obter_usuario_atual) — valida Bearer token, carrega usuário
+  → Depends(exigir_perfil(...)) — verifica se o perfil tem acesso
+  → Validação Pydantic (schemas de entrada)
+  → Função de rota → banco via SQLAlchemy
+  → Resposta Pydantic (serialização automática)
 Response
 ```
 
 ---
 
-### 3.3 Banco de Dados (PostgreSQL)
+### 3.3 Banco de Dados (SQL Server)
 
-- Banco relacional com suporte a JSONB (para campos de auditoria e overrides)
-- Schema versionado com Prisma Migrate
-- Conexão via pool (pg-pool) gerenciado pelo Prisma Client
-- Tabela `audit_logs` com trigger que impede UPDATE e DELETE
+- SQL Server Developer Edition para desenvolvimento local (gratuito, sem limitações)
+- SQL Server on-premise da empresa para produção
+- Conexão via `pyodbc` + `ODBC Driver 17 for SQL Server`
+- ORM: SQLAlchemy 2.0 com dialeto `mssql+pyodbc`
+- Tabela `logs_auditoria` com trigger `INSTEAD OF` que impede UPDATE e DELETE
 - Índices nas colunas de busca mais frequentes
 
----
-
-### 3.4 Cache (Redis)
-
-| Uso | Chave | TTL |
-|-----|-------|:---:|
-| Refresh tokens (revogação) | `refresh:{userId}:{tokenId}` | 24h |
-| Access token blocklist (logout) | `blocklist:{tokenJti}` | TTL = expiração restante |
-| Cache de permissões por usuário | `perms:{userId}` | 5min |
-| Cache de token de embed PBI | `pbi_token:{userId}:{reportId}` | 55min |
-| Rate limiting | `rate:{ip}` | 1min |
-| Sessão de MFA pendente | `mfa_pending:{userId}` | 5min |
-
----
-
-### 3.5 Filas Assíncronas (BullMQ — v1.1+)
-
-| Fila | Responsabilidade |
-|------|-----------------|
-| `email-notifications` | Envio de e-mails (recuperação de senha, alertas) |
-| `audit-export` | Geração de arquivos CSV/XLSX de logs grandes |
-| `pbi-sync` | Sincronização periódica de workspaces/relatórios do PBI Service |
+**Criação das tabelas:**
+```python
+# Em database.py — cria todas as tabelas definidas em models.py
+Base.metadata.create_all(bind=engine)
+```
 
 ---
 
@@ -202,131 +142,130 @@ Response
 
 ```
 Login bem-sucedido:
-  access_token  → JWT RS256, 1h, retornado no body
-  refresh_token → UUID v4 opaco, 24h, retornado em Set-Cookie httpOnly
+  token_acesso → JWT HS256, 60 minutos, retornado no body
 
 A cada requisição:
-  Authorization: Bearer <access_token>
-
-Renovação:
-  POST /auth/refresh (com cookie httpOnly)
-  → Novo access_token + rotação do refresh_token
+  Authorization: Bearer <token_acesso>
 
 Logout:
-  POST /auth/logout
-  → Access token adicionado à blocklist Redis
-  → Refresh token removido do Redis
-  → Cookie limpo (Max-Age: 0)
+  POST /api/v1/auth/sair
+  → Registro no log de auditoria
+  → Frontend remove 'token_acesso' do localStorage
+
+Expiração:
+  → Backend retorna 401
+  → Frontend remove token e redireciona para /login
 ```
 
-### Estrutura do JWT (access_token)
+### Estrutura do JWT (token_acesso)
 
 ```json
 {
   "sub": "uuid-do-usuario",
-  "email": "usuario@empresa.com",
-  "role": "admin",
-  "jti": "uuid-unico-do-token",
-  "iat": 1700000000,
   "exp": 1700003600
 }
 ```
 
+### Dependências FastAPI
+
+```python
+# dependencies.py
+
+def obter_db():
+    banco = SessionLocal()
+    try:
+        yield banco
+    finally:
+        banco.close()
+
+def obter_usuario_atual(credenciais, banco):
+    # Valida Bearer token → retorna objeto Usuario
+    payload = decodificar_token(credenciais.credentials)
+    usuario = banco.query(Usuario).filter(Usuario.id == payload["sub"]).first()
+    return usuario
+
+def exigir_perfil(*perfis):
+    # Retorna uma dependência que verifica se usuario.perfil está nos perfis permitidos
+    def verificador(usuario = Depends(obter_usuario_atual)):
+        if usuario.perfil not in perfis:
+            raise HTTPException(status_code=403)
+        return usuario
+    return verificador
+```
+
 ---
 
-## 5. API REST — Endpoints Principais
+## 5. API REST — Endpoints Disponíveis (v1)
 
 ### Autenticação
 ```
-POST   /api/v1/auth/login           → { accessToken, user }
-POST   /api/v1/auth/refresh         → { accessToken }
-POST   /api/v1/auth/logout          → 200
-POST   /api/v1/auth/forgot-password → 200
-POST   /api/v1/auth/reset-password  → 200
+POST   /api/v1/auth/entrar     → { token_acesso, tipo_token, perfil, nome }
+POST   /api/v1/auth/sair       → 200
+GET    /api/v1/auth/eu         → dados do usuário logado
 ```
 
 ### Usuários
 ```
-GET    /api/v1/users                → Listagem paginada com filtros
-POST   /api/v1/users                → Criar usuário
-GET    /api/v1/users/:id            → Detalhes
-PUT    /api/v1/users/:id            → Atualizar
-PATCH  /api/v1/users/:id/status     → Ativar/inativar/bloquear
-DELETE /api/v1/users/:id            → Excluir (soft delete)
+GET    /api/v1/usuarios        → listagem de usuários
+POST   /api/v1/usuarios        → criar usuário
+PUT    /api/v1/usuarios/{id}   → atualizar usuário
+DELETE /api/v1/usuarios/{id}   → desativar usuário (soft delete)
 ```
 
-### Workspaces e Relatórios
+### Workspaces
 ```
-GET    /api/v1/workspaces           → Listagem (filtrada por perfil)
-POST   /api/v1/workspaces           → Criar
-PUT    /api/v1/workspaces/:id       → Atualizar
-GET    /api/v1/workspaces/:id/reports → Relatórios do workspace
-POST   /api/v1/reports              → Criar relatório
-GET    /api/v1/reports/:id/embed-token → Gerar token PBI (server-side)
+GET    /api/v1/workspaces              → listar workspaces acessíveis
+POST   /api/v1/workspaces             → criar workspace
+PUT    /api/v1/workspaces/{id}        → atualizar workspace
+DELETE /api/v1/workspaces/{id}        → arquivar workspace
+POST   /api/v1/workspaces/{id}/acesso → conceder acesso ao workspace
+```
+
+### Relatórios
+```
+GET    /api/v1/relatorios              → listar relatórios
+POST   /api/v1/relatorios             → criar relatório
+PUT    /api/v1/relatorios/{id}        → atualizar relatório
+DELETE /api/v1/relatorios/{id}        → arquivar relatório
+POST   /api/v1/relatorios/{id}/favorito → adicionar/remover favorito
 ```
 
 ### Permissões
 ```
-GET    /api/v1/permissions/roles           → Permissões por perfil
-PUT    /api/v1/permissions/roles           → Atualizar permissões de perfil
-GET    /api/v1/permissions/users/:userId   → Overrides do usuário
-PUT    /api/v1/permissions/users/:userId   → Definir override
+GET    /api/v1/permissoes      → listar permissões por perfil
+PUT    /api/v1/permissoes/{id} → atualizar permissão
 ```
 
 ### Auditoria
 ```
-GET    /api/v1/audit/logs           → Listagem com filtros e paginação
-GET    /api/v1/audit/logs/export    → Exportação CSV
+GET    /api/v1/auditoria       → consultar logs (filtros: tipo_evento, modulo, email_usuario, datas)
 ```
 
-### Expediente
+### Sistema
 ```
-GET    /api/v1/schedule             → Regras atuais
-PUT    /api/v1/schedule             → Atualizar regras
-GET    /api/v1/exception-groups     → Grupos de exceção
-POST   /api/v1/exception-groups     → Criar grupo
-```
-
-### Configurações (Super Admin only)
-```
-GET    /api/v1/settings             → Configurações (sem secrets)
-PUT    /api/v1/settings             → Atualizar configurações
-POST   /api/v1/settings/pbi/test    → Testar conexão PBI
+GET    /saude                  → health check → { "situacao": "operacional" }
 ```
 
 ---
 
 ## 6. Variáveis de Ambiente
 
+**`backend/.env`**
 ```env
-# App
-NODE_ENV=production
-PORT=3001
-FRONTEND_URL=https://portal.brasilterrenos.com.br
+DATABASE_URL=mssql+pyodbc://@localhost\SQLEXPRESS/btportal?driver=ODBC+Driver+17+for+SQL+Server&TrustServerCertificate=yes&trusted_connection=yes
+JWT_SECRET_KEY=troque-por-uma-chave-longa-e-aleatoria
+JWT_ALGORITMO=HS256
+JWT_EXPIRA_MINUTOS=60
+PORTA=3001
+AMBIENTE=development
+URL_FRONTEND=http://localhost:5173
+```
 
-# Database
-DATABASE_URL=postgresql://user:pass@host:5432/btportal
-
-# Redis
-REDIS_URL=redis://host:6379
-
-# JWT
-JWT_PRIVATE_KEY=<RS256 private key PEM>
-JWT_PUBLIC_KEY=<RS256 public key PEM>
-JWT_ACCESS_EXPIRES=3600          # 1 hora em segundos
-JWT_REFRESH_EXPIRES=86400        # 24 horas em segundos
-
-# Power BI
-PBI_CLIENT_ID=<azure-client-id>
-PBI_TENANT_ID=<azure-tenant-id>
-PBI_CLIENT_SECRET=<azure-client-secret>  # usar cofre de segredos em produção
-
-# Email (v1.1)
-SMTP_HOST=smtp.sendgrid.net
-SMTP_PORT=587
-SMTP_USER=apikey
-SMTP_PASS=<sendgrid-api-key>
-EMAIL_FROM=noreply@brasilterrenos.com.br
+**`frontend/.env`**
+```env
+VITE_API_BASE_URL=http://localhost:3001/api/v1
+VITE_NOME_APP=Portal Analítico
+VITE_AMBIENTE=development
 ```
 
 ---
@@ -335,4 +274,5 @@ EMAIL_FROM=noreply@brasilterrenos.com.br
 
 | Versão | Data | Autor | Descrição |
 |--------|------|-------|-----------|
-| 1.0 | Maio/2026 | — | Criação inicial do documento |
+| 1.0 | Maio/2026 | — | Criação inicial do documento (stack NestJS) |
+| 2.0 | Maio/2026 | — | Reescrita completa: migração para Python + FastAPI, SQL Server, remoção de Redis e BullMQ, nomes em Português |

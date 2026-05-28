@@ -19,9 +19,9 @@ Infra    Permissões     Workspaces  Exceções     Dashboard   Ajustes    MVP v
          ────────────────── MVP v1.0 (14 semanas) ──────────────────────────▶
 
          ┌─── v1.1 (6-8 semanas pós-MVP) ───┐    ┌── v2.0 (3-6 meses) ──┐
-         │ Recuperação de senha, MFA, CSV    │    │ SSO Azure AD, RLS    │
-         │ Exportação, Notificações e-mail   │    │ Workflow aprovação    │
-         └───────────────────────────────────┘    └──────────────────────┘
+         │ Recuperação de senha, MFA, CSV   │    │ SSO Azure AD, RLS    │
+         │ Exportação, Notificações e-mail  │    │ Workflow aprovação   │
+         └──────────────────────────────────┘    └──────────────────────┘
 ```
 
 ---
@@ -35,7 +35,6 @@ Infra    Permissões     Workspaces  Exceções     Dashboard   Ajustes    MVP v
 | Item | Descrição | Responsável |
 |------|-----------|------------|
 | Repositório configurado | Monorepo com frontend/ e backend/ | Dev |
-| Docker Compose | Ambiente local completo (api + postgres + redis) funcionando | Dev |
 | CI/CD básico | GitHub Actions: lint, testes, build | Dev |
 | Prisma Schema | Schema inicial do banco com migrations base | Dev Backend |
 | Seed de desenvolvimento | Dados de exemplo (baseados no mock do protótipo) | Dev Backend |

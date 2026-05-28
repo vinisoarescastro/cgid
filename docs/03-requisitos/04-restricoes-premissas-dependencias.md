@@ -18,7 +18,9 @@ Restrições são limitações impostas por fatores externos ao projeto (platafo
 | RT-03 | A capacidade de usuários simultâneos está **limitada pela SKU de capacidade Power BI Embedded** contratada | Microsoft licensing | Pode exigir upgrade de SKU conforme crescimento |
 | RT-04 | A API do Power BI REST possui **limites de throttling** (rate limit por tenant) | Microsoft Power BI API | Cache de tokens obrigatório para evitar bloqueios |
 | RT-05 | O portal não pode **criar ou modificar relatórios** no Power BI Service via API pública | Restrição de design | Apenas leitura e embed; criação fica no PBI Desktop |
-| RT-06 | O protótipo atual **não possui backend ou banco de dados** — toda a migração parte do zero | Estado atual do repositório | Não há dados a migrar; ambiente totalmente novo |
+| RT-06 | O protótipo atual **não possui backend ou banco de dados** — toda a implementação parte do zero | Estado atual do repositório | Não há dados a migrar; ambiente totalmente novo |
+| RT-08 | O banco de dados é **obrigatoriamente o SQL Server já hospedado na infraestrutura da empresa** — não é permitido provisionar outro SGBD | Decisão de infraestrutura corporativa | Toda a modelagem, ORM e queries devem ser compatíveis com SQL Server 2019+ |
+| RT-09 | O **Prisma ORM** com `provider = "sqlserver"` não suporta todos os recursos PostgreSQL (ex: arrays nativos, RLS declarativo) — workarounds via `NVARCHAR(MAX)` + JSON e triggers manuais | Limitação do provider Prisma/SQL Server | Revisar schema e migrations antes de aplicar em produção |
 | RT-07 | **Row-Level Security do PBI** depende que o username passado no token de embed corresponda a uma regra RLS configurada no Power BI Desktop | Configuração no PBI | Requer alinhamento com equipe de BI para configurar RLS nos datasets |
 
 ---
@@ -50,7 +52,7 @@ Dependências são elementos externos dos quais o projeto depende para avançar.
 |----|-------------|------|:-------------:|------------|
 | D-01 | Microsoft Power BI Embedded REST API | API externa | v1.0 | Microsoft |
 | D-02 | Microsoft Azure Active Directory (Service Principal) | Serviço externo | — | Time de TI |
-| D-03 | SSMS | Banco de dados | 20+ | Infra |
+| D-03 | **Microsoft SQL Server** (SSMS para administração) | Banco de dados — on-premise corporativo | 2019+ | Infra / Time de TI |
 | D-04 | Redis | Cache / Rate limiting | 7+ | Infra |
 | D-05 | Node.js | Runtime backend | 20 LTS | Dev |
 | D-06 | powerbi-client npm package | SDK frontend PBI | 2.x | Microsoft |

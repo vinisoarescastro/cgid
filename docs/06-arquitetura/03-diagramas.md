@@ -1,7 +1,7 @@
 # Diagramas do Sistema
 
 > **Documento:** 06-arquitetura/03-diagramas.md  
-> **Status:** Rascunho  
+> **Status:** Vigente  
 > **Criado em:** Maio/2026  
 > **Atualizado em:** Maio/2026
 
@@ -13,20 +13,18 @@
 
 ```mermaid
 graph TB
-    User[👤 Colaborador / Operador]
-    Manager[👤 Gerente]
-    Admin[👤 Admin / Super Admin]
+    Usuario[👤 Colaborador / Operador]
+    Gerente[👤 Gerente]
+    Admin[👤 Administrador / Super Admin]
     Portal[🖥️ BrasilTerrenos\nPortal Corporativo]
     PBI[📊 Microsoft Power BI\nService]
-    AAD[🔐 Azure Active\nDirectory]
-    Email[📧 Serviço de E-mail\nTransacional]
+    Email[📧 Serviço de E-mail\nTransacional — v1.1+]
 
-    User -->|"Acessa relatórios\ndo departamento"| Portal
-    Manager -->|"Visualiza KPIs e\nrelatórios da equipe"| Portal
+    Usuario -->|"Acessa relatórios\ndo departamento"| Portal
+    Gerente -->|"Visualiza KPIs e\nrelatórios da equipe"| Portal
     Admin -->|"Administra usuários,\npermissões e workspaces"| Portal
 
-    Portal -->|"Gera tokens de embed\ne lista relatórios"| PBI
-    Portal -->|"Autentica Service\nPrincipal (v1.1: SSO)"| AAD
+    Portal -->|"Embed de relatórios\n(v1.2)"| PBI
     Portal -->|"Envia e-mails de\nnotificação (v1.1)"| Email
 ```
 
@@ -37,27 +35,21 @@ graph TB
 ```mermaid
 graph TB
     subgraph "BrasilTerrenos Portal"
-        FE["⚛️ React SPA\n(TypeScript + Vite)\nPort 5173"]
-        API["🟢 NestJS API\n(Node.js + TypeScript)\nPort 3001"]
-        DB["🐘 PostgreSQL 16\nDados e Auditoria\nPort 5432"]
-        CACHE["🔴 Redis 7\nCache + Sessões\nPort 6379"]
-        QUEUE["⚙️ BullMQ\nFilas Assíncronas\n(v1.1)"]
+        FE["⚛️ React SPA\n(TypeScript + Vite)\nPorta 5173"]
+        API["🐍 FastAPI\n(Python 3.12 + uvicorn)\nPorta 3001"]
+        DB["🗄️ SQL Server\n(Developer local /\non-premise empresa)\nPorta 1433"]
     end
 
-    FE -->|"HTTPS REST + JWT"| API
-    API -->|"Prisma ORM"| DB
-    API -->|"ioredis"| CACHE
-    API -->|"BullMQ"| QUEUE
+    FE -->|"HTTPS REST + JWT Bearer"| API
+    API -->|"SQLAlchemy 2.0\npyodbc"| DB
 
     subgraph "Serviços Externos"
-        AAD["🔐 Azure AD\nService Principal"]
-        PBI["📊 Power BI REST API"]
-        SMTP["📧 SendGrid / AWS SES"]
+        PBI["📊 Power BI REST API\n(v1.2+)"]
+        SMTP["📧 SMTP\n(v1.1+)"]
     end
 
-    API -->|"@azure/identity"| AAD
-    API -->|"powerbi-rest-api"| PBI
-    QUEUE -->|"Nodemailer"| SMTP
+    API -->|"Power BI Embedded\n(v1.2)"| PBI
+    API -->|"Notificações\n(v1.1)"| SMTP
 ```
 
 ---
@@ -66,36 +58,27 @@ graph TB
 
 ```mermaid
 graph LR
-    subgraph "AuthModule (NestJS)"
-        AC[AuthController]
-        AS[AuthService]
-        LS[LocalStrategy\n(validação login)]
-        JS[JwtStrategy\n(validação token)]
-        JG[JwtAuthGuard]
-        RG[RolesGuard]
-        PG[PermissionsGuard]
-        SG[ScheduleGuard]
+    subgraph "routers/auth.py (FastAPI)"
+        EP_ENTRAR["POST /auth/entrar"]
+        EP_SAIR["POST /auth/sair"]
+        EP_EU["GET /auth/eu"]
     end
 
     subgraph "Dependências"
-        US[UsersService]
-        SS[ScheduleService]
-        RS[Redis Service]
-        AL[AuditService]
+        DEP_DB["obter_db()\nSQLAlchemy Session"]
+        DEP_USER["obter_usuario_atual()\nvalida Bearer token"]
+        AUTH_MOD["auth.py\nJWT + bcrypt"]
+        AUDIT["logs_auditoria\ntabela SQL Server"]
     end
 
-    AC --> AS
-    AS --> LS
-    AS --> JS
-    AS --> US
-    AS --> SS
-    AS --> RS
-    AS --> AL
-    JG --> JS
-    RG --> US
-    PG --> US
-    PG --> RS
-    SG --> SS
+    EP_ENTRAR --> AUTH_MOD
+    EP_ENTRAR --> DEP_DB
+    EP_ENTRAR --> AUDIT
+    EP_SAIR --> DEP_USER
+    EP_SAIR --> AUDIT
+    EP_EU --> DEP_USER
+    DEP_USER --> AUTH_MOD
+    DEP_USER --> DEP_DB
 ```
 
 ---
@@ -103,95 +86,79 @@ graph LR
 ## 4. Diagrama de Sequência — Autenticação
 
 ```
-Browser           API                PostgreSQL           Redis
+Browser              FastAPI API           SQL Server
+                     (uvicorn)
 
-  │  POST /auth/login  │                  │                │
-  │──────────────────▶│                  │                │
-  │                    │── findUser() ───▶│                │
-  │                    │◀── user ─────────│                │
-  │                    │── bcrypt.compare()                │
-  │                    │── checkStatus()                   │
-  │                    │── checkSchedule() ──▶│            │
-  │                    │◀── allowed ──────────│            │
-  │                    │── signJWT()                       │
-  │                    │── store refresh ────────────────▶│
-  │                    │── auditLog.insert() ─▶│          │
-  │◀── 200 { accessToken }                     │          │
-  │    Set-Cookie: refresh=... (httpOnly)       │          │
+  │  POST /api/v1/auth/entrar  │                │
+  │  { email, senha }          │                │
+  │───────────────────────────▶│                │
+  │                             │── SELECT usuario WHERE email=? ──▶│
+  │                             │◀── usuario ────────────────────────│
+  │                             │── bcrypt.verify(senha, hash_senha) │
+  │                             │── verificar status != bloqueado    │
+  │                             │── criar_token_acesso(sub=id)       │
+  │                             │── UPDATE usuario SET ultimo_login  ──▶│
+  │                             │── INSERT logs_auditoria ─────────────▶│
+  │◀── 200 { token_acesso, tipo_token, perfil, nome }                │
+  │                             │                │
+  │  [Frontend: localStorage.setItem('token_acesso', ...)]
 ```
 
 ---
 
-## 5. Diagrama de Sequência — Embed de Relatório PBI
+## 5. Diagrama de Sequência — Requisição Autenticada
 
 ```
-Browser           API               Redis        Azure AD        PBI API
+Browser (Axios)      FastAPI API           SQL Server
+                     (uvicorn)
 
-  │ GET /reports/:id/embed-token │        │              │            │
-  │────────────────────────────▶│        │              │            │
-  │                              │        │              │            │
-  │              ── checkRBAC() ─────────────────────────            │
-  │              ◀─ permitido ──────────────────────────             │
-  │                              │        │              │            │
-  │              ── GET pbi_token:{id} ──▶│              │            │
-  │              ◀─ MISS (sem cache) ─────│              │            │
-  │                              │        │              │            │
-  │              ── POST /oauth2/token ──────────────────▶           │
-  │              ◀─ azure_access_token ───────────────────           │
-  │                              │        │              │            │
-  │              ── POST GenerateToken ─────────────────────────────▶│
-  │              ◀─ embedToken, embedUrl ───────────────────────────│
-  │                              │        │              │            │
-  │              ── SET pbi_token (TTL 55min) ──▶│       │            │
-  │              ── auditLog.insert()            │                    │
-  │◀── 200 { embedToken, embedUrl, reportId } ───│                    │
-  │                              │                                    │
-  │── powerbi.embed(config) ─────────────────────────────────────────│
-  │◀─ Relatório renderizado ─────────────────────────────────────────│
+  │  GET /api/v1/workspaces       │                │
+  │  Authorization: Bearer <token> │                │
+  │───────────────────────────────▶│                │
+  │                                │── decodificar_token(token)      │
+  │                                │── SELECT usuario WHERE id=sub ──▶│
+  │                                │◀── usuario ────────────────────│
+  │                                │── verificar usuario.status     │
+  │                                │── [Depends(exigir_perfil(...))]│
+  │                                │── SELECT espacos_trabalho ─────▶│
+  │                                │◀── lista ──────────────────────│
+  │◀── 200 [ { id, nome, ... } ] ──│                │
 ```
 
 ---
 
-## 6. Diagrama de Sequência — Renovação de Token
+## 6. Diagrama de Sequência — Logout
 
 ```
-Browser (Axios Interceptor)       API                   Redis
+Browser              FastAPI API           SQL Server
 
-  │                               │                       │
-  │ [Token expira em < 5 min]     │                       │
-  │ [OU 401 em requisição]        │                       │
-  │                               │                       │
-  │── POST /auth/refresh ────────▶│                       │
-  │   Cookie: refresh_token        │                       │
-  │                               │── GET refresh:{id} ──▶│
-  │                               │◀─ token válido ────────│
-  │                               │── checkUserActive()    │
-  │                               │── sign new accessToken │
-  │                               │── rotate refreshToken ─▶│
-  │◀── 200 { accessToken } ───────│                       │
-  │                               │                       │
-  │ [Repete requisição original]  │                       │
+  │  POST /api/v1/auth/sair       │                │
+  │  Authorization: Bearer <token> │                │
+  │───────────────────────────────▶│                │
+  │                                │── obter_usuario_atual()         │
+  │                                │── INSERT logs_auditoria ────────▶│
+  │◀── 200 { "mensagem": "Sessão encerrada" }       │
+  │                                │                │
+  │  [Frontend: localStorage.removeItem('token_acesso')]
+  │  [Frontend: navegar('/login')]
 ```
 
 ---
 
-## 7. Fluxo de Deploy (CI/CD)
+## 7. Fluxo de Deploy (Desenvolvimento → Produção)
 
 ```mermaid
 flowchart LR
-    A[Push para branch\nfeature/xxx] --> B[GitHub Actions\nPipeline CI]
-    B --> C[Lint + Type Check]
-    C --> D[Unit Tests]
-    D --> E[Integration Tests]
-    E --> F{Branch main?}
-    F -->|NÃO| G[Build Preview\nVercel/Netlify]
-    F -->|SIM| H[Build Docker Images]
-    H --> I[Push para\nContainer Registry]
-    I --> J[Deploy em Staging]
-    J --> K[E2E Tests\nno Staging]
-    K --> L{Aprovação manual}
-    L -->|Aprovado| M[Deploy em Produção]
-    L -->|Reprovado| N[Notificação para\nequipe]
+    A[Desenvolvimento local\nuvicorn --reload] --> B[Testar funcionalidades\nno http://localhost:5173]
+    B --> C{Funcionando?}
+    C -->|NÃO| A
+    C -->|SIM| D[Commit + Push para\nmain no GitHub]
+    D --> E[Copiar backend/ para\nservidor da empresa]
+    E --> F[Ajustar backend/.env\nDATABASE_URL do servidor]
+    F --> G[pip install -r requirements.txt]
+    G --> H[uvicorn main:app\n--host 0.0.0.0 --port 3001\n--workers 2]
+    H --> I[Build do frontend\nnpm run build]
+    I --> J[Servir frontend via\nNGINX ou IIS]
 ```
 
 ---
@@ -212,13 +179,12 @@ flowchart LR
 │                                                          │
 │  ┌─────────────────────────────────────────────────────┐ │
 │  │ MÓDULOS ADMINISTRATIVOS                              │ │
-│  │  ○ Gerenciar usuários     Admin+ ───────────────────┼─┤
-│  │  ○ Gerenciar permissões   Admin+ ───────────────────┼─┤
-│  │  ○ Gerenciar workspaces   Admin+ ───────────────────┼─┤
-│  │  ○ Configurar expediente  Admin+ ───────────────────┼─┤
-│  │  ○ Consultar logs         Admin+ ───────────────────┼─┤
-│  │  ○ Painel de segurança    Admin+ ───────────────────┼─┤
-│  │  ○ Configurações do PBI   Super Admin ──────────────┼─┤
+│  │  ○ Gerenciar usuários     Administrador+ ───────────┼─┤
+│  │  ○ Gerenciar permissões   Administrador+ ───────────┼─┤
+│  │  ○ Gerenciar workspaces   Administrador+ ───────────┼─┤
+│  │  ○ Configurar expediente  Administrador+ ───────────┼─┤
+│  │  ○ Consultar logs         Gerente+ ─────────────────┼─┤
+│  │  ○ Configurações do PBI   Super Administrador ──────┼─┤
 │  └─────────────────────────────────────────────────────┘ │
 └──────────────────────────────────────────────────────────┘
 ```
@@ -227,13 +193,12 @@ flowchart LR
 
 ## Ferramentas Recomendadas para Diagramas
 
-| Ferramenta | Uso | URL |
-|------------|-----|-----|
-| Mermaid Live | Diagramas de fluxo e sequência inline | https://mermaid.live |
-| draw.io / diagrams.net | Diagramas C4, arquitetura | https://draw.io |
-| PlantUML | Diagramas UML textuais | https://plantuml.com |
-| Excalidraw | Diagramas informais e whiteboards | https://excalidraw.com |
-| Structurizr | Diagramas C4 completos | https://structurizr.com |
+| Ferramenta | Uso |
+|------------|-----|
+| Mermaid Live | Diagramas de fluxo e sequência inline |
+| draw.io / diagrams.net | Diagramas C4, arquitetura |
+| PlantUML | Diagramas UML textuais |
+| Excalidraw | Diagramas informais e whiteboards |
 
 ---
 
@@ -241,4 +206,5 @@ flowchart LR
 
 | Versão | Data | Autor | Descrição |
 |--------|------|-------|-----------|
-| 1.0 | Maio/2026 | — | Criação inicial do documento |
+| 1.0 | Maio/2026 | — | Criação inicial do documento (stack NestJS) |
+| 2.0 | Maio/2026 | — | Reescrita completa: migração para FastAPI, SQL Server, remoção de Redis e BullMQ, nomes em Português, novos diagramas de sequência |

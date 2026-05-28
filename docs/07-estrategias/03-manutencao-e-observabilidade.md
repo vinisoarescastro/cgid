@@ -1,7 +1,7 @@
 # Manutenção e Observabilidade
 
 > **Documento:** 07-estrategias/03-manutencao-e-observabilidade.md 
-> **Status:** Rascunho  
+> **Status:** Vigente  
 > **Criado em:** Maio/2026  
 > **Atualizado em:** Maio/2026
 
@@ -10,6 +10,7 @@
 ## 1. Estratégia de Manutenção
 
 ### 1.1 Gerenciamento de Dependências
+
 ```
 Frequência de atualização:
   - Patches de segurança: imediato (< 48h após publicação do CVE)
@@ -17,30 +18,52 @@ Frequência de atualização:
   - Major updates: trimestral com planejamento de migração
 
 Ferramentas:
+  - pip audit: verifica vulnerabilidades nas dependências Python
+    pip install pip-audit && pip-audit
+  - npm audit --audit-level=high: verifica dependências do frontend
   - Dependabot (GitHub): alertas automáticos de vulnerabilidades
-  - npm audit --audit-level=high: bloqueia build se houver vulnerabilidade alta
-  - renovate.json: PRs automáticos de atualização de dependências
 ```
 
 ### 1.2 Versionamento de Banco de Dados
-```
-Prisma Migrate:
-  - Migration gerada automaticamente pelo Prisma
-  - Revisão obrigatória de toda migration antes de aplicar em produção
-  - Cada migration com script de rollback documentado
-  - Migrations aplicadas automaticamente no start do container em staging
-  - Migrations em produção aplicadas manualmente com aprovação
 
-Nomeclatura:
-  20260501_001_create_users_table
-  20260501_002_create_workspaces_table
-  20260515_001_add_mfa_columns_to_users
+O SQLAlchemy cria as tabelas automaticamente via `Base.metadata.create_all()` na inicialização do servidor. Para alterações em tabelas já existentes, usamos scripts SQL manuais:
+
+```
+Nomenclatura dos scripts:
+  20260501_001_criar_tabela_usuarios.sql
+  20260515_001_adicionar_coluna_mfa_usuarios.sql
+
+Cada script deve conter:
+  - Comentário descrevendo o objetivo
+  - Script de rollback documentado ao final
+```
+
+**Fluxo para alterar uma tabela em produção:**
+```
+1. Escrever o script SQL manualmente
+2. Testar em banco de desenvolvimento
+3. Revisar o script com o time de TI (se necessário)
+4. Aplicar via SSMS na instância de produção
+5. Reiniciar o servidor backend (uvicorn) se necessário
+```
+
+**Exemplos comuns:**
+```sql
+-- Adicionar coluna (sempre nullable primeiro em tabelas com dados):
+ALTER TABLE usuarios ADD nova_coluna NVARCHAR(100) NULL;
+
+-- Renomear coluna:
+EXEC sp_rename 'usuarios.nome_antigo', 'nome_novo', 'COLUMN';
+
+-- Adicionar índice:
+CREATE INDEX IX_usuarios_nova_coluna ON usuarios(nova_coluna);
 ```
 
 ### 1.3 Janelas de Manutenção
+
 ```
 Manutenção programada:
-  - Janela: Sábados, 02h–04h (fora do expediente de todos os fusos)
+  - Janela: Sábados, 02h–04h (fora do expediente)
   - Notificação: e-mail para admins 48h antes
   - Manutenção exibida via banner no portal (24h antes)
   - Máximo de 2h de downtime por janela
@@ -54,118 +77,145 @@ A observabilidade segue os **três pilares**: Logs, Métricas e Traces.
 
 ### 2.1 Logs Estruturados
 
-```typescript
-// Todos os logs em formato JSON estruturado
-// Biblioteca: pino (alta performance, baixo overhead)
+```python
+# Backend Python — logging nativo configurado no main.py
+import logging
 
-logger.info({
-  requestId: uuid,
-  userId: user.id,
-  method: 'POST',
-  path: '/api/v1/auth/login',
-  statusCode: 200,
-  durationMs: 145,
-  ip: '192.168.1.1',
-});
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s %(levelname)s %(name)s %(message)s',
+)
+logger = logging.getLogger(__name__)
 
-// Níveis:
-// error   → Erros de aplicação, exceções não tratadas
-// warn    → Situações anômalas mas não fatais
-// info    → Eventos relevantes (login, criação de usuário, acesso PBI)
-// debug   → Apenas em desenvolvimento e staging
+# Exemplo de uso em um roteador:
+logger.info(f"Login bem-sucedido: usuario_id={usuario.id} ip={endereco_ip}")
+logger.warning(f"Tentativa de login falha: email={email} tentativas={tentativas}")
+logger.error(f"Erro ao conectar ao banco: {str(excecao)}")
+
+# Níveis:
+# ERROR   → Erros de aplicação, exceções não tratadas
+# WARNING → Situações anômalas mas não fatais
+# INFO    → Eventos relevantes (login, criação de usuário)
+# DEBUG   → Apenas em desenvolvimento
 ```
 
-**Coleta de logs em produção:**
-- Logs enviados para **stdout** (padrão para containers)
-- Coletados por **Fluent Bit** (sidecar no container)
-- Enviados para **Azure Monitor Logs** ou **Datadog**
-- Retenção: 90 dias online + 1 ano em storage frio
+**Para desenvolvimento, habilitar DEBUG no .env:**
+```env
+AMBIENTE=development
+```
+
+**Em produção, logs vão para stdout** — coletados pelo sistema operacional / Docker / serviço de cloud conforme a infraestrutura da empresa.
 
 ### 2.2 Métricas
 
+Para a v1 (desenvolvimento local / ambiente interno), o monitoramento básico é suficiente:
+
 ```
-Biblioteca: @opentelemetry/sdk-node + prom-client
+Monitoramento manual recomendado:
+  - SQL Server: sys.dm_exec_sessions (conexões ativas)
+  - SQL Server: sys.dm_os_wait_stats (queries lentas)
+  - SQL Server Query Store: análise de performance de queries
+  - Verificar tamanho do banco regularmente: sys.databases
 
-Métricas de aplicação expostas em /metrics (Prometheus scrape):
-
-http_requests_total{method, route, status_code}   — Total de requisições
-http_request_duration_seconds{method, route}      — Latência (histograma)
-pbi_token_generation_duration_seconds             — Tempo de geração de token PBI
-active_sessions_total                             — Sessões ativas no Redis
-login_attempts_total{result}                      — Tentativas de login (success/fail)
-blocked_users_total                               — Total de usuários bloqueados
-audit_log_entries_total{event_type}               — Volume de eventos por tipo
-
-Infraestrutura (coletadas pelo provedor cloud):
-  CPU, Memória, Disco, Conexões de rede
-  Conexões do pool PostgreSQL
-  Hit rate do cache Redis
-  Latência de resposta do Power BI API
+Quando o sistema for para produção no servidor da empresa (v2):
+  - Adicionar Prometheus + prom-client para métricas da API
+  - Configurar Grafana para visualização
+  - Ou usar Azure Application Insights se o servidor for gerenciado pela Microsoft
 ```
 
-**Stack de visualização:**
-- **Prometheus** → coleta e armazenamento de métricas
-- **Grafana** → dashboards e alertas visuais
-- Alternativa gerenciada: **Azure Monitor + Application Insights**
+### 2.3 Traces
 
-### 2.3 Traces (Distributed Tracing)
+Para a v1, o rastreamento de erros é feito via logs estruturados e pela tabela `logs_auditoria`.
 
-```typescript
-// @opentelemetry/sdk-node com auto-instrumentação para:
-// - HTTP (incoming requests)
-// - PostgreSQL (queries via Prisma)
-// - Redis (operações de cache)
-// - HTTP outgoing (chamadas Azure AD e PBI API)
+```python
+# Em cada roteador, logar eventos de negócio na tabela logs_auditoria:
 
-// Trace ID propagado em todos os logs:
-logger.info({ traceId: span.spanContext().traceId, ... });
-
-// Backend para traces:
-//   Jaeger (self-hosted) ou Azure Application Insights
+novo_log = LogAuditoria(
+    usuario_id=usuario.id,
+    nome_usuario=usuario.nome,
+    email_usuario=usuario.email,
+    tipo_evento="autenticacao",
+    modulo="auth",
+    detalhe="Login realizado com sucesso",
+    endereco_ip=endereco_ip,
+)
+banco.add(novo_log)
+banco.commit()
 ```
 
 ### 2.4 Alertas
 
+Para a v1 (sem infraestrutura de alertas automáticos), monitoramento manual via consultas SQL:
+
+```sql
+-- Usuários bloqueados nas últimas 24h:
+SELECT nome, email, tentativas_login, atualizado_em
+FROM usuarios
+WHERE status = 'bloqueado'
+  AND atualizado_em >= DATEADD(HOUR, -24, GETUTCDATE());
+
+-- Tentativas de login falhas na última hora:
+SELECT email_usuario, COUNT(*) AS tentativas, MAX(momento) AS ultima_tentativa
+FROM logs_auditoria
+WHERE tipo_evento = 'autenticacao'
+  AND detalhe LIKE '%falha%'
+  AND momento >= DATEADD(HOUR, -1, GETUTCDATE())
+GROUP BY email_usuario
+ORDER BY tentativas DESC;
+
+-- Volume de eventos de auditoria por tipo hoje:
+SELECT tipo_evento, COUNT(*) AS total
+FROM logs_auditoria
+WHERE momento >= CAST(GETUTCDATE() AS DATE)
+GROUP BY tipo_evento
+ORDER BY total DESC;
+```
+
+Quando o sistema crescer, configurar alertas automáticos com:
+
 | Alerta | Condição | Canal | Severidade |
 |--------|----------|-------|-----------|
-| Alta taxa de erros 5xx | > 1% das requisições em 5min | Slack + e-mail | 🔴 Crítico |
-| Latência elevada | p95 > 3s por 5min | Slack | 🟡 Alto |
-| Muitas tentativas de login | > 50 falhas/min por IP | Slack + e-mail | 🔴 Crítico |
-| Usuários bloqueados em massa | > 5 bloqueios em 10min | Slack + e-mail | 🔴 Crítico |
-| Pool de conexões esgotado | > 90% do max pool | Slack | 🟡 Alto |
-| Disco do banco > 80% | — | Slack | 🟡 Alto |
-| PBI API indisponível | 3 falhas consecutivas | Slack | 🟡 Alto |
-| Certificado TLS expirando | < 30 dias para expirar | Slack + e-mail | 🟡 Alto |
+| Alta taxa de erros 5xx | > 1% das requisições em 5min | E-mail | Crítico |
+| Latência elevada | p95 > 3s por 5min | E-mail | Alto |
+| Muitas tentativas de login falhas | > 20 falhas/min por IP | E-mail | Crítico |
+| Disco do banco > 80% | — | E-mail | Alto |
 
 ### 2.5 Health Checks
 
-```
-GET /health               → Status geral (200 OK ou 503)
-GET /health/live          → Liveness (o processo está vivo?)
-GET /health/ready         → Readiness (pode receber tráfego? DB + Redis conectados?)
+```python
+# main.py — endpoint de health check
+@aplicacao.get("/saude")
+def verificar_saude():
+    return {"situacao": "operacional"}
 
-Exemplo de resposta:
-{
-  "status": "ok",
-  "checks": {
-    "database": "up",
-    "redis": "up",
-    "pbiService": "up"
-  },
-  "timestamp": "2026-05-01T10:00:00Z",
-  "version": "1.2.3"
-}
+# Para verificar se o banco está acessível:
+@aplicacao.get("/saude/banco")
+def verificar_banco(banco: Session = Depends(obter_db)):
+    try:
+        banco.execute(text("SELECT 1"))
+        return {"banco": "conectado"}
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Banco indisponível: {str(e)}")
 ```
 
-### 2.6 Dashboard de Observabilidade Sugerido (Grafana)
+**Verificar via terminal:**
+```powershell
+# Health check básico
+curl http://localhost:3001/saude
+
+# Resposta esperada:
+# {"situacao": "operacional"}
+```
+
+### 2.6 Dashboard de Observabilidade (v2 — Quando for para Produção)
+
+Quando o sistema for para o servidor da empresa, configurar monitoramento completo:
 
 | Painel | Métricas |
 |--------|---------|
-| Visão Geral | Req/s, latência p50/p95/p99, taxa de erros, usuários ativos |
-| Autenticação | Logins/min (success/fail), bloqueios, tentativas por IP |
-| Power BI | Tempo de geração de token, hits de cache, erros de integração |
-| Banco de Dados | Conexões ativas, query duration, slow queries |
-| Redis | Hit rate, memória usada, operações/s |
+| Visão Geral | Req/s, latência p50/p95/p99, taxa de erros |
+| Autenticação | Logins/min (sucesso/falha), bloqueios, tentativas por IP |
+| Banco de Dados | Conexões ativas, query duration, slow queries (Query Store), blocking sessions |
 | Segurança | Eventos críticos no log de auditoria, acessos negados por expediente |
 
 ---
@@ -175,3 +225,4 @@ Exemplo de resposta:
 | Versão | Data | Autor | Descrição |
 |--------|------|-------|-----------|
 | 1.0 | Maio/2026 | Vinicius Soares | Criação inicial do documento |
+| 2.0 | Maio/2026 | Vinicius Soares | Atualização para stack Python + FastAPI; substituição de Prisma Migrate por scripts SQL manuais; logging nativo Python; remoção de Redis da v1; exemplos de consultas SQL de monitoramento |

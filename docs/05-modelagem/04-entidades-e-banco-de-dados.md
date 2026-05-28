@@ -1,373 +1,403 @@
 # Modelagem de Entidades e Banco de Dados
 
 > **Documento:** 05-modelagem/04-entidades-e-banco-de-dados.md  
-> **Status:** Rascunho  
+> **Status:** Vigente  
 > **Criado em:** Maio/2026  
-> **Atualizado em:** Maio/2026
+> **Atualizado em:** Maio/2026  
+> **Banco de dados:** Microsoft SQL Server 2019+ (on-premise)
 
 ---
 
 ## 1. Diagrama de Entidades (Relacionamentos)
 
 ```
-users
-  ├── user_workspace_access (N:M com workspaces)
-  ├── user_report_access    (N:M com reports)
-  ├── user_permission_overrides (1:N)
-  ├── exception_group_members (N:M com exception_groups)
-  ├── favorites (1:N com reports)
-  └── audit_logs (1:N - autor dos eventos)
+usuarios
+  ├── acessos_workspace (N:M com espacos_trabalho)
+  ├── acessos_relatorio (N:M com relatorios)
+  ├── sobrescritas_permissao (1:N)
+  ├── membros_grupo_excecao (N:M com grupos_excecao)
+  ├── favoritos (1:N com relatorios)
+  └── logs_auditoria (1:N - autor dos eventos)
 
-workspaces
-  ├── reports (1:N)
-  ├── user_workspace_access (N:M com users)
-  └── workspace_pbi_permissions (1:N)
+espacos_trabalho
+  ├── relatorios (1:N)
+  └── acessos_workspace (N:M com usuarios)
 
-reports
-  ├── user_report_access (N:M com users)
-  └── favorites (1:N)
+relatorios
+  ├── acessos_relatorio (N:M com usuarios)
+  └── favoritos (1:N)
 
-role_permissions
-  └── Permissões padrão por perfil (role × module × actions)
+permissoes_perfil
+  └── Permissões padrão por perfil (perfil × modulo × acoes)
 
-exception_groups
-  ├── exception_group_members (1:N)
-  └── access_exceptions (1:N)
+grupos_excecao
+  └── membros_grupo_excecao (1:N)
 
-schedule_rules
+regras_expediente
   └── Uma por dia da semana (7 registros)
 
-system_settings
+configuracoes_sistema
   └── Configurações globais (chave-valor)
 
-audit_logs
-  └── Append-only; sem relações FK para preservar histórico após exclusões
+logs_auditoria
+  └── Append-only; sem FK para preservar histórico após exclusões
 ```
 
 ---
 
-## 2. Definição das Tabelas
+## 2. Definição das Tabelas (SQL Server)
 
-### Tabela: `users`
+> **Convenções SQL Server adotadas:**
+> - Identificadores: `UNIQUEIDENTIFIER` com `DEFAULT NEWID()`
+> - Timestamps: `DATETIME2(7)` armazenados em **UTC**
+> - Texto curto/indexável: `NVARCHAR(N)`
+> - Texto longo / JSON: `NVARCHAR(MAX)`
+> - Booleanos: `BIT` (0 = false, 1 = true)
+> - Endereço IP: `NVARCHAR(45)` (suporta IPv4 e IPv6)
+> - ENUMs: `NVARCHAR(20)` com `CHECK` constraint
 
-| Coluna | Tipo | Restrições | Descrição |
-|--------|------|-----------|-----------|
-| `id` | UUID | PK, DEFAULT gen_random_uuid() | Identificador único |
-| `nome_completo` | VARCHAR(255) | NOT NULL | Nome completo |
-| `email` | VARCHAR(255) | NOT NULL, UNIQUE | E-mail corporativo |
-| `senha_hash` | VARCHAR(255) | NOT NULL | Hash bcrypt |
-| `role` | ENUM | NOT NULL | super_admin, admin, manager, operator, visitor |
-| `status` | ENUM | NOT NULL, DEFAULT 'active' | active, inactive, blocked |
-| `login_attempts` | SMALLINT | DEFAULT 0 | Contador de tentativas falhas |
-| `last_login` | TIMESTAMPTZ | NULL | Último login bem-sucedido |
-| `mfa_enabled` | BOOLEAN | DEFAULT false | MFA ativado para o usuário |
-| `mfa_secret` | VARCHAR(255) | NULL | Secret TOTP (criptografado) |
-| `created_at` | TIMESTAMPTZ | NOT NULL, DEFAULT NOW() | Data de criação |
-| `updated_at` | TIMESTAMPTZ | NOT NULL, DEFAULT NOW() | Data da última atualização |
-| `created_by` | UUID | FK → users(id), NULL | Quem criou o usuário |
+---
+
+### Tabela: `usuarios`
+
+| Coluna | Tipo SQL Server | Restrições | Descrição |
+|--------|----------------|-----------|-----------|
+| `id` | UNIQUEIDENTIFIER | PK, DEFAULT NEWID() | Identificador único |
+| `nome` | NVARCHAR(255) | NOT NULL | Nome completo |
+| `email` | NVARCHAR(255) | NOT NULL, UNIQUE | E-mail corporativo |
+| `hash_senha` | NVARCHAR(255) | NOT NULL | Hash bcrypt |
+| `perfil` | NVARCHAR(30) | NOT NULL, CHECK | super_administrador, administrador, gerente, operador, visitante |
+| `status` | NVARCHAR(20) | NOT NULL, DEFAULT 'ativo' | ativo, inativo, bloqueado |
+| `tentativas_login` | SMALLINT | DEFAULT 0 | Contador de tentativas falhas |
+| `ultimo_login` | DATETIME2(7) | NULL | Último login bem-sucedido (UTC) |
+| `mfa_ativo` | BIT | DEFAULT 0 | MFA ativado para o usuário |
+| `mfa_segredo` | NVARCHAR(255) | NULL | Secret TOTP (criptografado) |
+| `criado_em` | DATETIME2(7) | NOT NULL, DEFAULT GETUTCDATE() | Data de criação (UTC) |
+| `atualizado_em` | DATETIME2(7) | NOT NULL, DEFAULT GETUTCDATE() | Data da última atualização (UTC) |
+| `criado_por_id` | UNIQUEIDENTIFIER | FK → usuarios(id), NULL | Quem criou o usuário |
 
 ```sql
-CREATE TYPE user_role AS ENUM ('super_admin', 'admin', 'manager', 'operator', 'visitor');
-CREATE TYPE user_status AS ENUM ('active', 'inactive', 'blocked');
-
-CREATE TABLE users (
-  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name            VARCHAR(255) NOT NULL,
-  email           VARCHAR(255) NOT NULL UNIQUE,
-  password_hash   VARCHAR(255) NOT NULL,
-  role            user_role NOT NULL DEFAULT 'operator',
-  status          user_status NOT NULL DEFAULT 'active',
-  login_attempts  SMALLINT NOT NULL DEFAULT 0,
-  last_login      TIMESTAMPTZ,
-  mfa_enabled     BOOLEAN NOT NULL DEFAULT false,
-  mfa_secret      VARCHAR(255),
-  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  created_by      UUID REFERENCES users(id) ON DELETE SET NULL
+CREATE TABLE usuarios (
+  id               UNIQUEIDENTIFIER  NOT NULL CONSTRAINT PK_usuarios PRIMARY KEY DEFAULT NEWID(),
+  nome             NVARCHAR(255)     NOT NULL,
+  email            NVARCHAR(255)     NOT NULL,
+  hash_senha       NVARCHAR(255)     NOT NULL,
+  perfil           NVARCHAR(30)      NOT NULL DEFAULT 'operador'
+                     CONSTRAINT CK_usuarios_perfil CHECK (perfil IN (
+                       'super_administrador','administrador','gerente','operador','visitante'
+                     )),
+  status           NVARCHAR(20)      NOT NULL DEFAULT 'ativo'
+                     CONSTRAINT CK_usuarios_status CHECK (status IN ('ativo','inativo','bloqueado')),
+  tentativas_login SMALLINT          NOT NULL DEFAULT 0,
+  ultimo_login     DATETIME2(7)      NULL,
+  mfa_ativo        BIT               NOT NULL DEFAULT 0,
+  mfa_segredo      NVARCHAR(255)     NULL,
+  criado_em        DATETIME2(7)      NOT NULL DEFAULT GETUTCDATE(),
+  atualizado_em    DATETIME2(7)      NOT NULL DEFAULT GETUTCDATE(),
+  criado_por_id    UNIQUEIDENTIFIER  NULL
+                     CONSTRAINT FK_usuarios_criado_por REFERENCES usuarios(id) ON DELETE SET NULL
 );
 
-CREATE INDEX idx_users_email ON users(email);
-CREATE INDEX idx_users_status ON users(status);
+CREATE UNIQUE INDEX UQ_usuarios_email ON usuarios(email);
+CREATE INDEX IX_usuarios_status ON usuarios(status);
 ```
 
 ---
 
-### Tabela: `workspaces`
+### Tabela: `espacos_trabalho`
 
-| Coluna | Tipo | Restrições | Descrição |
-|--------|------|-----------|-----------|
-| `id` | UUID | PK | Identificador único |
-| `name` | VARCHAR(255) | NOT NULL, UNIQUE | Nome do workspace |
-| `pbi_workspace_id` | VARCHAR(255) | NULL | ID do workspace no Power BI Service |
-| `status` | ENUM | NOT NULL, DEFAULT 'active' | active, inactive |
-| `icon` | VARCHAR(100) | NULL | Classe Font Awesome |
-| `color` | VARCHAR(20) | NULL | Cor hex |
-| `description` | TEXT | NULL | Descrição |
-| `created_at` | TIMESTAMPTZ | NOT NULL | — |
-| `created_by` | UUID | FK → users(id) | — |
+| Coluna | Tipo SQL Server | Restrições | Descrição |
+|--------|----------------|-----------|-----------|
+| `id` | UNIQUEIDENTIFIER | PK, DEFAULT NEWID() | Identificador único |
+| `nome` | NVARCHAR(255) | NOT NULL, UNIQUE | Nome do workspace |
+| `id_workspace_pbi` | NVARCHAR(255) | NULL | ID do workspace no Power BI Service |
+| `status` | NVARCHAR(20) | NOT NULL, DEFAULT 'ativo' | ativo, arquivado |
+| `icone` | NVARCHAR(100) | NULL | Ícone (letra ou emoji) |
+| `cor` | NVARCHAR(20) | NULL | Cor hex (ex: #2563eb) |
+| `descricao` | NVARCHAR(MAX) | NULL | Descrição do workspace |
+| `criado_em` | DATETIME2(7) | NOT NULL, DEFAULT GETUTCDATE() | — |
+| `criado_por_id` | UNIQUEIDENTIFIER | FK → usuarios(id) | — |
 
 ```sql
-CREATE TABLE workspaces (
-  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name              VARCHAR(255) NOT NULL UNIQUE,
-  pbi_workspace_id  VARCHAR(255),
-  status            VARCHAR(20) NOT NULL DEFAULT 'active',
-  icon              VARCHAR(100),
-  color             VARCHAR(20),
-  description       TEXT,
-  created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  created_by        UUID REFERENCES users(id) ON DELETE SET NULL
+CREATE TABLE espacos_trabalho (
+  id                UNIQUEIDENTIFIER  NOT NULL CONSTRAINT PK_espacos_trabalho PRIMARY KEY DEFAULT NEWID(),
+  nome              NVARCHAR(255)     NOT NULL,
+  id_workspace_pbi  NVARCHAR(255)     NULL,
+  status            NVARCHAR(20)      NOT NULL DEFAULT 'ativo'
+                      CONSTRAINT CK_et_status CHECK (status IN ('ativo','arquivado')),
+  icone             NVARCHAR(100)     NULL,
+  cor               NVARCHAR(20)      NULL,
+  descricao         NVARCHAR(MAX)     NULL,
+  criado_em         DATETIME2(7)      NOT NULL DEFAULT GETUTCDATE(),
+  criado_por_id     UNIQUEIDENTIFIER  NULL
+                      CONSTRAINT FK_et_criado_por REFERENCES usuarios(id) ON DELETE SET NULL
 );
+
+CREATE UNIQUE INDEX UQ_espacos_trabalho_nome ON espacos_trabalho(nome);
 ```
 
 ---
 
-### Tabela: `reports`
+### Tabela: `relatorios`
 
-| Coluna | Tipo | Restrições | Descrição |
-|--------|------|-----------|-----------|
-| `id` | UUID | PK | Identificador único |
-| `name` | VARCHAR(255) | NOT NULL | Nome do relatório |
-| `workspace_id` | UUID | FK → workspaces(id), NOT NULL | Workspace pai |
-| `pbi_report_id` | VARCHAR(255) | NULL | ID no Power BI Service |
-| `category` | VARCHAR(100) | NULL | Financeiro, Operacional, Estratégico |
-| `status` | ENUM | NOT NULL, DEFAULT 'published' | published, draft, archived |
-| `description` | TEXT | NULL | Descrição |
-| `updated_at` | TIMESTAMPTZ | NOT NULL | Última atualização |
-| `created_at` | TIMESTAMPTZ | NOT NULL | — |
-| `created_by` | UUID | FK → users(id) | — |
+| Coluna | Tipo SQL Server | Restrições | Descrição |
+|--------|----------------|-----------|-----------|
+| `id` | UNIQUEIDENTIFIER | PK, DEFAULT NEWID() | Identificador único |
+| `nome` | NVARCHAR(255) | NOT NULL | Nome do relatório |
+| `espaco_trabalho_id` | UNIQUEIDENTIFIER | FK → espacos_trabalho(id), NOT NULL | Workspace pai |
+| `id_relatorio_pbi` | NVARCHAR(255) | NULL | ID no Power BI Service |
+| `categoria` | NVARCHAR(100) | NULL | Financeiro, Operacional, Estratégico |
+| `status` | NVARCHAR(20) | NOT NULL, DEFAULT 'publicado' | publicado, rascunho, arquivado |
+| `descricao` | NVARCHAR(MAX) | NULL | Descrição |
+| `atualizado_em` | DATETIME2(7) | NOT NULL, DEFAULT GETUTCDATE() | Última atualização (UTC) |
+| `criado_em` | DATETIME2(7) | NOT NULL, DEFAULT GETUTCDATE() | — |
+| `criado_por_id` | UNIQUEIDENTIFIER | FK → usuarios(id) | — |
 
 ```sql
-CREATE TABLE reports (
-  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name           VARCHAR(255) NOT NULL,
-  workspace_id   UUID NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
-  pbi_report_id  VARCHAR(255),
-  category       VARCHAR(100),
-  status         VARCHAR(20) NOT NULL DEFAULT 'published',
-  description    TEXT,
-  updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  created_by     UUID REFERENCES users(id) ON DELETE SET NULL
+CREATE TABLE relatorios (
+  id                   UNIQUEIDENTIFIER  NOT NULL CONSTRAINT PK_relatorios PRIMARY KEY DEFAULT NEWID(),
+  nome                 NVARCHAR(255)     NOT NULL,
+  espaco_trabalho_id   UNIQUEIDENTIFIER  NOT NULL
+                         CONSTRAINT FK_rel_espaco_trabalho REFERENCES espacos_trabalho(id) ON DELETE CASCADE,
+  id_relatorio_pbi     NVARCHAR(255)     NULL,
+  categoria            NVARCHAR(100)     NULL,
+  status               NVARCHAR(20)      NOT NULL DEFAULT 'publicado'
+                         CONSTRAINT CK_rel_status CHECK (status IN ('publicado','rascunho','arquivado')),
+  descricao            NVARCHAR(MAX)     NULL,
+  atualizado_em        DATETIME2(7)      NOT NULL DEFAULT GETUTCDATE(),
+  criado_em            DATETIME2(7)      NOT NULL DEFAULT GETUTCDATE(),
+  criado_por_id        UNIQUEIDENTIFIER  NULL
+                         CONSTRAINT FK_rel_criado_por REFERENCES usuarios(id) ON DELETE SET NULL
 );
 
-CREATE INDEX idx_reports_workspace ON reports(workspace_id);
-CREATE INDEX idx_reports_status ON reports(status);
+CREATE INDEX IX_relatorios_espaco ON relatorios(espaco_trabalho_id, status);
+CREATE INDEX IX_relatorios_status ON relatorios(status);
 ```
 
 ---
 
-### Tabela: `user_workspace_access`
-
-| Coluna | Tipo | Restrições | Descrição |
-|--------|------|-----------|-----------|
-| `id` | UUID | PK | — |
-| `user_id` | UUID | FK → users(id), NOT NULL | — |
-| `workspace_id` | UUID | FK → workspaces(id), NOT NULL | — |
-| `access_level` | ENUM | NOT NULL | full (workspace inteiro), reports_only, none |
-| `granted_by` | UUID | FK → users(id) | Quem concedeu |
-| `granted_at` | TIMESTAMPTZ | NOT NULL | — |
+### Tabela: `acessos_workspace`
 
 ```sql
-CREATE TABLE user_workspace_access (
-  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id       UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  workspace_id  UUID NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
-  access_level  VARCHAR(20) NOT NULL DEFAULT 'reports_only',
-  granted_by    UUID REFERENCES users(id) ON DELETE SET NULL,
-  granted_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  UNIQUE(user_id, workspace_id)
+CREATE TABLE acessos_workspace (
+  id                UNIQUEIDENTIFIER  NOT NULL CONSTRAINT PK_acessos_workspace PRIMARY KEY DEFAULT NEWID(),
+  usuario_id        UNIQUEIDENTIFIER  NOT NULL
+                      CONSTRAINT FK_aw_usuario REFERENCES usuarios(id) ON DELETE CASCADE,
+  espaco_trabalho_id UNIQUEIDENTIFIER NOT NULL
+                      CONSTRAINT FK_aw_espaco REFERENCES espacos_trabalho(id),
+  nivel_acesso      NVARCHAR(20)      NOT NULL DEFAULT 'apenas_relatorios'
+                      CONSTRAINT CK_aw_nivel CHECK (nivel_acesso IN ('total','apenas_relatorios','nenhum')),
+  concedido_por_id  UNIQUEIDENTIFIER  NULL
+                      CONSTRAINT FK_aw_concedido_por REFERENCES usuarios(id) ON DELETE SET NULL,
+  concedido_em      DATETIME2(7)      NOT NULL DEFAULT GETUTCDATE()
 );
+
+CREATE UNIQUE INDEX UQ_aw_usuario_espaco ON acessos_workspace(usuario_id, espaco_trabalho_id);
 ```
 
 ---
 
-### Tabela: `user_report_access`
+### Tabela: `acessos_relatorio`
 
 ```sql
-CREATE TABLE user_report_access (
-  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  report_id   UUID NOT NULL REFERENCES reports(id) ON DELETE CASCADE,
-  granted_by  UUID REFERENCES users(id) ON DELETE SET NULL,
-  granted_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  UNIQUE(user_id, report_id)
+CREATE TABLE acessos_relatorio (
+  id               UNIQUEIDENTIFIER  NOT NULL CONSTRAINT PK_acessos_relatorio PRIMARY KEY DEFAULT NEWID(),
+  usuario_id       UNIQUEIDENTIFIER  NOT NULL
+                     CONSTRAINT FK_ar_usuario REFERENCES usuarios(id) ON DELETE CASCADE,
+  relatorio_id     UNIQUEIDENTIFIER  NOT NULL
+                     CONSTRAINT FK_ar_relatorio REFERENCES relatorios(id),
+  concedido_por_id UNIQUEIDENTIFIER  NULL
+                     CONSTRAINT FK_ar_concedido_por REFERENCES usuarios(id) ON DELETE SET NULL,
+  concedido_em     DATETIME2(7)      NOT NULL DEFAULT GETUTCDATE()
 );
+
+CREATE UNIQUE INDEX UQ_ar_usuario_relatorio ON acessos_relatorio(usuario_id, relatorio_id);
 ```
 
 ---
 
-### Tabela: `role_permissions`
+### Tabela: `permissoes_perfil`
 
 ```sql
-CREATE TABLE role_permissions (
-  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  role        user_role NOT NULL,
-  module      VARCHAR(100) NOT NULL,
-  can_view    BOOLEAN NOT NULL DEFAULT false,
-  can_create  BOOLEAN NOT NULL DEFAULT false,
-  can_edit    BOOLEAN NOT NULL DEFAULT false,
-  can_delete  BOOLEAN NOT NULL DEFAULT false,
-  can_export  BOOLEAN NOT NULL DEFAULT false,
-  can_manage  BOOLEAN NOT NULL DEFAULT false,
-  UNIQUE(role, module)
+CREATE TABLE permissoes_perfil (
+  id              UNIQUEIDENTIFIER  NOT NULL CONSTRAINT PK_permissoes_perfil PRIMARY KEY DEFAULT NEWID(),
+  perfil          NVARCHAR(30)      NOT NULL
+                    CONSTRAINT CK_pp_perfil CHECK (perfil IN (
+                      'super_administrador','administrador','gerente','operador','visitante'
+                    )),
+  modulo          NVARCHAR(100)     NOT NULL,
+  pode_visualizar BIT               NOT NULL DEFAULT 0,
+  pode_criar      BIT               NOT NULL DEFAULT 0,
+  pode_editar     BIT               NOT NULL DEFAULT 0,
+  pode_excluir    BIT               NOT NULL DEFAULT 0,
+  pode_exportar   BIT               NOT NULL DEFAULT 0,
+  pode_gerenciar  BIT               NOT NULL DEFAULT 0
 );
+
+CREATE UNIQUE INDEX UQ_pp_perfil_modulo ON permissoes_perfil(perfil, modulo);
 ```
 
 ---
 
-### Tabela: `user_permission_overrides`
+### Tabela: `sobrescritas_permissao`
 
 ```sql
-CREATE TABLE user_permission_overrides (
-  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  module      VARCHAR(100) NOT NULL,
-  can_view    BOOLEAN,   -- NULL = herda do perfil; true/false = override
-  can_create  BOOLEAN,
-  can_edit    BOOLEAN,
-  can_delete  BOOLEAN,
-  can_export  BOOLEAN,
-  can_manage  BOOLEAN,
-  set_by      UUID REFERENCES users(id) ON DELETE SET NULL,
-  set_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  UNIQUE(user_id, module)
+CREATE TABLE sobrescritas_permissao (
+  id              UNIQUEIDENTIFIER  NOT NULL CONSTRAINT PK_sobrescritas_permissao PRIMARY KEY DEFAULT NEWID(),
+  usuario_id      UNIQUEIDENTIFIER  NOT NULL
+                    CONSTRAINT FK_sp_usuario REFERENCES usuarios(id) ON DELETE CASCADE,
+  modulo          NVARCHAR(100)     NOT NULL,
+  -- NULL = herda do perfil; 1/0 = override explícito
+  pode_visualizar BIT               NULL,
+  pode_criar      BIT               NULL,
+  pode_editar     BIT               NULL,
+  pode_excluir    BIT               NULL,
+  pode_exportar   BIT               NULL,
+  pode_gerenciar  BIT               NULL,
+  definido_por_id UNIQUEIDENTIFIER  NULL
+                    CONSTRAINT FK_sp_definido_por REFERENCES usuarios(id) ON DELETE SET NULL,
+  definido_em     DATETIME2(7)      NOT NULL DEFAULT GETUTCDATE()
 );
+
+CREATE UNIQUE INDEX UQ_sp_usuario_modulo ON sobrescritas_permissao(usuario_id, modulo);
 ```
 
 ---
 
-### Tabela: `schedule_rules`
+### Tabela: `regras_expediente`
 
 ```sql
-CREATE TABLE schedule_rules (
-  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  day_of_week     SMALLINT NOT NULL, -- 0=Dom, 1=Seg, ..., 6=Sáb
-  start_time      TIME NOT NULL DEFAULT '08:00',
-  end_time        TIME NOT NULL DEFAULT '18:00',
-  is_active       BOOLEAN NOT NULL DEFAULT true,
-  block_outside   BOOLEAN NOT NULL DEFAULT true, -- bloquear fora do expediente?
-  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  UNIQUE(day_of_week)
+CREATE TABLE regras_expediente (
+  id               UNIQUEIDENTIFIER  NOT NULL CONSTRAINT PK_regras_expediente PRIMARY KEY DEFAULT NEWID(),
+  dia_semana       SMALLINT          NOT NULL  -- 0=Dom, 1=Seg, ..., 6=Sáb
+                     CONSTRAINT CK_re_dia CHECK (dia_semana BETWEEN 0 AND 6),
+  hora_inicio      TIME(0)           NOT NULL DEFAULT '08:00:00',
+  hora_fim         TIME(0)           NOT NULL DEFAULT '18:00:00',
+  ativo            BIT               NOT NULL DEFAULT 1,
+  bloquear_fora    BIT               NOT NULL DEFAULT 1,
+  atualizado_em    DATETIME2(7)      NOT NULL DEFAULT GETUTCDATE()
 );
+
+CREATE UNIQUE INDEX UQ_re_dia_semana ON regras_expediente(dia_semana);
 ```
 
 ---
 
-### Tabela: `exception_groups`
+### Tabela: `grupos_excecao`
 
 ```sql
-CREATE TABLE exception_groups (
-  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name          VARCHAR(255) NOT NULL,
-  off_hours     BOOLEAN NOT NULL DEFAULT true,
-  window_start  TIME,    -- janela de horário da exceção
-  window_end    TIME,
-  status        VARCHAR(20) NOT NULL DEFAULT 'active',
-  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  created_by    UUID REFERENCES users(id) ON DELETE SET NULL
-);
-
-CREATE TABLE exception_group_members (
-  group_id  UUID NOT NULL REFERENCES exception_groups(id) ON DELETE CASCADE,
-  user_id   UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  PRIMARY KEY (group_id, user_id)
-);
-```
-
----
-
-### Tabela: `access_exceptions` (exceções individuais)
-
-```sql
-CREATE TABLE access_exceptions (
-  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  entity_type   VARCHAR(20) NOT NULL, -- 'user' ou 'group'
-  entity_id     UUID NOT NULL,
-  window_start  TIME NOT NULL,
-  window_end    TIME NOT NULL,
-  is_active     BOOLEAN NOT NULL DEFAULT true,
-  created_by    UUID REFERENCES users(id) ON DELETE SET NULL,
-  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-```
-
----
-
-### Tabela: `favorites`
-
-```sql
-CREATE TABLE favorites (
-  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  report_id   UUID NOT NULL REFERENCES reports(id) ON DELETE CASCADE,
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  UNIQUE(user_id, report_id)
+CREATE TABLE grupos_excecao (
+  id              UNIQUEIDENTIFIER  NOT NULL CONSTRAINT PK_grupos_excecao PRIMARY KEY DEFAULT NEWID(),
+  nome            NVARCHAR(255)     NOT NULL,
+  fora_horario    BIT               NOT NULL DEFAULT 1,
+  janela_inicio   TIME(0)           NULL,
+  janela_fim      TIME(0)           NULL,
+  status          NVARCHAR(20)      NOT NULL DEFAULT 'ativo'
+                    CONSTRAINT CK_ge_status CHECK (status IN ('ativo','inativo')),
+  criado_em       DATETIME2(7)      NOT NULL DEFAULT GETUTCDATE(),
+  criado_por_id   UNIQUEIDENTIFIER  NULL
+                    CONSTRAINT FK_ge_criado_por REFERENCES usuarios(id) ON DELETE SET NULL
 );
 ```
 
 ---
 
-### Tabela: `audit_logs`
-
-> **CRÍTICO:** Esta tabela é append-only. Nenhum UPDATE ou DELETE deve ser permitido. Implementar via trigger ou política RLS no banco.
+### Tabela: `membros_grupo_excecao`
 
 ```sql
-CREATE TABLE audit_logs (
-  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  timestamp     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  user_id       UUID,           -- NULL para eventos de sistema
-  user_name     VARCHAR(255),   -- snapshot imutável do nome
-  user_email    VARCHAR(255),   -- snapshot imutável do e-mail
-  event_type    VARCHAR(50) NOT NULL, -- auth | user | permission | access | report | security | system
-  module        VARCHAR(100) NOT NULL,
-  detail        TEXT NOT NULL,
-  ip_address    INET,
-  previous_val  JSONB,          -- estado anterior (para alterações)
-  new_val       JSONB           -- novo estado (para alterações)
+CREATE TABLE membros_grupo_excecao (
+  grupo_id    UNIQUEIDENTIFIER  NOT NULL
+                CONSTRAINT FK_mge_grupo REFERENCES grupos_excecao(id) ON DELETE CASCADE,
+  usuario_id  UNIQUEIDENTIFIER  NOT NULL
+                CONSTRAINT FK_mge_usuario REFERENCES usuarios(id),
+  CONSTRAINT PK_membros_grupo_excecao PRIMARY KEY (grupo_id, usuario_id)
+);
+```
+
+---
+
+### Tabela: `favoritos`
+
+```sql
+CREATE TABLE favoritos (
+  id           UNIQUEIDENTIFIER  NOT NULL CONSTRAINT PK_favoritos PRIMARY KEY DEFAULT NEWID(),
+  usuario_id   UNIQUEIDENTIFIER  NOT NULL
+                 CONSTRAINT FK_fav_usuario REFERENCES usuarios(id) ON DELETE CASCADE,
+  relatorio_id UNIQUEIDENTIFIER  NOT NULL
+                 CONSTRAINT FK_fav_relatorio REFERENCES relatorios(id),
+  criado_em    DATETIME2(7)      NOT NULL DEFAULT GETUTCDATE()
 );
 
--- Índices para performance nas consultas
-CREATE INDEX idx_audit_logs_timestamp ON audit_logs(timestamp DESC);
-CREATE INDEX idx_audit_logs_user_id   ON audit_logs(user_id);
-CREATE INDEX idx_audit_logs_type      ON audit_logs(event_type);
-CREATE INDEX idx_audit_logs_module    ON audit_logs(module);
+CREATE UNIQUE INDEX UQ_fav_usuario_relatorio ON favoritos(usuario_id, relatorio_id);
+```
 
--- Trigger para impedir UPDATE e DELETE
-CREATE OR REPLACE FUNCTION prevent_audit_modification()
-RETURNS TRIGGER AS $$
+---
+
+### Tabela: `logs_auditoria`
+
+> **CRÍTICO:** Esta tabela é append-only. Nenhum UPDATE ou DELETE deve ser permitido.
+> Implementado via trigger `INSTEAD OF` no SQL Server.
+
+```sql
+CREATE TABLE logs_auditoria (
+  id            UNIQUEIDENTIFIER  NOT NULL CONSTRAINT PK_logs_auditoria PRIMARY KEY DEFAULT NEWID(),
+  momento       DATETIME2(7)      NOT NULL DEFAULT GETUTCDATE(),
+  usuario_id    UNIQUEIDENTIFIER  NULL,           -- NULL para eventos de sistema
+  nome_usuario  NVARCHAR(255)     NULL,            -- snapshot imutável do nome
+  email_usuario NVARCHAR(255)     NULL,            -- snapshot imutável do e-mail
+  tipo_evento   NVARCHAR(50)      NOT NULL
+                  CONSTRAINT CK_la_tipo_evento CHECK (tipo_evento IN (
+                    'autenticacao','usuario','permissao','acesso','relatorio','seguranca','sistema'
+                  )),
+  modulo        NVARCHAR(100)     NOT NULL,
+  detalhe       NVARCHAR(MAX)     NOT NULL,
+  endereco_ip   NVARCHAR(45)      NULL,
+  valor_anterior NVARCHAR(MAX)    NULL,            -- JSON: estado anterior
+  valor_novo    NVARCHAR(MAX)     NULL             -- JSON: novo estado
+);
+
+-- Índices para performance nas consultas de auditoria
+CREATE INDEX IX_la_momento    ON logs_auditoria(momento DESC);
+CREATE INDEX IX_la_usuario_id ON logs_auditoria(usuario_id);
+CREATE INDEX IX_la_tipo_evento ON logs_auditoria(tipo_evento);
+CREATE INDEX IX_la_modulo     ON logs_auditoria(modulo);
+
+-- Trigger INSTEAD OF para impedir UPDATE e DELETE
+CREATE TRIGGER trg_logs_auditoria_imutavel
+ON logs_auditoria
+INSTEAD OF UPDATE, DELETE
+AS
 BEGIN
-  RAISE EXCEPTION 'audit_logs são imutáveis: UPDATE e DELETE não são permitidos';
+  SET NOCOUNT ON;
+  RAISERROR('logs_auditoria são imutáveis: operações de UPDATE e DELETE não são permitidas.', 16, 1);
+  ROLLBACK TRANSACTION;
 END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER trg_audit_logs_immutable
-  BEFORE UPDATE OR DELETE ON audit_logs
-  FOR EACH ROW EXECUTE FUNCTION prevent_audit_modification();
+GO
 ```
 
 ---
 
-### Tabela: `system_settings`
+### Tabela: `configuracoes_sistema`
 
 ```sql
-CREATE TABLE system_settings (
-  key         VARCHAR(255) PRIMARY KEY,
-  value       TEXT NOT NULL,    -- JSON criptografado para segredos
-  is_secret   BOOLEAN DEFAULT false,
-  updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_by  UUID REFERENCES users(id) ON DELETE SET NULL
+CREATE TABLE configuracoes_sistema (
+  chave        NVARCHAR(255)     NOT NULL CONSTRAINT PK_configuracoes_sistema PRIMARY KEY,
+  valor        NVARCHAR(MAX)     NOT NULL,
+  eh_secreto   BIT               NOT NULL DEFAULT 0,
+  atualizado_em DATETIME2(7)     NOT NULL DEFAULT GETUTCDATE(),
+  atualizado_por_id UNIQUEIDENTIFIER NULL
+                CONSTRAINT FK_cs_atualizado_por REFERENCES usuarios(id) ON DELETE SET NULL
 );
 
--- Registros iniciais
-INSERT INTO system_settings (key, value) VALUES
-  ('portal_name', '"BrasilTerrenos"'),
-  ('environment', '"production"'),
-  ('pbi_client_id', '""'),
-  ('pbi_tenant_id', '""'),
-  ('pbi_workspace_id', '""'),
-  ('pbi_client_secret', '""'),  -- criptografado
-  ('pbi_integration_active', 'false');
+-- Registros iniciais (seed)
+INSERT INTO configuracoes_sistema (chave, valor, eh_secreto) VALUES
+  ('nome_portal',          '"Portal Analítico"', 0),
+  ('ambiente',             '"producao"',         0),
+  ('pbi_client_id',        '""',                 0),
+  ('pbi_tenant_id',        '""',                 0),
+  ('pbi_workspace_id',     '""',                 0),
+  ('pbi_client_secret',    '""',                 1),
+  ('pbi_integracao_ativa', 'false',              0);
 ```
 
 ---
@@ -375,35 +405,89 @@ INSERT INTO system_settings (key, value) VALUES
 ## 3. Diagrama de Relacionamentos Resumido
 
 ```
-users 1──────N user_workspace_access N──────1 workspaces
+usuarios 1──────N acessos_workspace N──────1 espacos_trabalho
   │                                               │
   │                                              1│
   │                                               │
-  N user_report_access N────────────────────── reports
+  N acessos_relatorio N────────────────────── relatorios
   │
-  1──────N user_permission_overrides
+  1──────N sobrescritas_permissao
   │
-  N exception_group_members N──────1 exception_groups
+  N membros_grupo_excecao N──────1 grupos_excecao
   │
-  1──────N favorites N──────1 reports
+  1──────N favoritos N──────1 relatorios
   │
-  1──────N audit_logs (snapshot, sem FK real para integridade histórica)
+  1──────N logs_auditoria (snapshot, sem FK real para integridade histórica)
 
-role_permissions (standalone — sem FK para users)
-schedule_rules   (standalone — regra global)
-access_exceptions (standalone — exceções por entity_id)
-system_settings  (standalone — configurações chave-valor)
+permissoes_perfil (standalone — sem FK para usuarios)
+regras_expediente (standalone — regra global)
+configuracoes_sistema (standalone — configurações chave-valor)
 ```
 
 ---
 
 ## 4. Estratégia de Migração
 
-- Usar **Prisma Migrate** ou **Flyway** para versionamento de schema
-- Nomenclatura de migrations: `V{numero}__{descricao}.sql`
-- Toda migration deve ter script de rollback (`undo`)
-- Seed de desenvolvimento com dados representativos baseados no mock do protótipo
-- Seed de produção apenas com Super Admin inicial e permissões padrão por perfil
+O SQLAlchemy cria todas as tabelas automaticamente via `Base.metadata.create_all(bind=engine)`, chamado no `main.py` na inicialização do servidor.
+
+```python
+# database.py
+from sqlalchemy import create_engine
+from sqlalchemy.orm import DeclarativeBase, sessionmaker
+from config import configuracoes
+
+engine = create_engine(configuracoes.DATABASE_URL, pool_pre_ping=True)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+class Base(DeclarativeBase):
+    pass
+
+# main.py — executado ao iniciar o servidor
+from database import engine, Base
+import models  # importa todos os modelos para Base conhecê-los
+
+Base.metadata.create_all(bind=engine)
+```
+
+### Fluxo em Desenvolvimento
+
+```powershell
+# 1. Ajuste os modelos em models.py
+# 2. Reinicie o servidor — o SQLAlchemy cria/atualiza as tabelas
+uvicorn main:app --reload --port 3001
+```
+
+### Fluxo em Produção
+
+Para alterações em tabelas existentes (adicionar coluna, alterar tipo), use scripts SQL manuais aplicados via SSMS:
+
+```sql
+-- Exemplo: adicionar coluna em tabela existente
+ALTER TABLE usuarios
+ADD nova_coluna NVARCHAR(100) NULL;
+```
+
+### Convenções para Scripts SQL Manuais
+
+```
+Nomenclatura dos arquivos:
+  20260501_001_criar_tabela_usuarios.sql
+  20260515_001_adicionar_coluna_mfa_usuarios.sql
+
+Cada script deve ter:
+  - Comentário descrevendo o objetivo
+  - Script de rollback documentado no mesmo arquivo
+```
+
+### Observações Específicas ao SQL Server
+
+| Situação | Comportamento / Solução |
+|----------|------------------------|
+| Renomear coluna | Usar `sp_rename 'tabela.coluna_antiga', 'coluna_nova', 'COLUMN'` |
+| Alterar tipo de coluna | Pode exigir nova coluna + migração de dados + remoção da antiga |
+| Adicionar coluna NOT NULL | Adicionar como NULL, fazer backfill dos dados, depois tornar NOT NULL |
+| Índices Full-Text Search | Criar manualmente via SSMS (não gerenciado pelo SQLAlchemy) |
+| Triggers | Criar manualmente via script SQL após a criação da tabela |
 
 ---
 
@@ -412,3 +496,5 @@ system_settings  (standalone — configurações chave-valor)
 | Versão | Data | Autor | Descrição |
 |--------|------|-------|-----------|
 | 1.0 | Maio/2026 | — | Criação inicial do documento |
+| 1.1 | Maio/2026 | — | Reescrita para SQL Server: tipos nativos, triggers INSTEAD OF, índices |
+| 2.0 | Maio/2026 | — | Migração completa para nomes em Português do Brasil; substituição de Prisma Migrate por SQLAlchemy create_all |

@@ -1,47 +1,63 @@
-# Dependências
+# Node / npm
 node_modules/
 .pnp
 .pnp.js
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
-# Build
+# Build outputs
 dist/
 build/
 .next/
 out/
 
-# Ambiente (NUNCA commitar)
+# Ambiente — NUNCA commitar
+# Manter apenas os arquivos .env.example no repositório
 .env
 .env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.*.local
 
-# Chaves e certificados (NUNCA commitar)
+# Certificados e chaves — NUNCA commitar
 *.pem
 *.key
 *.p12
 *.pfx
+*.crt
+*.cer
+private.pem
+public.pem
 
 # Logs
 logs/
 *.log
-npm-debug.log*
+coverage/
+.nyc_output/
 
-# Editor
+# Editores
 .vscode/
 .idea/
 *.swp
 *.swo
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
 
-# OS
+# Sistema operacional
 .DS_Store
 Thumbs.db
+desktop.ini
 
-# Cobertura de testes
+# TypeScript
+*.tsbuildinfo
+
+# Testes e cobertura
 coverage/
-.nyc_output/
+playwright-report/
+test-results/
 
-# Prisma
-backend/prisma/migrations/*/migration.sql  # não — migrations devem ser commitadas
-# Mas sim:
-backend/prisma/*.db                        # SQLite local, se usar
+# Misc
+.cache/
+tmp/
+temp/

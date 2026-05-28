@@ -1,7 +1,7 @@
-# Stack Tecnológica Recomendada
+# Stack Tecnológica
 
 > **Documento:** 08-tecnologias/01-stack-recomendada.md  
-> **Status:** Rascunho  
+> **Status:** Vigente  
 > **Criado em:** Maio/2026  
 > **Atualizado em:** Maio/2026
 
@@ -12,279 +12,354 @@
 ```
 ┌──────────────────────────────────────────────────────────────────┐
 │                         FRONTEND                                  │
-│   React 18 + TypeScript + Vite + TanStack Query + Zustand        │
-│   powerbi-client SDK + React Router v6 + Axios                   │
+│   React 18 + TypeScript + Vite + TanStack Query                  │
+│   React Context (auth) + React Router v6 + Axios                 │
+│   React Hook Form + Yup + powerbi-client SDK                     │
 └──────────────────────────────────────────────────────────────────┘
-                              │ HTTPS / REST
+                              │ HTTP / REST (JSON)
 ┌──────────────────────────────────────────────────────────────────┐
 │                          BACKEND                                  │
-│   NestJS (Node.js 20 LTS) + TypeScript + Prisma ORM             │
-│   Passport.js + Helmet + class-validator + pino logger           │
+│   Python 3.12 + FastAPI + SQLAlchemy 2.0 + Pydantic v2          │
+│   python-jose (JWT HS256) + passlib/bcrypt + uvicorn             │
 └──────────────────────────────────────────────────────────────────┘
-         │ Prisma         │ ioredis        │ BullMQ (v1.1)
-┌────────▼──────┐  ┌──────▼──────┐  ┌─────▼─────────┐
-│  PostgreSQL   │  │   Redis 7   │  │  BullMQ Queue │
-│  16+          │  │             │  │  (worker)     │
-└───────────────┘  └─────────────┘  └───────────────┘
+                              │ pyodbc
+┌──────────────────────────────────────────────────────────────────┐
+│                       BANCO DE DADOS                              │
+│   SQL Server (Developer local / on-premise corporativo)          │
+│   ODBC Driver 17 for SQL Server                                  │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 2. Frontend
+## 2. Por que esta stack?
 
-### 2.1 Tecnologias Core
+Este projeto é desenvolvido por uma pessoa em processo de aprendizado, com objetivo de colocar o portal em produção no ambiente corporativo. A stack foi escolhida com dois critérios simultâneos: **fácil de aprender** e **pronta para produção**.
 
-| Tecnologia | Versão | Justificativa |
-|-----------|:------:|--------------|
-| **React** | 18.x | Ecossistema maduro, Concurrent features, hooks |
-| **TypeScript** | 5.x | Tipagem estática, manutenibilidade, IntelliSense |
-| **Vite** | 5.x | Build ultrarrápido, HMR nativo, suporte a TS/JSX |
-| **React Router** | v6 | Roteamento declarativo, layouts aninhados |
-
-### 2.2 Gerenciamento de Estado
-
-| Biblioteca | Propósito |
-|-----------|-----------|
-| **TanStack Query** (React Query) v5 | Estado do servidor: fetch, cache, background refetch, optimistic updates |
-| **Zustand** | Estado global de UI: usuário autenticado, preferências, tema |
-| State local (useState/useReducer) | Estado de formulários e UI local |
-
-> **Por que não Redux?** Zustand é 10x menor e mais simples. Para este domínio, não há necessidade de Redux.
-
-### 2.3 UI e Componentes
-
-| Item | Abordagem |
-|------|----------|
-| Design system | Migrar CSS variables do protótipo para tokens TypeScript exportados |
-| Componentes base | Construídos sobre o design system próprio (não usar biblioteca UI de terceiros para manter identidade visual) |
-| Ícones | Font Awesome 6 (já usado no protótipo) + SVG para ícones custom |
-| Formulários | React Hook Form + Zod (validação schema-first com inferência de tipos) |
-| Notificações (toasts) | Sonner ou React Hot Toast (leve, sem dependências pesadas) |
-| Modais | Headless UI (acessível, sem estilo próprio) |
-| Tabelas | TanStack Table v8 (virtualização, sort, filtros) |
-| Power BI Embed | powerbi-client (SDK oficial Microsoft) |
-
-### 2.4 Qualidade de Código (Frontend)
-
-| Ferramenta | Propósito |
-|-----------|-----------|
-| ESLint + eslint-plugin-react | Linting |
-| Prettier | Formatação automática |
-| Husky + lint-staged | Pre-commit hooks |
-| Vitest | Testes unitários (compatível com Vite) |
-| Testing Library | Testes de componente |
-| Playwright | Testes end-to-end (E2E) |
-| Storybook (opcional) | Catálogo visual de componentes |
+| Critério | Decisão |
+|---|---|
+| Linguagem mais acessível para iniciantes | Python no backend |
+| Framework web simples e com documentação excelente | FastAPI |
+| Banco obrigatório pelo ambiente corporativo | SQL Server |
+| Estado de autenticação sem biblioteca extra | React Context nativo |
+| Validação de formulários mais legível | Yup (sintaxe mais direta que Zod) |
+| Sem complexidade desnecessária | Redis e BullMQ removidos da v1 |
 
 ---
 
-## 3. Backend
+## 3. Frontend
 
 ### 3.1 Tecnologias Core
 
-| Tecnologia | Versão | Justificativa |
-|-----------|:------:|--------------|
-| **Node.js** | 20 LTS | Runtime estável e performático; suporte long-term até 2026 |
-| **NestJS** | 10.x | Framework opinado; módulos, guards, interceptors; fácil teste |
-| **TypeScript** | 5.x | Tipagem ponta-a-ponta (frontend + backend) |
-| **Prisma** | 5.x | ORM type-safe; migrations automáticas; excelente DX |
+| Tecnologia | Versão | Função |
+|---|:---:|---|
+| **React** | 18.x | Framework de interface |
+| **TypeScript** | 5.x | Tipagem estática — detecta erros antes de rodar |
+| **Vite** | 5.x | Servidor de desenvolvimento e build |
+| **React Router** | 6.x | Navegação entre páginas (sem recarregar o browser) |
 
-### 3.2 Bibliotecas de Suporte
+### 3.2 Gerenciamento de Estado
 
-| Biblioteca | Propósito |
-|-----------|-----------|
-| **Passport.js** + @nestjs/passport | Estratégias de autenticação (local, JWT) |
-| **passport-jwt** | Validação de JWT RS256 |
-| **bcrypt** | Hash de senhas |
-| **jsonwebtoken** | Emissão/verificação de JWTs |
-| **Helmet** | Headers de segurança HTTP |
-| **@nestjs/throttler** | Rate limiting |
-| **class-validator** + **class-transformer** | Validação e transformação de DTOs |
-| **ioredis** | Cliente Redis com suporte a cluster e retry |
-| **BullMQ** + @nestjs/bull | Filas assíncronas (v1.1) |
-| **Nodemailer** | Envio de e-mails (v1.1) |
-| **@azure/identity** | Autenticação no Azure (Service Principal) |
-| **axios** | Chamadas HTTP para API do Power BI |
-| **pino** + pino-pretty | Logger de alta performance em JSON |
-| **@nestjs/swagger** | Documentação automática da API (OpenAPI 3.0) |
-| **@nestjs/terminus** | Health checks padronizados |
-| **@opentelemetry/sdk-node** | Tracing distribuído |
+| Biblioteca | Função |
+|---|---|
+| **React Context** (`AuthContext`) | Estado do usuário logado — nativo do React, sem dependência extra |
+| **TanStack Query** v5 | Busca de dados da API: cache automático, loading, erro, refetch |
+| **useState** local | Estado de formulários e UI específicos de cada componente |
 
-### 3.3 Qualidade de Código (Backend)
+> **Por que não Zustand?** Foi removido para simplificar. O React Context cobre o único caso de estado global necessário na v1 (autenticação). Zustand pode ser adicionado futuramente se o projeto crescer.
 
-| Ferramenta | Propósito |
-|-----------|-----------|
-| ESLint + @typescript-eslint | Linting |
-| Prettier | Formatação |
-| Jest | Testes unitários e de integração |
-| Supertest | Testes de controllers (HTTP) |
-| @nestjs/testing | Módulo de testes do NestJS |
-| testcontainers-node | PostgreSQL e Redis reais para testes de integração |
+### 3.3 Formulários e Validação
 
----
+| Biblioteca | Função |
+|---|---|
+| **React Hook Form** | Gerencia campos, erros e envio do formulário |
+| **Yup** | Define as regras de validação de forma declarativa |
+| **@hookform/resolvers** | Conecta o Yup ao React Hook Form |
 
-## 4. Banco de Dados
-
-| Tecnologia | Versão | Justificativa |
-|-----------|:------:|--------------|
-| **PostgreSQL** | 16+ | ACID, JSONB nativo, row-level security, maturidade |
-| **Prisma** (ORM) | 5.x | Migrations type-safe; client gerado; excelente para NestJS |
-| **Redis** | 7.x | Cache, sessões, rate limiting, filas (via BullMQ) |
-
-### Por que PostgreSQL?
-
-- Suporte nativo a JSONB (campo `previous_val`/`new_val` nos logs de auditoria)
-- Row-Level Security nativo (possível uso futuro para multi-tenant)
-- Trigger functions para implementar a restrição append-only do audit_log
-- Suporte a extensões: `pgcrypto` (UUID), `pg_stat_statements` (análise de queries)
-- Excelente suporte pela comunidade open-source e todos os provedores cloud
-
-### Por que Redis?
-
-- Estrutura de dados rica: strings, hashes, sorted sets, pub/sub
-- TTL nativo por chave (ideal para tokens e sessões)
-- Baixa latência (< 1ms para operações simples)
-- BullMQ usa Redis como broker de filas nativo
-
----
-
-## 5. Infraestrutura
-
-| Componente | Opção 1 (Azure) | Opção 2 (AWS) | Opção 3 (Self-hosted) |
-|-----------|-----------------|---------------|----------------------|
-| Compute | Azure Container Apps / App Service | AWS ECS Fargate / Beanstalk | Docker + VPS (DigitalOcean) |
-| Banco | Azure Database for PostgreSQL | AWS RDS PostgreSQL | PostgreSQL no Docker |
-| Cache | Azure Cache for Redis | AWS ElastiCache | Redis no Docker |
-| Storage (logs/exports) | Azure Blob Storage | AWS S3 | MinIO |
-| Load Balancer | Azure App Gateway | AWS ALB | NGINX |
-| CDN (SPA estática) | Azure CDN / Static Web Apps | AWS CloudFront + S3 | Cloudflare |
-| Secrets | Azure Key Vault | AWS Secrets Manager | HashiCorp Vault |
-| DNS | Azure DNS | Route 53 | Cloudflare DNS |
-
-**Recomendação:** Azure (já usa PBI e Azure AD) para simplificar integração e billing.
-
-### Containerização
-
-```dockerfile
-# Dockerfile do backend (multi-stage)
-FROM node:20-alpine AS builder
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci
-COPY . .
-RUN npm run build
-
-FROM node:20-alpine AS runner
-WORKDIR /app
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/package.json ./
-EXPOSE 3001
-CMD ["node", "dist/main.js"]
+**Exemplo de uso:**
+```typescript
+const esquema = yup.object({
+  email: yup.string().email('Email inválido').required('Obrigatório'),
+  senha: yup.string().min(6, 'Mínimo 6 caracteres').required('Obrigatório'),
+});
 ```
 
-```yaml
-# docker-compose.yml (desenvolvimento)
-services:
-  api:
-    build: ./backend
-    ports: ["3001:3001"]
-    env_file: .env
-    depends_on: [postgres, redis]
+### 3.4 Outras Bibliotecas
 
-  frontend:
-    build: ./frontend
-    ports: ["5173:5173"]
-    env_file: .env.frontend
+| Biblioteca | Função |
+|---|---|
+| **Axios** | Chamadas HTTP para a API com interceptor de token JWT |
+| **React Hot Toast** | Notificações de sucesso e erro |
+| **TanStack Table** | Tabelas com ordenação e filtros |
+| **Headless UI** | Componentes acessíveis (modais, dropdowns) |
+| **powerbi-client** | Embed de relatórios Power BI (v1.1) |
 
-  postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_DB: btportal
-      POSTGRES_USER: btportal
-      POSTGRES_PASSWORD: dev_password
-    volumes: ["pgdata:/var/lib/postgresql/data"]
-    ports: ["5432:5432"]
+### 3.5 Estrutura de Arquivos (Frontend)
 
-  redis:
-    image: redis:7-alpine
-    ports: ["6379:6379"]
+```
+frontend/src/
+├── contexts/
+│   └── AuthContext.tsx       ← estado do usuário logado (useAuth)
+├── services/
+│   └── api.ts                ← cliente Axios com token JWT automático
+├── layouts/
+│   └── LayoutDashboard.tsx   ← barra lateral + área de conteúdo
+├── pages/
+│   ├── auth/
+│   │   └── PaginaLogin.tsx
+│   ├── dashboard/
+│   │   └── PaginaDashboard.tsx
+│   ├── relatorios/
+│   │   └── PaginaVisualizacaoRelatorio.tsx
+│   ├── admin/
+│   │   ├── PaginaUsuarios.tsx
+│   │   ├── PaginaWorkspaces.tsx
+│   │   ├── PaginaPermissoes.tsx
+│   │   ├── PaginaLogsAuditoria.tsx
+│   │   ├── PaginaExpediente.tsx
+│   │   └── PaginaConfiguracoes.tsx
+│   └── PaginaNaoEncontrada.tsx
+├── App.tsx                   ← definição de rotas
+└── main.tsx                  ← ponto de entrada
 ```
 
 ---
 
-## 6. DevOps e CI/CD
+## 4. Backend
 
-| Etapa | Ferramenta | Descrição |
-|-------|-----------|-----------|
-| Repositório | GitHub / Azure DevOps | Controle de versão e Code Review |
-| CI | GitHub Actions / Azure Pipelines | Lint, testes, build automático |
-| CD — Staging | GitHub Actions | Deploy automático ao fazer merge na main |
-| CD — Produção | GitHub Actions | Deploy com aprovação manual |
-| Container Registry | GitHub Container Registry / Azure ACR | Imagens Docker |
-| IaC | Terraform ou Bicep (Azure) | Infraestrutura como código |
-| Secrets no CI | GitHub Secrets / Azure Key Vault | Nunca em YAML |
+### 4.1 Tecnologias Core
 
-### Pipeline CI (GitHub Actions — exemplo)
+| Tecnologia | Versão | Função |
+|---|:---:|---|
+| **Python** | 3.12 | Linguagem principal do backend |
+| **FastAPI** | 0.115 | Framework web — cria endpoints REST com validação automática |
+| **uvicorn** | 0.31 | Servidor ASGI que roda o FastAPI |
+| **SQLAlchemy** | 2.0 | ORM — traduz código Python em SQL |
+| **Pydantic v2** | 2.9 | Validação e serialização de dados (integrado ao FastAPI) |
+| **pydantic-settings** | 2.6 | Leitura tipada das variáveis do arquivo `.env` |
 
-```yaml
-name: CI
-on: [pull_request]
-jobs:
-  quality:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: '20' }
-      - run: npm ci
-      - run: npm run lint
-      - run: npm run type-check
-      - run: npm run test:unit
-      - run: npm run test:integration
-      - run: npm run build
-      - run: npm audit --audit-level=high
+### 4.2 Autenticação e Segurança
+
+| Biblioteca | Função |
+|---|---|
+| **python-jose** | Criação e validação de tokens JWT (algoritmo HS256) |
+| **passlib + bcrypt** | Hash seguro de senhas |
+| **pyodbc** | Driver de conexão Python → SQL Server |
+
+**Como funciona a autenticação:**
+1. Usuário envia `email` + `senha` para `POST /api/v1/auth/entrar`
+2. Backend verifica a senha com bcrypt
+3. Gera um token JWT assinado com a chave secreta (`JWT_SECRET_KEY`)
+4. Frontend armazena o token no `localStorage` com a chave `token_acesso`
+5. Cada requisição subsequente envia o token no header `Authorization: Bearer <token>`
+6. O FastAPI valida o token automaticamente via a dependência `obter_usuario_atual`
+
+### 4.3 Estrutura de Arquivos (Backend)
+
+```
+backend/
+├── main.py           ← inicializa o FastAPI, CORS, registra roteadores
+├── config.py         ← lê variáveis do .env com tipagem (pydantic-settings)
+├── database.py       ← cria a conexão com o SQL Server (engine + sessão)
+├── models.py         ← define as tabelas do banco (classes SQLAlchemy)
+├── schemas.py        ← define o formato dos dados de entrada e saída (Pydantic)
+├── auth.py           ← funções de JWT e bcrypt
+├── dependencies.py   ← funções reutilizáveis: obter_db, obter_usuario_atual, exigir_perfil
+├── routers/
+│   ├── auth.py       ← POST /auth/entrar, POST /auth/sair, GET /auth/eu
+│   ├── usuarios.py   ← CRUD de usuários
+│   ├── workspaces.py ← CRUD de workspaces + concessão de acesso
+│   ├── relatorios.py ← CRUD de relatórios + favoritos
+│   ├── permissoes.py ← leitura e edição de permissões por perfil
+│   └── auditoria.py  ← consulta read-only de logs de auditoria
+├── requirements.txt  ← lista de dependências Python
+├── .env.example      ← modelo do arquivo de configuração
+└── Dockerfile        ← imagem Docker do backend
+```
+
+### 4.4 Endpoints Disponíveis (v1)
+
+| Método | Endpoint | Função |
+|---|---|---|
+| POST | `/api/v1/auth/entrar` | Login |
+| POST | `/api/v1/auth/sair` | Logout |
+| GET | `/api/v1/auth/eu` | Dados do usuário logado |
+| GET | `/api/v1/usuarios` | Listar usuários |
+| POST | `/api/v1/usuarios` | Criar usuário |
+| PUT | `/api/v1/usuarios/{id}` | Atualizar usuário |
+| DELETE | `/api/v1/usuarios/{id}` | Desativar usuário |
+| GET | `/api/v1/workspaces` | Listar workspaces |
+| POST | `/api/v1/workspaces` | Criar workspace |
+| PUT | `/api/v1/workspaces/{id}` | Atualizar workspace |
+| DELETE | `/api/v1/workspaces/{id}` | Arquivar workspace |
+| POST | `/api/v1/workspaces/{id}/acesso` | Conceder acesso |
+| GET | `/api/v1/relatorios` | Listar relatórios |
+| POST | `/api/v1/relatorios` | Criar relatório |
+| PUT | `/api/v1/relatorios/{id}` | Atualizar relatório |
+| DELETE | `/api/v1/relatorios/{id}` | Arquivar relatório |
+| POST | `/api/v1/relatorios/{id}/favorito` | Adicionar/remover favorito |
+| GET | `/api/v1/permissoes` | Listar permissões |
+| PUT | `/api/v1/permissoes/{id}` | Atualizar permissão |
+| GET | `/api/v1/auditoria` | Consultar logs |
+| GET | `/saude` | Health check |
+
+> A documentação interativa completa fica disponível em `http://localhost:3001/docs` enquanto o servidor estiver rodando em modo `development`.
+
+---
+
+## 5. Banco de Dados
+
+### 5.1 SQL Server
+
+| Item | Detalhe |
+|---|---|
+| **Versão desenvolvimento** | SQL Server 2022/2025 Developer Edition (local, gratuito) |
+| **Versão produção** | SQL Server on-premise do servidor corporativo |
+| **Driver Python** | pyodbc + ODBC Driver 17 for SQL Server |
+| **ORM** | SQLAlchemy 2.0 com dialeto `mssql+pyodbc` |
+
+### 5.2 String de Conexão
+
+```
+# Desenvolvimento local (Autenticação Windows — sem usuário/senha)
+mssql+pyodbc://@localhost\SQLEXPRESS/btportal?driver=ODBC+Driver+17+for+SQL+Server&TrustServerCertificate=yes&trusted_connection=yes
+
+# Produção (servidor da empresa)
+mssql+pyodbc://USUARIO:SENHA@SERVIDOR\INSTANCIA/btportal?driver=ODBC+Driver+17+for+SQL+Server
+```
+
+### 5.3 Tabelas do banco (em português)
+
+| Tabela | Conteúdo |
+|---|---|
+| `usuarios` | Contas de acesso ao portal |
+| `espacos_trabalho` | Agrupamentos de relatórios (Workspaces) |
+| `relatorios` | Relatórios Power BI cadastrados |
+| `acessos_workspace` | Qual usuário acessa qual workspace |
+| `acessos_relatorio` | Acesso explícito a relatório específico |
+| `permissoes_perfil` | Permissões padrão por perfil (RBAC) |
+| `sobrescritas_permissao` | Exceções de permissão por usuário |
+| `regras_expediente` | Horários de acesso permitidos |
+| `grupos_excecao` | Grupos com acesso fora do expediente |
+| `membros_grupo_excecao` | Usuários em grupos de exceção |
+| `favoritos` | Relatórios favoritos por usuário |
+| `logs_auditoria` | Registro imutável de todas as ações |
+| `configuracoes_sistema` | Parâmetros globais do sistema |
+
+### 5.4 Perfis de usuário
+
+| Perfil | Valor no banco | Nível de acesso |
+|---|---|---|
+| Super Administrador | `super_administrador` | Acesso total |
+| Administrador | `administrador` | Gerencia usuários e conteúdo |
+| Gerente | `gerente` | Visualiza usuários, não altera permissões |
+| Operador | `operador` | Acessa relatórios liberados |
+| Visitante | `visitante` | Acesso mínimo |
+
+
+### 5.5 Mapeamento de Tipos Python → SQL Server
+
+| Tipo SQLAlchemy | Tipo SQL Server | Observação |
+|---|---|---|
+| `String(N)` | `NVARCHAR(N)` | Use para campos com tamanho definido |
+| `Text` | `NVARCHAR(MAX)` | Use para textos longos |
+| `Boolean` | `BIT` | Mapeado automaticamente |
+| `Integer` | `INT` | — |
+| `DateTime` | `DATETIME2` | Armazenar sempre em UTC |
+| `UNIQUEIDENTIFIER` | `UNIQUEIDENTIFIER` | Chaves primárias UUID |
+
+---
+
+## 6. Ambiente de Desenvolvimento
+
+### 6.1 Pré-requisitos
+
+| Software | Versão mínima | Download |
+|---|---|---|
+| Python | 3.10+ | python.org/downloads |
+| Node.js | 20 LTS | nodejs.org |
+| SQL Server Developer | 2022+ | microsoft.com/sql-server |
+| ODBC Driver 17 | — | aka.ms/odbc17 |
+| SSMS (opcional) | — | aka.ms/ssmsfullsetup |
+
+### 6.2 Iniciar o projeto
+
+**Terminal 1 — Backend:**
+```powershell
+cd backend
+pip install -r requirements.txt
+uvicorn main:app --reload --port 3001
+```
+
+**Terminal 2 — Frontend:**
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
+| URL | O que abre |
+|---|---|
+| `http://localhost:5173` | Aplicação (frontend) |
+| `http://localhost:3001/docs` | Documentação interativa da API (Swagger) |
+| `http://localhost:3001/saude` | Health check da API |
+
+### 6.3 Variáveis de ambiente
+
+**`backend/.env`**
+```env
+DATABASE_URL=mssql+pyodbc://@localhost\SQLEXPRESS/btportal?driver=ODBC+Driver+17+for+SQL+Server&TrustServerCertificate=yes&trusted_connection=yes
+JWT_SECRET_KEY=troque-por-uma-chave-longa-e-aleatoria
+JWT_ALGORITMO=HS256
+JWT_EXPIRA_MINUTOS=60
+PORTA=3001
+AMBIENTE=development
+URL_FRONTEND=http://localhost:5173
+```
+
+**`frontend/.env`**
+```env
+VITE_API_BASE_URL=http://localhost:3001/api/v1
+VITE_NOME_APP=Portal Analítico
+VITE_AMBIENTE=development
 ```
 
 ---
 
-## 7. Monitoramento
+## 7. Caminho de Evolução
 
-| Ferramenta | Propósito | Quando |
-|-----------|-----------|--------|
-| **Azure Application Insights** | APM, traces, métricas, logs | Recomendado se infra Azure |
-| **Datadog** | APM full-stack, dashboards, alertas | Alternativa premium |
-| **Prometheus + Grafana** | Métricas open-source + dashboards | Alternativa self-hosted |
-| **Sentry** | Error tracking com stack trace | Recomendado independente da escolha de APM |
-| **UptimeRobot / Better Uptime** | Monitoramento de disponibilidade (uptime) externo | Simples e barato |
-| **PgBadger** | Análise de slow queries do PostgreSQL | Análise periódica |
+A stack foi pensada para crescer gradualmente conforme o desenvolvedor ganha confiança:
+
+| Fase | O que adicionar | Quando |
+|---|---|---|
+| **v1 (atual)** | Backend Python + FastAPI, frontend React funcional | Agora |
+| **v1.1** | Notificações por email (SMTP), exportação CSV | Após dominar a v1 |
+| **v1.2** | Power BI Embedded com token real | Após v1.1 |
+| **v2** | Migrar para servidor da empresa, Redis para cache | Quando for para produção |
+| **Futuro** | Avaliar migração do backend para NestJS/TypeScript | Se o time crescer |
 
 ---
 
-## 8. Resumo Consolidado da Stack Recomendada
+## 8. Resumo da Stack
 
-| Camada | Tecnologia Principal | Alternativa |
-|--------|---------------------|-------------|
-| Frontend | React 18 + TypeScript |  |
-| Estado servidor | TanStack Query v5 | SWR |
-| Estado global | Zustand | Jotai |
-| Backend | NestJS (Node.js 20) + TypeScript | Fastify + TypeScript (menos opinionado) |
-| ORM | Prisma 5 | TypeORM |
-| Banco principal | PostgreSQL 16 | — |
-| Cache | Redis 7 | Valkey (fork open-source do Redis) |
-| Filas | BullMQ | — |
-| PBI Embed | powerbi-client (SDK oficial) | — |
-| Auth Azure | @azure/identity | — |
-| Infra | Azure Container Apps | Docker + VPS |
-| CI/CD | GitHub Actions | Azure Pipelines |
-| APM | Azure App Insights + Sentry | Datadog |
-| Testes E2E | Playwright | Cypress |
-| Testes unitários | Vitest (front) + Jest (back) | — |
+| Camada | Tecnologia |
+|---|---|
+| **Frontend** | React 18 + TypeScript + Vite |
+| **Estado de autenticação** | React Context (AuthContext) |
+| **Estado de dados da API** | TanStack Query v5 |
+| **Formulários** | React Hook Form + Yup |
+| **HTTP** | Axios |
+| **Backend** | Python 3.12 + FastAPI |
+| **ORM** | SQLAlchemy 2.0 |
+| **Banco de dados** | SQL Server (Developer local → on-premise em produção) |
+| **Autenticação** | JWT HS256 (python-jose + bcrypt) |
+| **Servidor** | uvicorn |
 
 ---
 
 ## Histórico de Alterações
 
-| Versão | Data | Autor | Descrição |
-|--------|------|-------|-----------|
-| 1.0 | Maio/2026 | — | Criação inicial do documento |
+| Versão | Data | Descrição |
+|---|---|---|
+| 1.0 | Maio/2026 | Criação inicial com stack NestJS + Prisma + Redis |
+| 2.0 | Maio/2026 | Migração para Python + FastAPI + SQLAlchemy; remoção de Redis e BullMQ; simplificação do frontend (React Context substituindo Zustand, Yup substituindo Zod); todos os nomes em Português do Brasil |

@@ -42,14 +42,13 @@
 |----|-----------|----------|:--------------:|
 | RNF-SEG-01 | Senhas armazenadas com hash bcrypt com salt rounds ≥ 12 | Nenhuma senha em texto puro no banco | Obrigatório |
 | RNF-SEG-02 | Toda comunicação exclusivamente via HTTPS com TLS 1.3 | Redirecionamento automático de HTTP para HTTPS; TLS < 1.2 rejeitado | Obrigatório |
-| RNF-SEG-03 | Tokens JWT assinados com RS256 (chave assimétrica, 2048 bits) | Chave privada nunca exposta ao cliente; chave pública disponível em `/.well-known/jwks.json` | Obrigatório |
-| RNF-SEG-04 | Access token com TTL máximo de 1 hora; refresh token com TTL de 24 horas | Tokens expirados rejeitados; renovação automática funciona | Obrigatório |
-| RNF-SEG-05 | Tokens de refresh armazenados em `httpOnly; Secure; SameSite=Strict` cookies | Não acessível via JavaScript (`document.cookie`) | Obrigatório |
-| RNF-SEG-06 | Rate limiting por IP: máximo 100 requisições por minuto | Após exceder, HTTP 429 com header `Retry-After` | Obrigatório |
-| RNF-SEG-07 | Headers de segurança HTTP: HSTS, CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy | Scanner de segurança (SecurityHeaders.com) retorna nota A+ | Obrigatório |
-| RNF-SEG-08 | Credenciais Azure/PBI armazenadas criptografadas em cofre de segredos | Client Secret nunca em variável de ambiente não criptografada em produção | Obrigatório |
-| RNF-SEG-09 | Tokens de embed PBI gerados exclusivamente no backend | Nenhuma rota do frontend gera ou expõe tokens PBI diretamente | Obrigatório |
-| RNF-SEG-10 | Scan de vulnerabilidades automatizado no pipeline CI/CD (SAST) | Pipeline falha se vulnerabilidade crítica ou alta for detectada | Recomendado |
+| RNF-SEG-03 | Access token com TTL máximo de 1 hora; refresh token com TTL de 24 horas | Tokens expirados rejeitados; renovação automática funciona | Obrigatório |
+| RNF-SEG-04 | Tokens de refresh armazenados em `httpOnly; Secure; SameSite=Strict` cookies | Não acessível via JavaScript (`document.cookie`) | Obrigatório |
+| RNF-SEG-05 | Rate limiting por IP: máximo 100 requisições por minuto | Após exceder, HTTP 429 com header `Retry-After` | Obrigatório |
+| RNF-SEG-06 | Headers de segurança HTTP: HSTS, CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy | Scanner de segurança (SecurityHeaders.com) retorna nota A+ | Obrigatório |
+| RNF-SEG-07 | Credenciais Azure/PBI armazenadas criptografadas em cofre de segredos | Client Secret nunca em variável de ambiente não criptografada em produção | Obrigatório |
+| RNF-SEG-08 | Tokens de embed PBI gerados exclusivamente no backend | Nenhuma rota do frontend gera ou expõe tokens PBI diretamente | Obrigatório |
+| RNF-SEG-09 | Scan de vulnerabilidades automatizado no pipeline CI/CD (SAST) | Pipeline falha se vulnerabilidade crítica ou alta for detectada | Recomendado |
 
 ---
 

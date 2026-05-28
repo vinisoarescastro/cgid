@@ -56,11 +56,11 @@ Implementa um fluxo de três telas:
 Usuários disponíveis no mock:
 | E-mail | Perfil | Acesso |
 |--------|--------|--------|
-| admin@bt.com | Super Admin | Total |
-| ana@bt.com | Admin | Total |
-| carlos@bt.com | Gerente | Workspace Controladoria |
-| mariana@bt.com | Operador | Workspace Marketing |
-| pedro@bt.com | Operador | Workspace SAC |
+| admin@btsa.com | Super Admin | Total |
+| ana@btsa.com | Admin | Total |
+| carlos@btsa.com | Gerente | Workspace Controladoria |
+| mariana@btsa.com | Operador | Workspace Marketing |
+| pedro@btsa.com | Operador | Workspace SAC |
 
 ### 2.4 RBAC Implementado no Frontend
 

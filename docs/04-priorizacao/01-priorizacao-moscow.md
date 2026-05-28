@@ -93,7 +93,6 @@ A priorização segue o framework **MoSCoW**:
 
 ### Infraestrutura
 
-- [x] Containerização com Docker + Docker Compose
 - [x] API REST documentada (Swagger/OpenAPI)
 - [x] Pipeline CI/CD básico (lint + testes + build)
 

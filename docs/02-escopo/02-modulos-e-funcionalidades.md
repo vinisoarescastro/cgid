@@ -151,10 +151,9 @@ O sistema é composto por **10 módulos funcionais** organizados em duas camadas
 |----|---------------|--------|-----------|
 | F-SCHED-01 | Definição de horário de início e fim por dia da semana | v1.0 | 🔴 Obrigatório |
 | F-SCHED-02 | Toggle para bloquear acesso fora do expediente por padrão | v1.0 | 🔴 Obrigatório |
-| F-SCHED-03 | Cadastro de exceções individuais (usuário + janela de horário) | v1.0 | 🔴 Obrigatório |
-| F-SCHED-04 | Cadastro de grupos de exceção | v1.0 | 🔴 Obrigatório |
-| F-SCHED-05 | Ativação/desativação de exceções | v1.0 | 🔴 Obrigatório |
-| F-SCHED-06 | Mensagem personalizada exibida ao usuário bloqueado por expediente | v1.0 | 🔴 Obrigatório |
+| F-SCHED-03 | Cadastro de grupos de exceção | v1.0 | 🔴 Obrigatório |
+| F-SCHED-04 | Ativação/desativação de exceções | v1.0 | 🔴 Obrigatório |
+| F-SCHED-05 | Mensagem personalizada exibida ao usuário bloqueado por expediente | v1.0 | 🔴 Obrigatório |
 
 ---
 
@@ -185,7 +184,7 @@ O sistema é composto por **10 módulos funcionais** organizados em duas camadas
 
 | ID | Funcionalidade | Versão | Prioridade |
 |----|---------------|--------|-----------|
-| F-SEC-01 | Checklist de segurança (bcrypt, rate limiting, RBAC, HSTS, CSP, MFA, LGPD, TLS) | v1.0 | 🟡 Recomendado |
+| F-SEC-01 | Checklist de segurança (bcrypt, rate limiting, HSTS, CSP, MFA, LGPD, TLS) | v1.0 | 🟡 Recomendado |
 | F-SEC-02 | Visualização de eventos de segurança recentes (logins suspeitos, bloqueios) | v1.0 | 🔴 Obrigatório |
 | F-SEC-03 | Relatório de IPs suspeitos | v1.1 | 🟡 Recomendado |
 | F-SEC-04 | Gestão de sessões ativas | v1.1 | 🟡 Recomendado |

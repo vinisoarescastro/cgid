@@ -33,12 +33,10 @@ O projeto compreende o desenvolvimento do **BrasilTerrenos Portal Corporativo**,
 | E12 | Painel administrativo com KPIs de uso e segurança | Visibilidade para admins |
 | E13 | Sistema de favoritos por usuário | UX básica |
 | E14 | Busca de relatórios | UX básica |
-| E15 | Tela de boas-vindas personalizada por perfil | UX |
-| E16 | Proteção brute force (bloqueio após 5 tentativas) | Segurança básica |
-| E17 | Configurações do portal (Client ID, Tenant ID PBI) | Operação |
-| E18 | Dashboard de segurança com checklist | Visibilidade operacional |
-| E19 | API REST documentada (Swagger/OpenAPI) | Qualidade técnica |
-| E20 | Containerização com Docker | Reprodutibilidade de ambiente |
+| E15 | Proteção brute force (bloqueio após 5 tentativas) | Segurança básica |
+| E16 | Configurações do portal (Client ID, Tenant ID PBI) | Operação |
+| E17 | Dashboard de segurança com checklist | Visibilidade operacional |
+| E18 | API REST documentada (Swagger/OpenAPI) | Qualidade técnica |
 
 ### 2.2 Versão 1.1 (Pós-MVP — Curto Prazo)
 
