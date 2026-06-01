@@ -437,3 +437,205 @@ def dashboard_workspaces(db: Session = Depends(get_db)):
         })
 
     return resultado
+
+
+# ─── Workspace CRUD ───────────────────────────────────────────────────────────
+
+class WorkspaceCreate(BaseModel):
+    nome: str
+    icone: Optional[str] = None
+    cor: Optional[str] = None
+    descricao: Optional[str] = None
+    id_workspace_pbi: Optional[str] = None
+
+class RelatorioItem(BaseModel):
+    id: str
+    nome: str
+    categoria: Optional[str] = None
+    status: str
+    descricao: Optional[str] = None
+    id_relatorio_pbi: Optional[str] = None
+    criado_em: Optional[str] = None
+
+@app.post("/workspaces", response_model=WorkspaceItem, status_code=201)
+def criar_workspace(dados: WorkspaceCreate, db: Session = Depends(get_db)):
+    ws = EspacoTrabalho(
+        nome=dados.nome,
+        icone=dados.icone,
+        cor=dados.cor,
+        descricao=dados.descricao,
+        id_workspace_pbi=dados.id_workspace_pbi,
+        status="ativo",
+    )
+    db.add(ws)
+    db.commit()
+    db.refresh(ws)
+    registrar_log(db, "sistema", "espacos_trabalho", f"Workspace criado: {ws.nome}")
+    db.commit()
+    return ws
+
+@app.put("/workspaces/{workspace_id}", response_model=WorkspaceItem)
+def atualizar_workspace(workspace_id: str, dados: WorkspaceCreate, db: Session = Depends(get_db)):
+    ws = db.query(EspacoTrabalho).filter(EspacoTrabalho.id == workspace_id).first()
+    if not ws:
+        raise HTTPException(status_code=404, detail="Workspace não encontrado.")
+    ws.nome = dados.nome
+    ws.icone = dados.icone
+    ws.cor = dados.cor
+    ws.descricao = dados.descricao
+    ws.id_workspace_pbi = dados.id_workspace_pbi
+    db.commit()
+    db.refresh(ws)
+    registrar_log(db, "sistema", "espacos_trabalho", f"Workspace atualizado: {ws.nome}")
+    db.commit()
+    return ws
+
+@app.patch("/workspaces/{workspace_id}/arquivar", status_code=200)
+def arquivar_workspace(workspace_id: str, db: Session = Depends(get_db)):
+    ws = db.query(EspacoTrabalho).filter(EspacoTrabalho.id == workspace_id).first()
+    if not ws:
+        raise HTTPException(status_code=404, detail="Workspace não encontrado.")
+    ws.status = "arquivado"
+    db.commit()
+    registrar_log(db, "sistema", "espacos_trabalho", f"Workspace arquivado: {ws.nome}")
+    db.commit()
+    return {"mensagem": "Workspace arquivado com sucesso."}
+
+class UsuarioWorkspaceItem(BaseModel):
+    usuario_id: str
+    nome: str
+    email: str
+    perfil: str
+    nivel_acesso: str  # total | apenas_relatorios
+
+@app.get("/workspaces/{workspace_id}/usuarios", response_model=List[UsuarioWorkspaceItem])
+def listar_usuarios_workspace(workspace_id: str, db: Session = Depends(get_db)):
+    ws = db.query(EspacoTrabalho).filter(EspacoTrabalho.id == workspace_id).first()
+    if not ws:
+        raise HTTPException(status_code=404, detail="Workspace não encontrado.")
+    registros = (
+        db.query(AcessoWorkspace, Usuario)
+        .join(Usuario, AcessoWorkspace.usuario_id == Usuario.id)
+        .filter(
+            AcessoWorkspace.espaco_trabalho_id == workspace_id,
+            AcessoWorkspace.nivel_acesso != "nenhum",
+            Usuario.status == "ativo",
+        )
+        .order_by(Usuario.nome)
+        .all()
+    )
+    return [
+        UsuarioWorkspaceItem(
+            usuario_id=a.usuario_id,
+            nome=u.nome,
+            email=u.email,
+            perfil=u.perfil,
+            nivel_acesso=a.nivel_acesso,
+        )
+        for a, u in registros
+    ]
+
+class VincularUsuarioInput(BaseModel):
+    usuario_id: str
+    nivel_acesso: str  # total | apenas_relatorios
+
+class AlterarNivelInput(BaseModel):
+    nivel_acesso: str
+
+@app.post("/workspaces/{workspace_id}/usuarios", response_model=UsuarioWorkspaceItem, status_code=201)
+def vincular_usuario_workspace(workspace_id: str, dados: VincularUsuarioInput, db: Session = Depends(get_db)):
+    ws = db.query(EspacoTrabalho).filter(EspacoTrabalho.id == workspace_id).first()
+    if not ws:
+        raise HTTPException(status_code=404, detail="Workspace não encontrado.")
+    usuario = db.query(Usuario).filter(Usuario.id == dados.usuario_id).first()
+    if not usuario:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+    if dados.nivel_acesso not in NIVEIS_VALIDOS:
+        raise HTTPException(status_code=422, detail="Nível de acesso inválido.")
+    existente = db.query(AcessoWorkspace).filter(
+        AcessoWorkspace.usuario_id == dados.usuario_id,
+        AcessoWorkspace.espaco_trabalho_id == workspace_id,
+    ).first()
+    if existente:
+        existente.nivel_acesso = dados.nivel_acesso
+    else:
+        db.add(AcessoWorkspace(
+            usuario_id=dados.usuario_id,
+            espaco_trabalho_id=workspace_id,
+            nivel_acesso=dados.nivel_acesso,
+        ))
+    db.commit()
+    registrar_log(db, "acesso", "acessos_workspace", f"Usuário {usuario.email} vinculado ao workspace {ws.nome} ({dados.nivel_acesso})")
+    db.commit()
+    return UsuarioWorkspaceItem(
+        usuario_id=usuario.id,
+        nome=usuario.nome,
+        email=usuario.email,
+        perfil=usuario.perfil,
+        nivel_acesso=dados.nivel_acesso,
+    )
+
+@app.patch("/workspaces/{workspace_id}/usuarios/{usuario_id}", response_model=UsuarioWorkspaceItem)
+def alterar_nivel_usuario_workspace(workspace_id: str, usuario_id: str, dados: AlterarNivelInput, db: Session = Depends(get_db)):
+    acesso = db.query(AcessoWorkspace).filter(
+        AcessoWorkspace.espaco_trabalho_id == workspace_id,
+        AcessoWorkspace.usuario_id == usuario_id,
+    ).first()
+    if not acesso:
+        raise HTTPException(status_code=404, detail="Vínculo não encontrado.")
+    if dados.nivel_acesso not in NIVEIS_VALIDOS:
+        raise HTTPException(status_code=422, detail="Nível de acesso inválido.")
+    acesso.nivel_acesso = dados.nivel_acesso
+    db.commit()
+    usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
+    registrar_log(db, "acesso", "acessos_workspace", f"Nível de {usuario.email} alterado para {dados.nivel_acesso}")
+    db.commit()
+    return UsuarioWorkspaceItem(
+        usuario_id=usuario.id,
+        nome=usuario.nome,
+        email=usuario.email,
+        perfil=usuario.perfil,
+        nivel_acesso=dados.nivel_acesso,
+    )
+
+@app.delete("/workspaces/{workspace_id}/usuarios/{usuario_id}", status_code=204)
+def remover_usuario_workspace(workspace_id: str, usuario_id: str, db: Session = Depends(get_db)):
+    acesso = db.query(AcessoWorkspace).filter(
+        AcessoWorkspace.espaco_trabalho_id == workspace_id,
+        AcessoWorkspace.usuario_id == usuario_id,
+    ).first()
+    if not acesso:
+        raise HTTPException(status_code=404, detail="Vínculo não encontrado.")
+    usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
+    ws = db.query(EspacoTrabalho).filter(EspacoTrabalho.id == workspace_id).first()
+    db.delete(acesso)
+    db.commit()
+    registrar_log(db, "acesso", "acessos_workspace", f"Usuário {usuario.email} removido do workspace {ws.nome}")
+    db.commit()
+
+@app.get("/workspaces/{workspace_id}/relatorios", response_model=List[RelatorioItem])
+def listar_relatorios_workspace(workspace_id: str, db: Session = Depends(get_db)):
+    ws = db.query(EspacoTrabalho).filter(EspacoTrabalho.id == workspace_id).first()
+    if not ws:
+        raise HTTPException(status_code=404, detail="Workspace não encontrado.")
+    relatorios = (
+        db.query(Relatorio)
+        .filter(
+            Relatorio.espaco_trabalho_id == workspace_id,
+            Relatorio.status != "arquivado",
+        )
+        .order_by(Relatorio.nome)
+        .all()
+    )
+    return [
+        RelatorioItem(
+            id=r.id,
+            nome=r.nome,
+            categoria=r.categoria,
+            status=r.status,
+            descricao=r.descricao,
+            id_relatorio_pbi=r.id_relatorio_pbi,
+            criado_em=r.criado_em.isoformat() if r.criado_em else None,
+        )
+        for r in relatorios
+    ]

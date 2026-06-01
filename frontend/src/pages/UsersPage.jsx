@@ -41,7 +41,7 @@ const NIVEL_LABELS = {
 }
 
 // ─── Modal de Criar/Editar ────────────────────────────────────────────────────
-function ModalUsuario({ usuario, onClose, onSave }) {
+function ModalUsuario({ usuario, acessosIniciais = [], onClose, onSave }) {
   const editando = !!usuario
   const [form, setForm] = useState({
     nome:   usuario?.nome   ?? '',
@@ -52,18 +52,26 @@ function ModalUsuario({ usuario, onClose, onSave }) {
   })
   const [erros, setErros]       = useState({})
   const [loading, setLoading]   = useState(false)
-  const [workspaces, setWorkspaces] = useState([])       // todos os workspaces disponíveis
-  const [acessos, setAcessos]   = useState([])           // [{espaco_trabalho_id, nivel_acesso}]
+  const [workspaces, setWorkspaces] = useState([])
+  const [acessos, setAcessos]   = useState(
+    acessosIniciais.map(a => ({ espaco_trabalho_id: a.espaco_trabalho_id, nivel_acesso: a.nivel_acesso }))
+  )
 
-  // carrega workspaces disponíveis e acessos existentes (se editando)
+  // carrega workspaces e — se não vieram acessos do pai — busca do backend
   useEffect(() => {
-    fetch(`${API}/workspaces`).then(r => r.json()).then(setWorkspaces).catch(() => {})
-    if (editando) {
-      fetch(`${API}/usuarios/${usuario.id}/acessos`)
-        .then(r => r.json())
-        .then(data => setAcessos(data.map(a => ({ espaco_trabalho_id: a.espaco_trabalho_id, nivel_acesso: a.nivel_acesso }))))
-        .catch(() => {})
-    }
+    const fetchWs = fetch(`${API}/workspaces`).then(r => r.json())
+    const fetchAcessos = (editando && acessosIniciais.length === 0)
+      ? fetch(`${API}/usuarios/${usuario.id}/acessos`).then(r => r.json())
+      : Promise.resolve(null)
+
+    Promise.all([fetchWs, fetchAcessos])
+      .then(([wsData, acessosData]) => {
+        setWorkspaces(wsData)
+        if (acessosData !== null) {
+          setAcessos(acessosData.map(a => ({ espaco_trabalho_id: a.espaco_trabalho_id, nivel_acesso: a.nivel_acesso })))
+        }
+      })
+      .catch(() => {})
   }, [])
 
   function set(campo, valor) {
@@ -222,7 +230,7 @@ function ModalUsuario({ usuario, onClose, onSave }) {
                             onChange={() => toggleWorkspace(ws.id)}
                           />
                           <span className="ws-acesso-icon" style={{ background: ws.cor ? ws.cor + '22' : 'var(--gray-100)', color: ws.cor ?? 'var(--gray-500)' }}>
-                            <i className={ws.icone ?? 'fa-solid fa-building'} />
+                            <i className={ws.icone ? `fa-solid ${ws.icone}` : 'fa-solid fa-building'} />
                           </span>
                           <span className="ws-acesso-nome">{ws.nome}</span>
                         </label>
@@ -397,7 +405,7 @@ export default function UsersPage() {
             <div className="sb-icon"><i className="fa-solid fa-users" /></div>
             <span className="sb-label">Usuários</span>
           </div>
-          <div className="sb-link">
+          <div className="sb-link" onClick={() => navigate('/workspaces')}>
             <div className="sb-icon"><i className="fa-solid fa-building-columns" /></div>
             <span className="sb-label">Workspace</span>
           </div>
@@ -590,6 +598,7 @@ export default function UsersPage() {
       {(modalNovo || modalEditar) && (
         <ModalUsuario
           usuario={modalEditar}
+          acessosIniciais={modalEditar ? (acessosMap[modalEditar.id] ?? []) : []}
           onClose={() => { setModalNovo(false); setModalEditar(null) }}
           onSave={handleSave}
         />

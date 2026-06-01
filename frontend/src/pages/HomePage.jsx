@@ -7,10 +7,21 @@ import Avatar from '../components/Avatar'
 
 const API = 'http://localhost:8000'
 
+const PERFIL_LABEL = {
+  super_administrador: 'Super Administrador',
+  administrador: 'Administrador',
+  gerente: 'Gerente',
+  operador: 'Operador',
+  visitante: 'Visitante',
+}
+
+const ADMIN_PERFIS = ['super_administrador', 'administrador']
+
 export default function HomePage() {
   const navigate = useNavigate()
   const [expanded, setExpanded] = useState(false)
   const user = JSON.parse(sessionStorage.getItem('cgid_user') || '{}')
+  const isAdmin = ADMIN_PERFIS.includes(user.perfil)
 
   const [kpis, setKpis] = useState(null)
   const [events, setEvents] = useState([])
@@ -57,11 +68,13 @@ export default function HomePage() {
             <div className="sb-icon"><i className="fa-solid fa-house" /></div>
             <span className="sb-label">Home</span>
           </div>
-          <div className="sb-link" onClick={() => navigate('/usuarios')}>
-            <div className="sb-icon"><i className="fa-solid fa-users" /></div>
-            <span className="sb-label">Usuários</span>
-          </div>
-          <div className="sb-link">
+          {isAdmin && (
+            <div className="sb-link" onClick={() => navigate('/usuarios')}>
+              <div className="sb-icon"><i className="fa-solid fa-users" /></div>
+              <span className="sb-label">Usuários</span>
+            </div>
+          )}
+          <div className="sb-link" onClick={() => navigate('/workspaces')}>
             <div className="sb-icon"><i className="fa-solid fa-building-columns" /></div>
             <span className="sb-label">Workspace</span>
           </div>
@@ -80,7 +93,7 @@ export default function HomePage() {
             <Avatar user={user} size={36} radius={10} />
             <div className="sb-user-info">
               <div className="sb-user-name">{user.email}</div>
-              <div className="sb-user-role">Administrador</div>
+              <div className="sb-user-role">{PERFIL_LABEL[user.perfil] ?? user.perfil}</div>
             </div>
           </div>
         </div>
@@ -123,7 +136,16 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* KPIs */}
+            {!isAdmin && (
+              <div className="card" style={{ padding: '32px 24px', textAlign: 'center', color: 'var(--gray-500)' }}>
+                <i className="fa-solid fa-chart-pie" style={{ fontSize: 40, marginBottom: 12, color: 'var(--brand-400)' }} />
+                <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>Bem-vindo ao portal CGID</div>
+                <div style={{ fontSize: 14 }}>Utilize o menu lateral para acessar os recursos disponíveis para o seu perfil.</div>
+              </div>
+            )}
+
+            {/* Dashboard — somente admins */}
+            {isAdmin && (<>
             <div className="stats-row">
               <div className="stat-card">
                 <div className="stat-card-top">
@@ -268,6 +290,7 @@ export default function HomePage() {
                 </div>
               </div>
             </div>
+            </>)}
 
           </div>
         </div>

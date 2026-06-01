@@ -87,6 +87,12 @@ O sistema é composto por **10 módulos funcionais** organizados em duas camadas
 | F-WS-07 | Renovação automática de token de embed expirado | v1.0 | 🔴 Obrigatório |
 | F-WS-08 | Indicador de status do relatório (publicado / rascunho) | v1.0 | 🔴 Obrigatório |
 | F-WS-09 | Busca global de relatórios | v1.0 | 🟡 Recomendado |
+| F-WS-10 | CRUD de workspaces para admins (criar, editar, arquivar) | v1.0 | 🔴 Obrigatório |
+| F-WS-11 | Seletor visual de ícone (biblioteca com 80+ ícones Font Awesome) com preview em tempo real | v1.0 | 🔴 Obrigatório |
+| F-WS-12 | Aba "Usuários vinculados" no detalhe do workspace: lista todos os usuários ativos com acesso total ou parcial (relatórios específicos) | v1.0 | 🔴 Obrigatório |
+| F-WS-13 | Admins podem adicionar usuários ao workspace via modal com busca, seleção e escolha de nível de acesso | v1.0 | 🔴 Obrigatório |
+| F-WS-14 | Admins podem alterar o nível de acesso de um usuário vinculado diretamente na tabela (select inline) | v1.0 | 🔴 Obrigatório |
+| F-WS-15 | Admins podem remover usuários do workspace com confirmação | v1.0 | 🔴 Obrigatório |
 
 ---
 
@@ -223,3 +229,7 @@ O sistema é composto por **10 módulos funcionais** organizados em duas camadas
 | Versão | Data      | Autor                  | Descrição                    |
 |--------|-----------|------------------------|------------------------------|
 | 1.0    | Maio/2026 | Vinicius Soares | Criação inicial do documento |
+| 1.1    | Jun/2026  | Vinicius Soares | Adicionados F-WS-10 e F-WS-11 (CRUD de workspaces e seletor visual de ícones) |
+| 1.2    | Jun/2026  | Vinicius Soares | Adicionado F-WS-12 (aba de usuários vinculados no detalhe do workspace) |
+| 1.3    | Jun/2026  | Vinicius Soares | Adicionados F-WS-13 a F-WS-15 (gerenciamento de usuários do workspace: adicionar, alterar nível, remover) |
+| 1.4    | Jun/2026  | Vinicius Soares | Correção: ícones de workspace no modal de usuário passam a usar prefixo fa-solid; acessos carregados atomicamente via Promise.all e pré-populados do cache da página mãe |
