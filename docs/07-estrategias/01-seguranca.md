@@ -86,7 +86,7 @@ Toda requisição autenticada passa por:
 
 1. obter_usuario_atual → Token válido? Não expirado? Sessão ativa no SQL Server?
 2. validar_status      → Usuário ainda ativo (não bloqueado/inativado)?
-3. validar_expediente  → Dentro do horário de expediente (ou tem exceção)?
+3. validar_expediente  → Perfil é admin/super_admin? Liberado. Caso contrário: dentro do horário de expediente ou pertence a grupo de exceção ativo?
 4. exigir_perfil       → Perfil tem acesso ao endpoint?
 5. exigir_permissao    → Permissão granular (módulo × ação)?
 6. validar_recurso     → Recurso específico pertence ao escopo do usuário?
@@ -245,3 +245,4 @@ Pre-commit hook: detect-secrets
 | Versão | Data | Autor | Descrição |
 |--------|------|-------|-----------|
 | 1.0 | Maio/2026 | — | Criação inicial do documento |
+| 1.1 | Junho/2026 | Vinicius Soares | Pipeline de autorização (3.1) atualizado: admins isentos do `validar_expediente`; demais perfis verificados contra regra + grupos de exceção |

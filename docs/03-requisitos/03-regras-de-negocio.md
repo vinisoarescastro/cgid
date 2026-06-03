@@ -44,7 +44,7 @@
 
 | ID | Regra | Origem |
 |----|-------|--------|
-| RN-SCHED-01 | **O acesso fora do horário de expediente é bloqueado por padrão** para todos os usuários não pertencentes a um grupo ou exceção individual ativa | Política de segurança |
+| RN-SCHED-01 | **O acesso fora do horário de expediente é bloqueado por padrão** para todos os usuários, exceto `administrador` e `super_administrador`, que têm acesso irrestrito independente do horário | Política de segurança; hierarquia de perfis |
 | RN-SCHED-02 | Um grupo de exceção concede acesso **apenas dentro da janela de horário configurada** para aquele grupo - não é um acesso irrestrito | Precisão na gestão de exceções |
 | RN-SCHED-03 | Uma exceção individual **prevalece sobre a regra geral do grupo** ao qual o usuário pertence (pode ser mais restritiva ou mais permissiva) | Flexibilidade com controle granular |
 | RN-SCHED-04 | A configuração de expediente **aplica-se globalmente** a todos os workspaces e relatórios - não é possível ter expediente diferente por workspace nesta versão | Simplicidade do MVP |
@@ -112,3 +112,4 @@
 | 1.4 | Junho/2026 | Vinicius Soares | Página de Configurações implementada: CRUD de expediente por dia, grupos de exceção com membros e credenciais PBI |
 | 1.5 | Junho/2026 | Vinicius Soares | RN-AUD-05 refinado: acesso à Auditoria exclusivo do Super Admin com redirecionamento para Home |
 | 1.6 | Junho/2026 | Vinicius Soares | Corrigido ID duplicado de token Power BI para RN-PBI-06 e adicionadas RN-SYS-05/06 sobre favoritos |
+| 1.7 | Junho/2026 | Vinicius Soares | RN-SCHED-01 atualizado: `administrador` e `super_administrador` são isentos da restrição de expediente; demais perfis (incluindo gerente e operador) obedecem a regra, salvo grupo de exceção |

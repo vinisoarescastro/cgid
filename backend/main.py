@@ -6,7 +6,8 @@ from sqlalchemy import func, or_
 from passlib.context import CryptContext
 from pydantic import BaseModel
 from typing import Optional, List
-from datetime import datetime, timezone, date as date_type
+from datetime import datetime, timezone, date as date_type, time as time_type
+from zoneinfo import ZoneInfo
 import csv, io, json, os
 import requests as http_requests
 
@@ -76,6 +77,45 @@ def get_usuario_requisicao(request: Request, db: Session) -> Optional[Usuario]:
     return db.query(Usuario).filter(Usuario.id == uid).first()
 
 
+TZ_BRASILIA = ZoneInfo("America/Sao_Paulo")
+
+
+def _usuario_tem_excecao_horario(usuario_id: str, db: Session) -> bool:
+    """Retorna True se o usuário pertence a algum grupo de exceção ativo com fora_horario=True."""
+    return db.query(MembroGrupoExcecao).join(GrupoExcecao).filter(
+        MembroGrupoExcecao.usuario_id == usuario_id,
+        GrupoExcecao.status == "ativo",
+        GrupoExcecao.fora_horario == True,
+    ).first() is not None
+
+
+def _verificar_expediente(usuario_id: str, db: Session) -> Optional[str]:
+    """
+    Verifica se o acesso está dentro do horário de expediente.
+    Retorna mensagem de erro se bloqueado, ou None se liberado.
+    """
+    agora = datetime.now(TZ_BRASILIA)
+    dia_db = agora.isoweekday() % 7  # isoweekday: 1=Seg…7=Dom → 0=Dom, 1=Seg…6=Sab
+
+    regra = db.query(RegraExpediente).filter(RegraExpediente.dia_semana == dia_db).first()
+
+    if not regra or not regra.ativo or not regra.bloquear_fora:
+        return None  # sem restrição para este dia
+
+    hora_atual = agora.time().replace(tzinfo=None)
+    if regra.hora_inicio <= hora_atual <= regra.hora_fim:
+        return None  # dentro do horário
+
+    if _usuario_tem_excecao_horario(usuario_id, db):
+        return None  # usuário tem exceção
+
+    return (
+        f"Acesso permitido somente entre {regra.hora_inicio.strftime('%H:%M')} "
+        f"e {regra.hora_fim.strftime('%H:%M')}. "
+        "Fora do horário de expediente."
+    )
+
+
 # ─── Endpoints ───────────────────────────────────────────────────────────────
 @app.get("/")
 def inicio():
@@ -106,6 +146,12 @@ def login(dados: LoginInput, db: Session = Depends(get_db)):
         db.commit()
         restantes = MAX_TENTATIVAS - usuario.tentativas_login
         return LoginResponse(sucesso=False, mensagem=f"E-mail ou senha incorretos. {restantes} tentativa(s) restante(s).")
+
+    erro_expediente = _verificar_expediente(usuario.id, db) if usuario.perfil not in PERFIS_ADMIN else None
+    if erro_expediente:
+        registrar_log(db, "seguranca", "autenticacao", f"Acesso negado fora do expediente: {erro_expediente}", usuario)
+        db.commit()
+        return LoginResponse(sucesso=False, mensagem=erro_expediente)
 
     usuario.tentativas_login = 0
     usuario.ultimo_login = datetime.now(timezone.utc)
