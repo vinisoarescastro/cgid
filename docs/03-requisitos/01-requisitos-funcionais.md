@@ -96,7 +96,7 @@
 | ID | Descrição | Critério de Aceite | Versão | Prioridade |
 |----|-----------|-------------------|--------|-----------|
 | RF-AUD-01 | Todos os eventos relevantes devem ser registrados automaticamente | Log gerado sem ação do usuário para: login, logout, CRUD de usuários, alterações de permissão, bloqueios, acessos negados | v1.0 | 🔴 |
-| RF-AUD-02 | Cada registro de log deve conter: timestamp, usuário, IP, módulo, tipo, detalhe | Todos os campos presentes e preenchidos em cada evento | v1.0 | 🔴 |
+| RF-AUD-02 | Cada registro de log deve conter: timestamp, usuário, IP, módulo, tipo, detalhe | Todos os campos presentes e preenchidos em cada evento; IP capturado no backend via `X-Forwarded-For` (proxy) com fallback para `request.client.host` | v1.0 | 🔴 |
 | RF-AUD-03 | Logs não podem ser editados ou excluídos por nenhum perfil | Nenhum endpoint de DELETE/PUT exposto para logs; tabela append-only | v1.0 | 🔴 |
 | RF-AUD-04 | Super Admin pode filtrar logs por: período, usuário (nome/e-mail), módulo, tipo de evento e IP | Filtros combinados retornam resultado correto via `GET /auditoria`; filtros aplicados também na exportação CSV | v1.0 | 🔴 |
 | RF-AUD-05 | Super Admin pode exportar logs filtrados em CSV | Arquivo CSV gerado via `GET /auditoria/export-csv`; encoding UTF-8 com BOM; nome com timestamp | v1.0 | 🔴 |
@@ -139,6 +139,15 @@
 
 ---
 
+## RF-UX — Experiência de Usuário
+
+| ID | Descrição | Critério de Aceite | Versão | Prioridade |
+|----|-----------|-------------------|--------|-----------|
+| RF-UX-01 | O sistema deve exibir modais de confirmação e alerta personalizados no lugar dos dialogs nativos do navegador (`confirm()`, `alert()`) | Toda ação destrutiva ou irreversível abre um `ModalConfirmacao` com título, mensagem descritiva, ícone e variante visual (`danger`, `warning`, `primary`); erros dentro de modais são exibidos como mensagens inline; nenhum `window.confirm()` ou `window.alert()` é utilizado | v1.0 | 🟡 |
+| RF-UX-02 | O painel administrativo deve exibir KPIs dinâmicos com subtextos contextuais | Card "Acessos negados hoje" compara o valor do dia com a média dos últimos 7 dias, exibindo `+X%`, `-X%` ou `igual à média semanal`; card "Workspaces ativos" exibe percentual de ativos sobre total; card "Usuários bloqueados" exibe quantos foram bloqueados hoje; card "Usuários ativos" exibe logins do dia | v1.0 | 🟡 |
+
+---
+
 ## Histórico de Alterações
 
 | Versão | Data | Autor | Descrição |
@@ -151,3 +160,4 @@
 | 1.5 | Junho/2026 | Vinicius Soares | RF-CONF-04: grade de Expediente redesenhada para tabela compacta (cabeçalho + linha por dia) |
 | 1.6 | Junho/2026 | Vinicius Soares | RF-AUD-04/05 atualizados, RF-AUD-07/08 adicionados: página de Auditoria implementada com filtros, paginação, exportação CSV e expansão de detalhes |
 | 1.7 | Junho/2026 | Vinicius Soares | Adicionada seção RF-FAV: favoritos pessoais com listagem, busca, remoção e abertura via visualizador Power BI |
+| 1.8 | Junho/2026 | Vinicius Soares | RF-AUD-02 atualizado: IP capturado via `X-Forwarded-For` com fallback; adicionada seção RF-UX com RF-UX-01 (modais customizados) e RF-UX-02 (KPIs dinâmicos com comparação semanal) |

@@ -166,7 +166,10 @@ export default function HomePage() {
                   </div>
                   <div className="stat-icon-wrap green"><i className="fa-solid fa-users" /></div>
                 </div>
-                <span className="stat-trend up"><i className="fa-solid fa-arrow-up" /> atualizado agora</span>
+                <span className="stat-trend up">
+                  <i className="fa-solid fa-arrow-right-to-bracket" />
+                  {kpis?.logins_hoje ?? 0} login(s) hoje
+                </span>
               </div>
               <div className="stat-card">
                 <div className="stat-card-top">
@@ -176,7 +179,10 @@ export default function HomePage() {
                   </div>
                   <div className="stat-icon-wrap amber"><i className="fa-solid fa-user-lock" /></div>
                 </div>
-                <span className="stat-trend down"><i className="fa-solid fa-arrow-up" /> verificar</span>
+                <span className="stat-trend down">
+                  <i className="fa-solid fa-arrow-up" />
+                  {kpis?.bloqueados_hoje > 0 ? `+${kpis.bloqueados_hoje} bloqueado(s) hoje` : 'nenhum bloqueado hoje'}
+                </span>
               </div>
               <div className="stat-card">
                 <div className="stat-card-top">
@@ -186,7 +192,16 @@ export default function HomePage() {
                   </div>
                   <div className="stat-icon-wrap red"><i className="fa-solid fa-ban" /></div>
                 </div>
-                <span className="stat-trend down"><i className="fa-solid fa-clock" /> fora expediente</span>
+                <span className="stat-trend down">
+                  <i className="fa-solid fa-arrow-trend-up" />
+                  {kpis?.media_semanal_negados != null
+                    ? kpis.acessos_negados_hoje > kpis.media_semanal_negados
+                      ? `+${Math.round(((kpis.acessos_negados_hoje - kpis.media_semanal_negados) / (kpis.media_semanal_negados || 1)) * 100)}% vs média semanal`
+                      : kpis.acessos_negados_hoje < kpis.media_semanal_negados
+                        ? `-${Math.round(((kpis.media_semanal_negados - kpis.acessos_negados_hoje) / (kpis.media_semanal_negados || 1)) * 100)}% vs média semanal`
+                        : 'igual à média semanal'
+                    : 'senha incorreta ou fora do expediente'}
+                </span>
               </div>
               <div className="stat-card">
                 <div className="stat-card-top">
@@ -196,7 +211,12 @@ export default function HomePage() {
                   </div>
                   <div className="stat-icon-wrap blue"><i className="fa-solid fa-building" /></div>
                 </div>
-                <span className="stat-trend neutral"><i className="fa-solid fa-check" /> 100% online</span>
+                <span className="stat-trend neutral">
+                  <i className="fa-solid fa-check" />
+                  {kpis?.workspaces_total > 0
+                    ? `${Math.round((kpis.workspaces_ativos / kpis.workspaces_total) * 100)}% ativos (${kpis.workspaces_ativos} de ${kpis.workspaces_total})`
+                    : '—'}
+                </span>
               </div>
             </div>
 
@@ -247,7 +267,7 @@ export default function HomePage() {
                         <span className="bar-count">{b.reports}</span>
                       </div>
                       <div className="bar-track">
-                        <div className="bar-fill" style={{ width: `${Math.round((b.reports / maxReports) * 100)}%` }} />
+                        <div className="bar-fill" style={{ width: `${Math.round((b.reports / maxReports) * 100)}%`, background: b.cor ?? undefined }} />
                       </div>
                     </div>
                   ))}

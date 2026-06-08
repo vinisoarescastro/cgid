@@ -8,6 +8,7 @@ import Avatar from '../components/Avatar'
 import IconPicker from '../components/IconPicker'
 import VisualizadorRelatorio from '../components/VisualizadorRelatorio'
 import { apiFetch } from '../utils/api'
+import ModalConfirmacao from '../components/ModalConfirmacao'
 
 const API = 'http://localhost:8000'
 
@@ -50,6 +51,7 @@ function ModalRelatoriosAcesso({ workspaceId, usuarioId, usuarioNome, relatorios
   const [selecionados, setSelecionados] = useState(new Set())
   const [loading, setLoading]           = useState(false)
   const [loadingInicial, setLoadingInicial] = useState(true)
+  const [erro, setErro]                 = useState(null)
 
   useEffect(() => {
     fetch(`${API}/workspaces/${workspaceId}/usuarios/${usuarioId}/relatorios`)
@@ -77,7 +79,7 @@ function ModalRelatoriosAcesso({ workspaceId, usuarioId, usuarioNome, relatorios
       if (!r.ok) throw new Error()
       onSave([...selecionados])
     } catch {
-      alert('Erro ao salvar acessos.')
+      setErro('Não foi possível salvar os acessos. Tente novamente.')
     } finally {
       setLoading(false)
     }
@@ -131,6 +133,12 @@ function ModalRelatoriosAcesso({ workspaceId, usuarioId, usuarioNome, relatorios
           {selecionados.size} relatório(s) selecionado(s)
         </div>
 
+        {erro && (
+          <div style={{ fontSize: 12, color: '#ef4444', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 'var(--r-md)', padding: '8px 12px', marginBottom: 12 }}>
+            <i className="fa-solid fa-circle-exclamation" style={{ marginRight: 6 }} />{erro}
+          </div>
+        )}
+
         <div className="modal-actions">
           <button className="btn btn-ghost" onClick={onClose} disabled={loading}>Cancelar</button>
           <button className="btn btn-primary" onClick={salvar} disabled={loading || loadingInicial}>
@@ -151,6 +159,7 @@ function ModalAdicionarUsuario({ workspaceId, relatoriosWs, usuariosJaVinculados
   const [relsSelecionadas, setRelsSelecionadas] = useState(new Set())
   const [loading, setLoading]   = useState(false)
   const [loadingList, setLoadingList] = useState(true)
+  const [erro, setErro]         = useState(null)
 
   useEffect(() => {
     fetch(`${API}/usuarios?status=ativo`)
@@ -194,7 +203,7 @@ function ModalAdicionarUsuario({ workspaceId, relatoriosWs, usuariosJaVinculados
       }
       onAdd(novo)
     } catch {
-      alert('Erro ao vincular usuário.')
+      setErro('Não foi possível vincular o usuário. Tente novamente.')
     } finally {
       setLoading(false)
     }
@@ -324,6 +333,12 @@ function ModalAdicionarUsuario({ workspaceId, relatoriosWs, usuariosJaVinculados
             <div style={{ fontSize: 11, color: 'var(--gray-400)', marginTop: 4 }}>
               {relsSelecionadas.size} selecionado(s)
             </div>
+          </div>
+        )}
+
+        {erro && (
+          <div style={{ fontSize: 12, color: '#ef4444', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 'var(--r-md)', padding: '8px 12px', marginBottom: 12 }}>
+            <i className="fa-solid fa-circle-exclamation" style={{ marginRight: 6 }} />{erro}
           </div>
         )}
 
@@ -557,6 +572,18 @@ export default function WorkspacePage() {
   const [modalRelatorio, setModalRelatorio] = useState(null) // null | 'criar' | relatorio_obj
   // visualizador Power BI
   const [relatorioAberto, setRelatorioAberto] = useState(null)
+  // modal de confirmação/alerta genérico
+  const [modalConfirm, setModalConfirm] = useState(null) // null | { titulo, mensagem, variante, icone, labelConfirmar, onConfirmar, modo }
+
+  function abrirConfirm(opcoes) {
+    return new Promise(resolve => {
+      setModalConfirm({
+        ...opcoes,
+        onConfirmar: () => { setModalConfirm(null); resolve(true) },
+        onCancelar:  () => { setModalConfirm(null); resolve(false) },
+      })
+    })
+  }
   // favoritos do usuário (Set de relatorio_id)
   const [favoritos, setFavoritos] = useState(new Set())
 
@@ -649,7 +676,13 @@ export default function WorkspacePage() {
   }
 
   async function arquivarWorkspace(ws) {
-    if (!confirm(`Arquivar o workspace "${ws.nome}"? Ele não ficará mais visível para os usuários.`)) return
+    const ok = await abrirConfirm({
+      titulo: 'Arquivar workspace',
+      mensagem: `O workspace "${ws.nome}" ficará invisível para os usuários. Você poderá reativá-lo depois.`,
+      labelConfirmar: 'Arquivar',
+      variante: 'danger',
+    })
+    if (!ok) return
     await apiFetch(`/workspaces/${ws.id}/arquivar`, { method: 'PATCH' })
     setWorkspaces(prev => mostrarArquivados
       ? prev.map(w => w.id === ws.id ? { ...w, status: 'arquivado' } : w)
@@ -659,7 +692,14 @@ export default function WorkspacePage() {
   }
 
   async function reativarWorkspace(ws) {
-    if (!confirm(`Reativar o workspace "${ws.nome}"? Ele voltará a ficar visível para os usuários.`)) return
+    const ok = await abrirConfirm({
+      titulo: 'Reativar workspace',
+      mensagem: `O workspace "${ws.nome}" voltará a aparecer para os usuários vinculados.`,
+      labelConfirmar: 'Reativar',
+      variante: 'primary',
+      icone: 'fa-rotate-left',
+    })
+    if (!ok) return
     await apiFetch(`/workspaces/${ws.id}/reativar`, { method: 'PATCH' })
     setWorkspaces(prev => prev.map(w => w.id === ws.id ? { ...w, status: 'ativo' } : w))
     if (wsAtivo?.id === ws.id) setWsAtivo(w => ({ ...w, status: 'ativo' }))
@@ -674,18 +714,36 @@ export default function WorkspacePage() {
       if (!r.ok) throw new Error()
       setUsuarios(prev => prev.map(u => u.usuario_id === usuarioId ? { ...u, nivel_acesso: novoNivel } : u))
     } catch {
-      alert('Erro ao alterar nível de acesso.')
+      await abrirConfirm({
+        titulo: 'Erro',
+        mensagem: 'Não foi possível alterar o nível de acesso. Tente novamente.',
+        labelConfirmar: 'Ok',
+        variante: 'danger',
+        modo: 'alert',
+      })
     }
   }
 
   async function removerUsuario(usuarioId, nomeUsuario) {
-    if (!confirm(`Remover "${nomeUsuario}" deste workspace?`)) return
+    const ok = await abrirConfirm({
+      titulo: 'Remover usuário',
+      mensagem: `"${nomeUsuario}" perderá o acesso a este workspace.`,
+      labelConfirmar: 'Remover',
+      variante: 'danger',
+    })
+    if (!ok) return
     try {
       const r = await apiFetch(`/workspaces/${wsAtivo.id}/usuarios/${usuarioId}`, { method: 'DELETE' })
       if (!r.ok && r.status !== 204) throw new Error()
       setUsuarios(prev => prev.filter(u => u.usuario_id !== usuarioId))
     } catch {
-      alert('Erro ao remover usuário.')
+      await abrirConfirm({
+        titulo: 'Erro',
+        mensagem: 'Não foi possível remover o usuário. Tente novamente.',
+        labelConfirmar: 'Ok',
+        variante: 'danger',
+        modo: 'alert',
+      })
     }
   }
 
@@ -704,13 +762,25 @@ export default function WorkspacePage() {
   }
 
   async function excluirRelatorio(relatorio) {
-    if (!confirm(`Excluir o relatório "${relatorio.nome}"? Esta ação não pode ser desfeita.`)) return
+    const ok = await abrirConfirm({
+      titulo: 'Excluir relatório',
+      mensagem: `O relatório "${relatorio.nome}" será excluído permanentemente. Esta ação não pode ser desfeita.`,
+      labelConfirmar: 'Excluir',
+      variante: 'danger',
+    })
+    if (!ok) return
     try {
       const r = await apiFetch(`/workspaces/${wsAtivo.id}/relatorios/${relatorio.id}`, { method: 'DELETE' })
       if (!r.ok && r.status !== 204) throw new Error()
       setRelatorios(prev => prev.filter(rel => rel.id !== relatorio.id))
     } catch {
-      alert('Erro ao excluir relatório.')
+      await abrirConfirm({
+        titulo: 'Erro',
+        mensagem: 'Não foi possível excluir o relatório. Tente novamente.',
+        labelConfirmar: 'Ok',
+        variante: 'danger',
+        modo: 'alert',
+      })
     }
   }
 
@@ -1262,6 +1332,20 @@ export default function WorkspacePage() {
         <VisualizadorRelatorio
           relatorio={relatorioAberto}
           onClose={() => setRelatorioAberto(null)}
+        />
+      )}
+
+      {/* ── Modal de confirmação/alerta ── */}
+      {modalConfirm && (
+        <ModalConfirmacao
+          titulo={modalConfirm.titulo}
+          mensagem={modalConfirm.mensagem}
+          variante={modalConfirm.variante}
+          icone={modalConfirm.icone}
+          labelConfirmar={modalConfirm.labelConfirmar}
+          modo={modalConfirm.modo ?? 'confirm'}
+          onConfirmar={modalConfirm.onConfirmar}
+          onCancelar={modalConfirm.onCancelar}
         />
       )}
     </div>

@@ -39,11 +39,11 @@
 8. Sistema exibe tela principal.
 
 ### Fluxos Alternativos
-- **A1: Credenciais inválidas:** Sistema exibe mensagem de erro com contagem de tentativas. Contador incrementado.
-- **A2: Quinta tentativa inválida:** Sistema bloqueia a conta, exibe mensagem específica de bloqueio, registra evento de segurança no log.
+- **A1: Credenciais inválidas:** Sistema exibe mensagem de erro com contagem de tentativas. Contador incrementado. IP da tentativa registrado no log.
+- **A2: Quinta tentativa inválida:** Sistema bloqueia a conta, exibe mensagem específica de bloqueio, registra evento de segurança no log com IP.
 - **A3: Conta inativa:** Sistema exibe mensagem genérica sem revelar motivo.
 - **A4: Conta bloqueada:** Sistema exibe mensagem de conta bloqueada, orienta contatar suporte.
-- **A5: Fora do horário de expediente:** Sistema exibe mensagem com horário permitido; não revela detalhes de segurança.
+- **A5: Fora do horário de expediente:** Sistema exibe mensagem com horário permitido; não revela detalhes de segurança. Evento registrado com IP.
 - **A6: Usuário em grupo de exceção fora do horário:** Sistema valida a janela do grupo; se dentro da janela, prossegue; se fora, bloqueia.
 
 ---
@@ -178,7 +178,7 @@
 ### Fluxo Principal
 1. Admin acessa a listagem de usuários.
 2. Admin clica no botão de bloquear do usuário-alvo.
-3. Sistema exibe modal de confirmação.
+3. Sistema exibe `ModalConfirmacao` customizado (variante `danger`) com título, descrição e botões centralizados.
 4. Admin confirma.
 5. Sistema atualiza status para `bloqueado`.
 6. Sistema invalida quaisquer sessões ativas do usuário bloqueado.
@@ -220,7 +220,7 @@
 ### Fluxo Principal — Arquivar
 1. Admin acessa o detalhe de um workspace.
 2. Admin clica em "Arquivar".
-3. Sistema exibe modal de confirmação.
+3. Sistema exibe `ModalConfirmacao` customizado (variante `danger`) com descrição do impacto da ação.
 4. Admin confirma.
 5. Sistema atualiza `status = "arquivado"` via `PATCH /workspaces/{id}/arquivar`.
 6. Workspace deixa de aparecer para usuários não-admin.
@@ -230,7 +230,7 @@
 1. Admin acessa a lista de workspaces e ativa o toggle "Mostrar arquivados".
 2. Sistema exibe workspaces arquivados com faixa visual de status e botão "Reativar".
 3. Admin clica em "Reativar" no card ou no detalhe do workspace.
-4. Sistema exibe modal de confirmação.
+4. Sistema exibe `ModalConfirmacao` customizado (variante `primary`) com descrição da ação.
 5. Admin confirma.
 6. Sistema atualiza `status = "ativo"` via `PATCH /workspaces/{id}/reativar`.
 7. Workspace volta a aparecer normalmente para todos os usuários vinculados.
@@ -248,3 +248,4 @@
 |--------|------|-------|-----------|
 | 1.0 | Maio/2026 | Vinicius Soares | Criação inicial do documento |
 | 1.1 | Junho/2026 | Vinicius Soares | UC-03 atualizado com fluxo real de permissões por relatório; UC-09 adicionado (arquivar/reativar workspace) |
+| 1.2 | Junho/2026 | Vinicius Soares | UC-01 atualizado: IP registrado em todas as tentativas de login; UC-07 e UC-09 atualizados: `ModalConfirmacao` customizado no lugar de dialogs nativos |

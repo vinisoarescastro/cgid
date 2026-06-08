@@ -6,6 +6,7 @@ import logoSidebarFull from '../assets/logo-sidebar-full.png'
 import logoSidebarIcon from '../assets/logo-sidebar-icon.png'
 import Avatar from '../components/Avatar'
 import { apiFetch } from '../utils/api'
+import ModalConfirmacao from '../components/ModalConfirmacao'
 
 const API = 'http://localhost:8000'
 
@@ -35,6 +36,7 @@ function AbaExpediente() {
   const [loading, setLoading]   = useState(true)
   const [salvando, setSalvando] = useState(null) // dia_semana sendo salvo
   const [ok, setOk]             = useState(null) // dia_semana com feedback OK
+  const [erros, setErros]       = useState({})  // { [dia_semana]: mensagem }
 
   useEffect(() => {
     fetch(`${API}/configuracoes/expediente`)
@@ -59,9 +61,10 @@ function AbaExpediente() {
       })
       if (!res.ok) { const d = await res.json(); throw new Error(d.detail) }
       setOk(dia)
+      setErros(prev => ({ ...prev, [dia]: null }))
       setTimeout(() => setOk(v => v === dia ? null : v), 2000)
     } catch (e) {
-      alert(e.message || 'Erro ao salvar.')
+      setErros(prev => ({ ...prev, [dia]: e.message || 'Erro ao salvar.' }))
     } finally {
       setSalvando(null)
     }
@@ -128,9 +131,16 @@ function AbaExpediente() {
                 ? <i className="fa-solid fa-spinner fa-spin" />
                 : ok === r.dia_semana
                   ? <><i className="fa-solid fa-check" style={{ color: 'var(--brand-500)' }} /> Salvo</>
-                  : 'Salvar'}
+                  : erros[r.dia_semana]
+                    ? <><i className="fa-solid fa-circle-exclamation" style={{ color: '#ef4444' }} /> Erro</>
+                    : 'Salvar'}
             </button>
           </div>
+          {erros[r.dia_semana] && (
+            <div style={{ fontSize: 11, color: '#ef4444', padding: '2px 0 6px 0' }}>
+              {erros[r.dia_semana]}
+            </div>
+          )}
         ))}
       </div>
     </div>
@@ -222,6 +232,7 @@ function ModalAdicionarMembro({ grupoId, membrosAtuais, onClose, onAdd }) {
   const [selecionado, setSel]       = useState(null)
   const [loading, setLoading]       = useState(false)
   const [loadingList, setLoadingList] = useState(true)
+  const [erro, setErro]             = useState(null)
 
   useEffect(() => {
     fetch(`${API}/usuarios?status=ativo`)
@@ -250,7 +261,7 @@ function ModalAdicionarMembro({ grupoId, membrosAtuais, onClose, onAdd }) {
       if (!r.ok) throw new Error()
       onAdd(await r.json())
     } catch {
-      alert('Erro ao adicionar membro.')
+      setErro('Não foi possível adicionar o membro. Tente novamente.')
     } finally {
       setLoading(false)
     }
@@ -293,6 +304,11 @@ function ModalAdicionarMembro({ grupoId, membrosAtuais, onClose, onAdd }) {
             </div>
           ))}
         </div>
+        {erro && (
+          <div style={{ fontSize: 12, color: '#ef4444', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 'var(--r-md)', padding: '8px 12px', marginBottom: 12 }}>
+            <i className="fa-solid fa-circle-exclamation" style={{ marginRight: 6 }} />{erro}
+          </div>
+        )}
         <div className="modal-actions">
           <button className="btn btn-ghost" onClick={onClose} disabled={loading}>Cancelar</button>
           <button className="btn btn-primary" onClick={confirmar} disabled={loading || !selecionado}>
@@ -310,6 +326,17 @@ function AbaGrupos() {
   const [loading, setLoading]     = useState(true)
   const [modalGrupo, setModalGrupo]   = useState(null) // null | 'criar' | grupo_obj
   const [modalMembro, setModalMembro] = useState(null) // null | grupo_obj
+  const [modalConfirm, setModalConfirm] = useState(null)
+
+  function abrirConfirm(opcoes) {
+    return new Promise(resolve => {
+      setModalConfirm({
+        ...opcoes,
+        onConfirmar: () => { setModalConfirm(null); resolve(true) },
+        onCancelar:  () => { setModalConfirm(null); resolve(false) },
+      })
+    })
+  }
 
   useEffect(() => {
     const controller = new AbortController()
@@ -331,7 +358,13 @@ function AbaGrupos() {
   }
 
   async function excluirGrupo(grupo) {
-    if (!confirm(`Excluir o grupo "${grupo.nome}"?`)) return
+    const ok = await abrirConfirm({
+      titulo: 'Excluir grupo',
+      mensagem: `O grupo "${grupo.nome}" será excluído permanentemente, incluindo todos os membros vinculados.`,
+      labelConfirmar: 'Excluir',
+      variante: 'danger',
+    })
+    if (!ok) return
     await fetch(`${API}/configuracoes/grupos-excecao/${grupo.id}`, { method: 'DELETE' })
     setGrupos(prev => prev.filter(g => g.id !== grupo.id))
   }
@@ -420,6 +453,19 @@ function AbaGrupos() {
           membrosAtuais={modalMembro.membros}
           onClose={() => setModalMembro(null)}
           onAdd={aoAdicionarMembro}
+        />
+      )}
+
+      {modalConfirm && (
+        <ModalConfirmacao
+          titulo={modalConfirm.titulo}
+          mensagem={modalConfirm.mensagem}
+          variante={modalConfirm.variante}
+          icone={modalConfirm.icone}
+          labelConfirmar={modalConfirm.labelConfirmar}
+          modo={modalConfirm.modo ?? 'confirm'}
+          onConfirmar={modalConfirm.onConfirmar}
+          onCancelar={modalConfirm.onCancelar}
         />
       )}
     </div>

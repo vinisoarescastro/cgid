@@ -57,7 +57,10 @@ class LoginResponse(BaseModel):
 # ─── Utilitários ─────────────────────────────────────────────────────────────
 def registrar_log(db: Session, tipo: str, modulo: str, detalhe: str,
                   usuario: Optional[Usuario] = None, ip: Optional[str] = None,
-                  valor_anterior: Optional[str] = None, valor_novo: Optional[str] = None):
+                  valor_anterior: Optional[str] = None, valor_novo: Optional[str] = None,
+                  request: Optional[Request] = None):
+    if request and not ip:
+        ip = get_ip(request)
     db.add(LogAuditoria(
         usuario_id     = usuario.id    if usuario else None,
         nome_usuario   = usuario.nome  if usuario else None,
@@ -70,11 +73,20 @@ def registrar_log(db: Session, tipo: str, modulo: str, detalhe: str,
         valor_novo     = valor_novo,
     ))
 
+def get_ip(request: Request) -> Optional[str]:
+    forwarded = request.headers.get("X-Forwarded-For")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    if request.client:
+        return request.client.host
+    return None
+
 def get_usuario_requisicao(request: Request, db: Session) -> Optional[Usuario]:
     uid = request.headers.get("X-Usuario-Id")
     if not uid:
         return None
     return db.query(Usuario).filter(Usuario.id == uid).first()
+
 
 
 TZ_BRASILIA = ZoneInfo("America/Sao_Paulo")
@@ -123,7 +135,8 @@ def inicio():
 
 
 @app.post("/login", response_model=LoginResponse)
-def login(dados: LoginInput, db: Session = Depends(get_db)):
+def login(request: Request, dados: LoginInput, db: Session = Depends(get_db)):
+    ip = get_ip(request)
     usuario = db.query(Usuario).filter(Usuario.email == dados.email).first()
 
     if not usuario:
@@ -140,22 +153,24 @@ def login(dados: LoginInput, db: Session = Depends(get_db)):
         if usuario.tentativas_login >= MAX_TENTATIVAS:
             usuario.status = "bloqueado"
             registrar_log(db, "seguranca", "autenticacao",
-                          f"Conta bloqueada após {MAX_TENTATIVAS} tentativas", usuario)
+                          f"Conta bloqueada após {MAX_TENTATIVAS} tentativas", usuario, ip=ip)
             db.commit()
             return LoginResponse(sucesso=False, mensagem="Conta bloqueada após 5 tentativas incorretas.")
-        db.commit()
         restantes = MAX_TENTATIVAS - usuario.tentativas_login
+        registrar_log(db, "seguranca", "autenticacao",
+                      f"Tentativa de login com senha incorreta ({usuario.tentativas_login}/{MAX_TENTATIVAS})", usuario, ip=ip)
+        db.commit()
         return LoginResponse(sucesso=False, mensagem=f"E-mail ou senha incorretos. {restantes} tentativa(s) restante(s).")
 
     erro_expediente = _verificar_expediente(usuario.id, db) if usuario.perfil not in PERFIS_ADMIN else None
     if erro_expediente:
-        registrar_log(db, "seguranca", "autenticacao", f"Acesso negado fora do expediente: {erro_expediente}", usuario)
+        registrar_log(db, "seguranca", "autenticacao", f"Acesso negado fora do expediente: {erro_expediente}", usuario, ip=ip)
         db.commit()
         return LoginResponse(sucesso=False, mensagem=erro_expediente)
 
     usuario.tentativas_login = 0
     usuario.ultimo_login = datetime.now(timezone.utc)
-    registrar_log(db, "autenticacao", "autenticacao", "Login realizado com sucesso", usuario)
+    registrar_log(db, "autenticacao", "autenticacao", "Login realizado com sucesso", usuario, ip=ip)
     db.commit()
 
     return LoginResponse(
@@ -250,7 +265,7 @@ def criar_usuario(request: Request, dados: UsuarioCriar, db: Session = Depends(g
     if dados.perfil in PERFIS_ADMIN:
         _vincular_admin_workspaces(usuario.id, db)
     registrar_log(db, "usuario", "usuarios", f"Usuário criado: {dados.email}",
-                  usuario=autor,
+                  usuario=autor, request=request,
                   valor_novo=json.dumps({"nome": dados.nome, "email": dados.email, "perfil": dados.perfil}, ensure_ascii=False))
     db.commit()
     db.refresh(usuario)
@@ -286,7 +301,7 @@ def atualizar_usuario(usuario_id: str, request: Request, dados: UsuarioAtualizar
     if dados.senha:
         usuario.hash_senha = pwd.hash(dados.senha)
     registrar_log(db, "usuario", "usuarios", f"Usuário atualizado: {usuario.email}",
-                  usuario=autor, valor_anterior=anterior, valor_novo=_usr_snapshot(usuario))
+                  usuario=autor, request=request, valor_anterior=anterior, valor_novo=_usr_snapshot(usuario))
     db.commit()
     db.refresh(usuario)
     return usuario
@@ -304,7 +319,7 @@ def resetar_senha(usuario_id: str, request: Request, db: Session = Depends(get_d
     usuario.tentativas_login = 0
     if usuario.status == "bloqueado":
         usuario.status = "ativo"
-    registrar_log(db, "usuario", "usuarios", f"Senha redefinida para padrão: {usuario.email}", usuario=autor)
+    registrar_log(db, "usuario", "usuarios", f"Senha redefinida para padrão: {usuario.email}", usuario=autor, request=request)
     db.commit()
     return {"mensagem": "Senha redefinida para o padrão com sucesso."}
 
@@ -316,7 +331,7 @@ def excluir_usuario(usuario_id: str, request: Request, db: Session = Depends(get
         raise HTTPException(status_code=404, detail="Usuário não encontrado.")
     autor = get_usuario_requisicao(request, db)
     registrar_log(db, "usuario", "usuarios", f"Usuário excluído: {usuario.email}",
-                  usuario=autor, valor_anterior=_usr_snapshot(usuario))
+                  usuario=autor, request=request, valor_anterior=_usr_snapshot(usuario))
     db.delete(usuario)
     db.commit()
 
@@ -387,7 +402,7 @@ def salvar_acessos_usuario(
     if usuario.perfil in PERFIS_ADMIN:
         _vincular_admin_workspaces(usuario_id, db)
         registrar_log(db, "acesso", "acessos_workspace",
-                      f"Acessos atualizados (admin): {usuario.email}", usuario=autor)
+                      f"Acessos atualizados (admin): {usuario.email}", usuario=autor, request=request)
         db.commit()
         return {"mensagem": "Acessos salvos com sucesso."}
 
@@ -408,7 +423,7 @@ def salvar_acessos_usuario(
 
     registrar_log(db, "acesso", "acessos_workspace",
                   f"Acessos atualizados: {usuario.email}",
-                  usuario=autor,
+                  usuario=autor, request=request,
                   valor_novo=json.dumps({"acessos": novos}, ensure_ascii=False))
     db.commit()
     return {"mensagem": "Acessos salvos com sucesso."}
@@ -609,18 +624,41 @@ def dashboard_kpis(db: Session = Depends(get_db)):
     total_usuarios   = db.query(Usuario).filter(Usuario.status == "ativo").count()
     bloqueados       = db.query(Usuario).filter(Usuario.status == "bloqueado").count()
     workspaces_ativos = db.query(EspacoTrabalho).filter(EspacoTrabalho.status == "ativo").count()
+    workspaces_total  = db.query(EspacoTrabalho).count()
 
     hoje = datetime.now(timezone.utc).date()
+    logins_hoje = db.query(LogAuditoria).filter(
+        LogAuditoria.tipo_evento == "autenticacao",
+        LogAuditoria.detalhe.ilike("%sucesso%"),
+        func.date(LogAuditoria.momento) == hoje,
+    ).count()
     acessos_negados = db.query(LogAuditoria).filter(
         LogAuditoria.tipo_evento == "seguranca",
         func.date(LogAuditoria.momento) == hoje,
     ).count()
+    from datetime import timedelta
+    total_semana = db.query(LogAuditoria).filter(
+        LogAuditoria.tipo_evento == "seguranca",
+        func.date(LogAuditoria.momento) >= hoje - timedelta(days=7),
+        func.date(LogAuditoria.momento) < hoje,
+    ).count()
+    media_semanal = round(total_semana / 7, 1)
+    bloqueados_hoje = db.query(LogAuditoria).filter(
+        LogAuditoria.tipo_evento == "seguranca",
+        LogAuditoria.modulo == "autenticacao",
+        LogAuditoria.detalhe.ilike("%bloqueada%"),
+        func.date(LogAuditoria.momento) == hoje,
+    ).count()
 
     return {
-        "usuarios_ativos":   total_usuarios,
-        "usuarios_bloqueados": bloqueados,
+        "usuarios_ativos":      total_usuarios,
+        "logins_hoje":          logins_hoje,
+        "usuarios_bloqueados":  bloqueados,
+        "bloqueados_hoje":      bloqueados_hoje,
         "acessos_negados_hoje": acessos_negados,
-        "workspaces_ativos": workspaces_ativos,
+        "media_semanal_negados": media_semanal,
+        "workspaces_ativos":    workspaces_ativos,
+        "workspaces_total":     workspaces_total,
     }
 
 
@@ -698,6 +736,7 @@ def dashboard_workspaces(db: Session = Depends(get_db)):
 
         resultado.append({
             "nome":          ws.nome,
+            "cor":           ws.cor,
             "reports":       total_relatorios,
             "totalAccess":   acesso_total,
             "partialAccess": acesso_parcial,
@@ -771,7 +810,7 @@ def criar_workspace(request: Request, dados: WorkspaceCreate, db: Session = Depe
     db.commit()
     db.refresh(ws)
     registrar_log(db, "sistema", "espacos_trabalho", f"Workspace criado: {ws.nome}",
-                  usuario=autor,
+                  usuario=autor, request=request,
                   valor_novo=json.dumps({"nome": ws.nome, "icone": ws.icone, "cor": ws.cor,
                                          "descricao": ws.descricao, "id_workspace_pbi": ws.id_workspace_pbi}, ensure_ascii=False))
     db.commit()
@@ -789,7 +828,7 @@ def atualizar_workspace(workspace_id: str, request: Request, dados: WorkspaceCre
     ws.descricao = dados.descricao; ws.id_workspace_pbi = dados.id_workspace_pbi
     db.commit(); db.refresh(ws)
     registrar_log(db, "sistema", "espacos_trabalho", f"Workspace atualizado: {ws.nome}",
-                  usuario=autor, valor_anterior=anterior,
+                  usuario=autor, request=request, valor_anterior=anterior,
                   valor_novo=json.dumps({"nome": ws.nome, "icone": ws.icone, "cor": ws.cor,
                                          "descricao": ws.descricao, "id_workspace_pbi": ws.id_workspace_pbi}, ensure_ascii=False))
     db.commit()
@@ -803,7 +842,7 @@ def arquivar_workspace(workspace_id: str, request: Request, db: Session = Depend
     autor = get_usuario_requisicao(request, db)
     ws.status = "arquivado"
     db.commit()
-    registrar_log(db, "sistema", "espacos_trabalho", f"Workspace arquivado: {ws.nome}", usuario=autor)
+    registrar_log(db, "sistema", "espacos_trabalho", f"Workspace arquivado: {ws.nome}", usuario=autor, request=request)
     db.commit()
     return {"mensagem": "Workspace arquivado com sucesso."}
 
@@ -815,7 +854,7 @@ def reativar_workspace(workspace_id: str, request: Request, db: Session = Depend
     autor = get_usuario_requisicao(request, db)
     ws.status = "ativo"
     db.commit()
-    registrar_log(db, "sistema", "espacos_trabalho", f"Workspace reativado: {ws.nome}", usuario=autor)
+    registrar_log(db, "sistema", "espacos_trabalho", f"Workspace reativado: {ws.nome}", usuario=autor, request=request)
     db.commit()
     return {"mensagem": "Workspace reativado com sucesso."}
 
@@ -886,7 +925,7 @@ def vincular_usuario_workspace(workspace_id: str, request: Request, dados: Vincu
     db.commit()
     registrar_log(db, "acesso", "acessos_workspace",
                   f"Usuário {usuario.email} vinculado ao workspace {ws.nome} ({dados.nivel_acesso})",
-                  usuario=autor,
+                  usuario=autor, request=request,
                   valor_novo=json.dumps({"usuario": usuario.email, "workspace": ws.nome, "nivel": dados.nivel_acesso}, ensure_ascii=False))
     db.commit()
     return UsuarioWorkspaceItem(
@@ -911,7 +950,7 @@ def alterar_nivel_usuario_workspace(workspace_id: str, usuario_id: str, request:
     usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
     registrar_log(db, "acesso", "acessos_workspace",
                   f"Nível de {usuario.email} alterado: {nivel_anterior} → {dados.nivel_acesso}",
-                  usuario=autor,
+                  usuario=autor, request=request,
                   valor_anterior=json.dumps({"nivel": nivel_anterior}, ensure_ascii=False),
                   valor_novo=json.dumps({"nivel": dados.nivel_acesso}, ensure_ascii=False))
     db.commit()
@@ -935,7 +974,7 @@ def remover_usuario_workspace(workspace_id: str, usuario_id: str, request: Reque
     db.commit()
     registrar_log(db, "acesso", "acessos_workspace",
                   f"Usuário {usuario.email} removido do workspace {ws.nome}",
-                  usuario=autor,
+                  usuario=autor, request=request,
                   valor_anterior=json.dumps({"usuario": usuario.email, "workspace": ws.nome}, ensure_ascii=False))
     db.commit()
 
@@ -975,7 +1014,7 @@ def set_relatorios_acesso_usuario(workspace_id: str, usuario_id: str, request: R
     ws = db.query(EspacoTrabalho).filter(EspacoTrabalho.id == workspace_id).first()
     registrar_log(db, "acesso", "acessos_relatorio",
         f"Relatórios específicos de {usuario.email} no workspace {ws.nome} atualizados ({len(dados.relatorio_ids)} selecionados)",
-        usuario=autor,
+        usuario=autor, request=request,
         valor_novo=json.dumps({"relatorio_ids": dados.relatorio_ids}, ensure_ascii=False))
     db.commit()
     return {"relatorio_ids": dados.relatorio_ids}
@@ -1062,7 +1101,7 @@ def criar_relatorio(workspace_id: str, request: Request, dados: RelatorioCreate,
     db.commit()
     db.refresh(rel)
     registrar_log(db, "sistema", "relatorios", f"Relatório criado: {rel.nome} (workspace: {ws.nome})",
-                  usuario=autor, valor_novo=_rel_snapshot(rel))
+                  usuario=autor, request=request, valor_novo=_rel_snapshot(rel))
     return RelatorioItem(
         id=rel.id, nome=rel.nome, categoria=rel.categoria, status=rel.status,
         descricao=rel.descricao, id_relatorio_pbi=rel.id_relatorio_pbi,
@@ -1086,7 +1125,7 @@ def atualizar_relatorio(workspace_id: str, relatorio_id: str, request: Request, 
     db.commit()
     db.refresh(rel)
     registrar_log(db, "sistema", "relatorios", f"Relatório atualizado: {rel.nome}",
-                  usuario=autor, valor_anterior=anterior, valor_novo=_rel_snapshot(rel))
+                  usuario=autor, request=request, valor_anterior=anterior, valor_novo=_rel_snapshot(rel))
     return RelatorioItem(
         id=rel.id, nome=rel.nome, categoria=rel.categoria, status=rel.status,
         descricao=rel.descricao, id_relatorio_pbi=rel.id_relatorio_pbi,
@@ -1106,7 +1145,7 @@ def excluir_relatorio(workspace_id: str, relatorio_id: str, request: Request, db
     ws    = db.query(EspacoTrabalho).filter(EspacoTrabalho.id == workspace_id).first()
     registrar_log(db, "sistema", "relatorios",
                   f"Relatório excluído: {rel.nome} (workspace: {ws.nome if ws else workspace_id})",
-                  usuario=autor, valor_anterior=_rel_snapshot(rel))
+                  usuario=autor, request=request, valor_anterior=_rel_snapshot(rel))
     db.delete(rel)
     db.commit()
 
@@ -1169,7 +1208,7 @@ def salvar_regra_expediente(dia_semana: int, request: Request, dados: RegraExped
     autor = get_usuario_requisicao(request, db)
     registrar_log(db, "sistema", "expediente",
                   f"Regra do {DIAS_SEMANA[dia_semana]} atualizada: {dados.hora_inicio}–{dados.hora_fim} ativo={dados.ativo}",
-                  usuario=autor)
+                  usuario=autor, request=request)
     return RegraExpedienteItem(
         dia_semana=dia_semana, nome_dia=DIAS_SEMANA[dia_semana],
         hora_inicio=dados.hora_inicio, hora_fim=dados.hora_fim,
@@ -1236,7 +1275,7 @@ def criar_grupo(request: Request, dados: GrupoInput, db: Session = Depends(get_d
     db.commit()
     db.refresh(g)
     registrar_log(db, "sistema", "grupos_excecao", f"Grupo de exceção criado: {g.nome}",
-                  usuario=autor, valor_novo=_grupo_snapshot(dados))
+                  usuario=autor, request=request, valor_novo=_grupo_snapshot(dados))
     db.commit()
     return _grupo_to_item(g, db)
 
@@ -1256,7 +1295,7 @@ def atualizar_grupo(grupo_id: str, request: Request, dados: GrupoInput, db: Sess
     g.janela_fim    = dtime.fromisoformat(dados.janela_fim)    if dados.janela_fim    else None
     db.commit()
     registrar_log(db, "sistema", "grupos_excecao", f"Grupo de exceção atualizado: {g.nome}",
-                  usuario=autor, valor_anterior=anterior, valor_novo=_grupo_snapshot(dados))
+                  usuario=autor, request=request, valor_anterior=anterior, valor_novo=_grupo_snapshot(dados))
     db.commit()
     return _grupo_to_item(g, db)
 
@@ -1267,7 +1306,7 @@ def excluir_grupo(grupo_id: str, request: Request, db: Session = Depends(get_db)
         raise HTTPException(status_code=404, detail="Grupo não encontrado.")
     autor = get_usuario_requisicao(request, db)
     registrar_log(db, "sistema", "grupos_excecao", f"Grupo de exceção excluído: {g.nome}",
-                  usuario=autor,
+                  usuario=autor, request=request,
                   valor_anterior=json.dumps({"nome": g.nome}, ensure_ascii=False))
     db.delete(g)
     db.commit()
@@ -1289,7 +1328,7 @@ def adicionar_membro(grupo_id: str, request: Request, dados: AdicionarMembroInpu
         db.add(MembroGrupoExcecao(grupo_id=grupo_id, usuario_id=dados.usuario_id))
         db.commit()
         registrar_log(db, "sistema", "grupos_excecao",
-                      f"Membro adicionado ao grupo '{g.nome}': {u.email}", usuario=autor)
+                      f"Membro adicionado ao grupo '{g.nome}': {u.email}", usuario=autor, request=request)
         db.commit()
     return _grupo_to_item(g, db)
 
@@ -1306,7 +1345,7 @@ def remover_membro(grupo_id: str, usuario_id: str, request: Request, db: Session
     u = db.query(Usuario).filter(Usuario.id == usuario_id).first()
     registrar_log(db, "sistema", "grupos_excecao",
                   f"Membro removido do grupo '{g.nome if g else grupo_id}': {u.email if u else usuario_id}",
-                  usuario=autor)
+                  usuario=autor, request=request)
     db.delete(m)
     db.commit()
 
@@ -1351,7 +1390,7 @@ def salvar_credenciais_pbi(request: Request, dados: CredenciaisPBIInput, db: Ses
         _upsert("PBI_CLIENT_SECRET", dados.client_secret)
     db.commit()
     autor = get_usuario_requisicao(request, db)
-    registrar_log(db, "sistema", "configuracoes_pbi", "Credenciais Power BI atualizadas", usuario=autor)
+    registrar_log(db, "sistema", "configuracoes_pbi", "Credenciais Power BI atualizadas", usuario=autor, request=request)
     db.commit()
     return listar_credenciais_pbi(db)
 
@@ -1425,7 +1464,7 @@ def embed_relatorio(relatorio_id: str, request: Request, db: Session = Depends(g
 
     token_data = token_resp.json()
     autor = get_usuario_requisicao(request, db)
-    registrar_log(db, "relatorio", "relatorios", f"Relatório visualizado: {rel.nome}", usuario=autor)
+    registrar_log(db, "relatorio", "relatorios", f"Relatório visualizado: {rel.nome}", usuario=autor, request=request)
 
     return EmbedResponse(
         embed_url=embed_url,

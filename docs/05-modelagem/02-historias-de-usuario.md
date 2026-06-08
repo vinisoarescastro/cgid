@@ -236,10 +236,15 @@ QUERO ver no painel administrativo os principais indicadores do portal (usuário
 PARA ter visibilidade do estado do sistema sem precisar navegar por cada módulo.
 
 *Critérios de aceite:*
-- [ ] Cards de KPI com: usuários ativos, usuários bloqueados, acessos negados hoje, workspaces ativos
+- [x] Cards de KPI com: usuários ativos, usuários bloqueados, acessos negados hoje, workspaces ativos
 - [ ] Lista de eventos críticos recentes com link para o log completo
 - [ ] Status dos serviços integrados (Power BI, autenticação, banco) com indicador visual
-- [ ] Dados atualizados a cada acesso à página
+- [x] Dados atualizados a cada acesso à página
+- [x] Subtexto de "Acessos negados hoje" compara com a média dos últimos 7 dias (`+X% vs média semanal`, `-X%` ou `igual à média`)
+- [x] Subtexto de "Workspaces ativos" exibe percentual de ativos sobre o total
+- [x] Subtexto de "Usuários bloqueados" exibe quantos foram bloqueados no dia
+- [x] Subtexto de "Usuários ativos" exibe quantos logins ocorreram hoje
+- [x] Barras de distribuição por workspace usam a cor configurada em cada workspace
 
 ---
 
@@ -289,9 +294,43 @@ PARA que informações sobre outros usuários vinculados não fiquem expostas.
 
 ---
 
+---
+
+**US-20: Confirmações de ações destrutivas com modal customizado**
+
+COMO usuário do portal (qualquer perfil),  
+QUERO que ações irreversíveis (arquivar, excluir, remover) exibam uma confirmação visual integrada ao portal,  
+PARA ter clareza sobre o que está prestes a acontecer antes de confirmar.
+
+*Critérios de aceite:*
+- [x] Nenhum `window.confirm()` ou `window.alert()` nativo do navegador é utilizado
+- [x] Ações destrutivas (arquivar workspace, excluir relatório, remover usuário, excluir grupo) abrem `ModalConfirmacao` com variante `danger`
+- [x] Ações neutras (reativar workspace) abrem `ModalConfirmacao` com variante `primary`
+- [x] Erros de operação dentro de modais existentes são exibidos como mensagem inline (não em modal sobreposto)
+- [x] Clicar fora do modal de confirmação cancela a ação
+- [x] Modal exibe: ícone contextual, título, mensagem descritiva, botão cancelar e botão confirmar
+- [x] Botões dentro do modal são sempre centralizados
+
+---
+
+**US-21: Captura de IP real em eventos de auditoria**
+
+COMO administrador de segurança,  
+QUERO que o IP registrado nos logs de auditoria reflita o endereço real do usuário,  
+PARA rastrear acessos suspeitos mesmo quando o portal estiver atrás de um proxy ou balanceador de carga.
+
+*Critérios de aceite:*
+- [x] IP capturado via header `X-Forwarded-For` quando presente (cenário de proxy reverso)
+- [x] Fallback para `request.client.host` quando `X-Forwarded-For` não está disponível
+- [x] IP preenchido em todos os eventos: login bem-sucedido, tentativas falhas, bloqueio, e todas as operações CRUD do portal
+- [x] Campo IP visível e filtrável na página de Auditoria
+
+---
+
 ## Histórico de Alterações
 
 | Versão | Data | Autor | Descrição |
 |--------|------|-------|-----------|
 | 1.0 | Maio/2026 | Vinicius Soares | Criação inicial do documento |
 | 1.1 | Junho/2026 | Vinicius Soares | US-11 atualizada com critérios implementados; US-18 e US-19 adicionadas |
+| 1.2 | Junho/2026 | Vinicius Soares | US-16 atualizada com KPIs dinâmicos e comparação semanal; US-20 adicionada (modais customizados); US-21 adicionada (captura de IP real) |
