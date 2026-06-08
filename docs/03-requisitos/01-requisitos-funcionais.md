@@ -68,13 +68,15 @@
 
 | ID | Descrição | Critério de Aceite | Versão | Prioridade |
 |----|-----------|-------------------|--------|-----------|
-| RF-SCHED-01 | O sistema deve permitir configurar horário de acesso por dia da semana | Interface permite definir dias ativos e horários de início/fim | v1.0 | 🔴 |
+| RF-SCHED-01 | O sistema deve permitir configurar horário de acesso por dia da semana | Interface permite definir dias ativos (`ativo`) e horários de início/fim; dias com `ativo=false` bloqueiam o acesso por completo | v1.0 | 🔴 |
 | RF-SCHED-02 | Fora do horário configurado, o acesso deve ser bloqueado por padrão | Tentativa de login fora do expediente retorna mensagem de restrição de horário | v1.0 | 🔴 |
-| RF-SCHED-03 | Grupos de exceção devem ter janela de horário específica | Membros do grupo de exceção acessam somente dentro da janela configurada para o grupo | v1.0 | 🔴 |
+| RF-SCHED-03 | Grupos de exceção devem ter janela de horário específica | Membros do grupo acessam dentro da janela do grupo (aditiva ao horário base); sem janela definida = acesso irrestrito pelo grupo | v1.0 | 🔴 |
 | RF-SCHED-04 | Exceções individuais de usuário devem ser suportadas | Exceção individual funciona independentemente do grupo | v1.0 | 🟡 |
 | RF-SCHED-05 | A verificação de expediente deve ocorrer a cada tentativa de login, não apenas na sessão | Usuário que deixa sessão aberta não tem acesso renovado fora do expediente | v1.0 | 🔴 |
-| RF-SCHED-06 | O dashboard do Admin deve exibir o status do expediente atual (dentro/fora, horário configurado, hora do servidor) | Card "Expediente" exibe horário de início/fim, hora atual do servidor, badge "Online"/"Bloqueado"/"Fora do horário"; quando não configurado, exibe mensagem específica | v1.0 | 🔴 |
-| RF-SCHED-07 | A verificação de expediente deve ser feita exclusivamente pelo servidor, nunca pelo cliente | Endpoint `GET /dashboard/expediente` retorna `dentro_expediente` calculado com `datetime.now()` server-side; cliente não envia nenhum parâmetro de tempo | v1.0 | 🔴 |
+| RF-SCHED-06 | O dashboard do Admin deve exibir o status do expediente atual | Card "Expediente" exibe horário, hora do servidor e status; quando não configurado, exibe mensagem específica | v1.0 | 🔴 |
+| RF-SCHED-07 | A verificação de expediente deve ser feita exclusivamente pelo servidor | Endpoint `GET /dashboard/expediente` retorna `dentro_expediente` calculado com `datetime.now()` server-side | v1.0 | 🔴 |
+| RF-SCHED-08 | Grupos de exceção devem suportar flag `ignora_dia_inativo` | Quando ativo, membros do grupo acessam mesmo em dias com `ativo=false`; grupos sem o flag continuam bloqueados nesses dias | v1.0 | 🔴 |
+| RF-SCHED-09 | O indicador de expediente deve ser exibido no topbar para todos os perfis | Pill colorido (verde/vermelho/âmbar) com label, horário e badge de exceção quando aplicável; admins veem informativamente; usuários comuns veem seu estado real de acesso | v1.0 | 🔴 |
 
 ---
 
@@ -96,7 +98,7 @@
 | ID | Descrição | Critério de Aceite | Versão | Prioridade |
 |----|-----------|-------------------|--------|-----------|
 | RF-AUD-01 | Todos os eventos relevantes devem ser registrados automaticamente | Log gerado sem ação do usuário para: login, logout, CRUD de usuários, alterações de permissão, bloqueios, acessos negados | v1.0 | 🔴 |
-| RF-AUD-02 | Cada registro de log deve conter: timestamp, usuário, IP, módulo, tipo, detalhe | Todos os campos presentes e preenchidos em cada evento; IP capturado no backend via `X-Forwarded-For` (proxy) com fallback para `request.client.host` | v1.0 | 🔴 |
+| RF-AUD-02 | Cada registro de log deve conter: timestamp, usuário, IP, módulo, tipo, detalhe; nome exibido deve refletir o nome atual do usuário | Todos os campos presentes; IP capturado via `X-Forwarded-For` com fallback para `request.client.host`; nome/e-mail resolvidos do banco em tempo de leitura (fallback para snapshot quando usuário foi excluído) | v1.0 | 🔴 |
 | RF-AUD-03 | Logs não podem ser editados ou excluídos por nenhum perfil | Nenhum endpoint de DELETE/PUT exposto para logs; tabela append-only | v1.0 | 🔴 |
 | RF-AUD-04 | Super Admin pode filtrar logs por: período, usuário (nome/e-mail), módulo, tipo de evento e IP | Filtros combinados retornam resultado correto via `GET /auditoria`; filtros aplicados também na exportação CSV | v1.0 | 🔴 |
 | RF-AUD-05 | Super Admin pode exportar logs filtrados em CSV | Arquivo CSV gerado via `GET /auditoria/export-csv`; encoding UTF-8 com BOM; nome com timestamp | v1.0 | 🔴 |
@@ -144,7 +146,11 @@
 | ID | Descrição | Critério de Aceite | Versão | Prioridade |
 |----|-----------|-------------------|--------|-----------|
 | RF-UX-01 | O sistema deve exibir modais de confirmação e alerta personalizados no lugar dos dialogs nativos do navegador (`confirm()`, `alert()`) | Toda ação destrutiva ou irreversível abre um `ModalConfirmacao` com título, mensagem descritiva, ícone e variante visual (`danger`, `warning`, `primary`); erros dentro de modais são exibidos como mensagens inline; nenhum `window.confirm()` ou `window.alert()` é utilizado | v1.0 | 🟡 |
-| RF-UX-02 | O painel administrativo deve exibir KPIs dinâmicos com subtextos contextuais | Card "Acessos negados hoje" compara o valor do dia com a média dos últimos 7 dias, exibindo `+X%`, `-X%` ou `igual à média semanal`; card "Workspaces ativos" exibe percentual de ativos sobre total; card "Usuários bloqueados" exibe quantos foram bloqueados hoje; card "Usuários ativos" exibe logins do dia | v1.0 | 🟡 |
+| RF-UX-02 | O painel administrativo deve exibir KPIs dinâmicos com subtextos contextuais | Card "Acessos negados hoje" compara o valor do dia com a média dos últimos 7 dias; card "Workspaces ativos" exibe percentual; card "Usuários bloqueados" exibe quantos hoje; card "Usuários ativos" exibe logins do dia | v1.0 | 🟡 |
+| RF-UX-03 | O footer da sidebar deve exibir nome completo, e-mail e perfil do usuário logado em todas as páginas | Footer exibe: nome em destaque (bold), e-mail abaixo, perfil em verde; avatar com iniciais do primeiro e segundo nome | v1.0 | 🔴 |
+| RF-UX-04 | A página Home de usuários não-admin deve exibir card de boas-vindas, status de expediente e lista de workspaces acessíveis com seus relatórios | Card de boas-vindas com nome e perfil; indicador de expediente no topbar; workspaces expansíveis com relatórios e botão "Abrir" (desabilitado quando sem ID PBI) | v1.0 | 🔴 |
+| RF-UX-05 | Admins e Super Admins não devem aparecer na lista de usuários vinculados a um workspace | Lista de usuários do workspace exclui perfis `administrador` e `super_administrador`; contador de usuários no card do workspace também os exclui | v1.0 | 🔴 |
+| RF-UX-06 | Na tela de usuários, a coluna Workspaces de admins/super_admins deve exibir "Todos os workspaces" em vez de listar individualmente | Badge com ícone de escudo exibido para perfis admin; usuários comuns continuam listando workspaces individuais | v1.0 | 🔴 |
 
 ---
 
@@ -161,3 +167,4 @@
 | 1.6 | Junho/2026 | Vinicius Soares | RF-AUD-04/05 atualizados, RF-AUD-07/08 adicionados: página de Auditoria implementada com filtros, paginação, exportação CSV e expansão de detalhes |
 | 1.7 | Junho/2026 | Vinicius Soares | Adicionada seção RF-FAV: favoritos pessoais com listagem, busca, remoção e abertura via visualizador Power BI |
 | 1.8 | Junho/2026 | Vinicius Soares | RF-AUD-02 atualizado: IP capturado via `X-Forwarded-For` com fallback; adicionada seção RF-UX com RF-UX-01 (modais customizados) e RF-UX-02 (KPIs dinâmicos com comparação semanal) |
+| 1.9 | Junho/2026 | Vinicius Soares | RF-SCHED-08/09 atualizados: semântica de `ativo=false` (dia bloqueado) e `ignora_dia_inativo`; RF-SCHED-10 (indicador de expediente no topbar para todos os perfis); RF-AUD-06 (resolução de nome atual nos logs); RF-UX-03 a 06: footer da sidebar, home não-admin, filtro de admins em workspaces, badge "Todos os workspaces" |
