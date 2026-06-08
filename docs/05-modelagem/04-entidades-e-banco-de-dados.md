@@ -322,19 +322,37 @@ CREATE UNIQUE INDEX UQ_re_dia_semana ON regras_expediente(dia_semana);
 
 ### Tabela: `grupos_excecao`
 
+| Coluna | Tipo | Restrições | Descrição |
+|--------|------|-----------|-----------|
+| `id` | UNIQUEIDENTIFIER | PK | Identificador único |
+| `nome` | NVARCHAR(255) | NOT NULL | Nome descritivo do grupo |
+| `fora_horario` | BIT | NOT NULL DEFAULT 1 | Se o grupo concede acesso fora do expediente |
+| `janela_inicio` | TIME(0) | NULL | Início da janela de exceção (NULL = sem janela definida) |
+| `janela_fim` | TIME(0) | NULL | Fim da janela de exceção (NULL = sem janela definida) |
+| `ignora_dia_inativo` | BIT | NOT NULL DEFAULT 0 | Se membros podem acessar em dias com `ativo = false` |
+| `status` | NVARCHAR(20) | NOT NULL DEFAULT 'ativo' | ativo \| inativo |
+| `criado_em` | DATETIME2(7) | NOT NULL | — |
+| `criado_por_id` | UNIQUEIDENTIFIER | FK → usuarios(id) | — |
+
+> **`ignora_dia_inativo`**: quando `1`, os membros deste grupo podem acessar o sistema mesmo em dias da semana onde a regra de expediente está com `ativo = false` (ex: sábados configurados como inativos). Grupos com `0` (padrão) continuam bloqueados nesses dias.
+
 ```sql
 CREATE TABLE grupos_excecao (
-  id              UNIQUEIDENTIFIER  NOT NULL CONSTRAINT PK_grupos_excecao PRIMARY KEY DEFAULT NEWID(),
-  nome            NVARCHAR(255)     NOT NULL,
-  fora_horario    BIT               NOT NULL DEFAULT 1,
-  janela_inicio   TIME(0)           NULL,
-  janela_fim      TIME(0)           NULL,
-  status          NVARCHAR(20)      NOT NULL DEFAULT 'ativo'
-                    CONSTRAINT CK_ge_status CHECK (status IN ('ativo','inativo')),
-  criado_em       DATETIME2(7)      NOT NULL DEFAULT GETUTCDATE(),
-  criado_por_id   UNIQUEIDENTIFIER  NULL
-                    CONSTRAINT FK_ge_criado_por REFERENCES usuarios(id) ON DELETE SET NULL
+  id                  UNIQUEIDENTIFIER  NOT NULL CONSTRAINT PK_grupos_excecao PRIMARY KEY DEFAULT NEWID(),
+  nome                NVARCHAR(255)     NOT NULL,
+  fora_horario        BIT               NOT NULL DEFAULT 1,
+  janela_inicio       TIME(0)           NULL,
+  janela_fim          TIME(0)           NULL,
+  ignora_dia_inativo  BIT               NOT NULL DEFAULT 0,
+  status              NVARCHAR(20)      NOT NULL DEFAULT 'ativo'
+                        CONSTRAINT CK_ge_status CHECK (status IN ('ativo','inativo')),
+  criado_em           DATETIME2(7)      NOT NULL DEFAULT GETUTCDATE(),
+  criado_por_id       UNIQUEIDENTIFIER  NULL
+                        CONSTRAINT FK_ge_criado_por REFERENCES usuarios(id) ON DELETE SET NULL
 );
+
+-- Migration para bancos existentes:
+ALTER TABLE grupos_excecao ADD ignora_dia_inativo BIT NOT NULL DEFAULT 0;
 ```
 
 ---
@@ -537,3 +555,4 @@ Cada script deve ter:
 | 1.0 | Maio/2026 | — | Criação inicial do documento |
 | 1.1 | Maio/2026 | — | Reescrita para SQL Server: tipos nativos, triggers INSTEAD OF, índices |
 | 2.0 | Maio/2026 | — | Migração completa para nomes em Português do Brasil; substituição de Prisma Migrate por SQLAlchemy create_all |
+| 2.1 | Junho/2026 | Vinicius Soares | Adicionada coluna `ignora_dia_inativo` (BIT DEFAULT 0) em `grupos_excecao`; documentação de migration para bancos existentes |
