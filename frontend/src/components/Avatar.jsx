@@ -1,11 +1,12 @@
 import { useState } from 'react'
 
 function getInitials(user) {
-  if (user.name) {
-    const parts = user.name.trim().split(/\s+/)
+  const nome = user.nome || user.name
+  if (nome) {
+    const parts = nome.trim().split(/\s+/)
     const first = parts[0]?.[0] ?? ''
-    const last  = parts.length > 1 ? parts[parts.length - 1][0] : ''
-    return (first + last).toUpperCase()
+    const second = parts[1]?.[0] ?? ''
+    return (first + second).toUpperCase()
   }
   if (user.email) {
     const local = user.email.split('@')[0]

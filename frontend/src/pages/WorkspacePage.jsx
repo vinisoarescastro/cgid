@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useEffect, useRef } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import '../styles/home.css'
 import '../styles/workspace.css'
 import logoSidebarFull from '../assets/logo-sidebar-full.png'
@@ -543,7 +543,9 @@ function ModalWorkspace({ workspace, onClose, onSave }) {
 // ─── Página principal ─────────────────────────────────────────────────────────
 export default function WorkspacePage() {
   const navigate = useNavigate()
-  const [expanded, setExpanded] = useState(false)
+  const [searchParams] = useSearchParams()
+  const deepLinkHandled = useRef(false)
+  const [expanded, setExpanded] = useState(() => sessionStorage.getItem('sidebar_expanded') === '1')
   const user = JSON.parse(sessionStorage.getItem('cgid_user') || '{}')
   const isAdmin = ADMIN_PERFIS.includes(user.perfil)
 
@@ -628,6 +630,30 @@ export default function WorkspacePage() {
       .then(data => setFavoritos(new Set(data.map(f => f.relatorio_id))))
       .catch(() => {})
   }, [mostrarArquivados]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // deep-link: abre workspace+relatório quando vindo da home via ?ws=...&rel=...
+  useEffect(() => {
+    const wsId  = searchParams.get('ws')
+    const relId = searchParams.get('rel')
+    if (!wsId || !relId || deepLinkHandled.current || loading || workspaces.length === 0) return
+    deepLinkHandled.current = true
+
+    const ws = workspaces.find(w => w.id === wsId)
+    if (!ws) return
+
+    abrirWorkspace(ws).then(() => {
+      const relUrl = isAdmin
+        ? `${API}/workspaces/${wsId}/relatorios`
+        : `${API}/workspaces/${wsId}/relatorios?usuario_id=${user.id}`
+      fetch(relUrl)
+        .then(r => r.json())
+        .then(rels => {
+          const rel = rels.find(r => r.id === relId)
+          if (rel && rel.id_relatorio_pbi) setRelatorioAberto(rel)
+        })
+        .catch(() => {})
+    })
+  }, [workspaces, loading]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function toggleFavorito(relatorioId) {
     const isFav = favoritos.has(relatorioId)
@@ -813,7 +839,7 @@ export default function WorkspacePage() {
             ? <img src={logoSidebarFull} alt="Brasil Terrenos" className="sb-logo-full" />
             : <img src={logoSidebarIcon} alt="Brasil Terrenos" className="sb-logo-icon-img" />
           }
-          <button className="sb-toggle" onClick={() => setExpanded(v => !v)}
+          <button className="sb-toggle" onClick={() => setExpanded(v => { sessionStorage.setItem('sidebar_expanded', v ? '' : '1'); return !v })}
             title={expanded ? 'Retrair menu' : 'Expandir menu'}>
             <i className={`fa-solid ${expanded ? 'fa-chevron-left' : 'fa-chevron-right'}`} />
           </button>
@@ -835,7 +861,7 @@ export default function WorkspacePage() {
             <span className="sb-label">Workspace</span>
           </div>
           <div className="sb-link" onClick={() => navigate('/favoritos')}>
-            <div className="sb-icon"><i className="fa-solid fa-bookmark" /></div>
+            <div className="sb-icon"><i className="fa-solid fa-star" /></div>
             <span className="sb-label">Favoritos</span>
           </div>
           {user.perfil === 'super_administrador' && (
@@ -856,7 +882,8 @@ export default function WorkspacePage() {
           <div className="sb-user">
             <Avatar user={user} size={36} radius={10} />
             <div className="sb-user-info">
-              <div className="sb-user-name">{user.email}</div>
+              <div className="sb-user-name">{user.nome}</div>
+              <div className="sb-user-email">{user.email}</div>
               <div className="sb-user-role">{PERFIL_LABEL[user.perfil] ?? user.perfil}</div>
             </div>
           </div>
@@ -881,16 +908,8 @@ export default function WorkspacePage() {
               <span className="bc-current">Workspace</span>
             )}
           </div>
-          <div className="topbar-search">
-            <i className="fa-solid fa-magnifying-glass" />
-            <input type="text" placeholder="Buscar..." />
-          </div>
           <div className="topbar-actions">
-            <button className="topbar-btn" title="Notificações">
-              <i className="fa-solid fa-bell" />
-              <span className="topbar-notif" />
-            </button>
-            <button className="topbar-btn" title="Sair" onClick={handleLogout}>
+            <button className="topbar-btn topbar-btn-danger" title="Sair" onClick={handleLogout}>
               <i className="fa-solid fa-right-from-bracket" />
             </button>
             <Avatar user={user} size={34} radius={10} />

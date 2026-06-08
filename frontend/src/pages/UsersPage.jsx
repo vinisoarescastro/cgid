@@ -368,7 +368,7 @@ function ModalConfirmar({ usuario, onClose, onConfirm }) {
 // ─── Página principal ─────────────────────────────────────────────────────────
 export default function UsersPage() {
   const navigate = useNavigate()
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = useState(() => sessionStorage.getItem('sidebar_expanded') === '1')
   const currentUser = JSON.parse(sessionStorage.getItem('cgid_user') || '{}')
   const isAdmin = ['super_administrador', 'administrador'].includes(currentUser.perfil)
 
@@ -459,7 +459,7 @@ export default function UsersPage() {
             ? <img src={logoSidebarFull} alt="Brasil Terrenos" className="sb-logo-full" />
             : <img src={logoSidebarIcon} alt="Brasil Terrenos" className="sb-logo-icon-img" />
           }
-          <button className="sb-toggle" onClick={() => setExpanded(v => !v)} title={expanded ? 'Retrair' : 'Expandir'}>
+          <button className="sb-toggle" onClick={() => setExpanded(v => { sessionStorage.setItem('sidebar_expanded', v ? '' : '1'); return !v })} title={expanded ? 'Retrair' : 'Expandir'}>
             <i className={`fa-solid ${expanded ? 'fa-chevron-left' : 'fa-chevron-right'}`} />
           </button>
         </div>
@@ -477,7 +477,7 @@ export default function UsersPage() {
             <span className="sb-label">Workspace</span>
           </div>
           <div className="sb-link" onClick={() => navigate('/favoritos')}>
-            <div className="sb-icon"><i className="fa-solid fa-bookmark" /></div>
+            <div className="sb-icon"><i className="fa-solid fa-star" /></div>
             <span className="sb-label">Favoritos</span>
           </div>
           {currentUser.perfil === 'super_administrador' && (
@@ -512,16 +512,8 @@ export default function UsersPage() {
             <span className="bc-sep"><i className="fa-solid fa-chevron-right" /></span>
             <span className="bc-current">Usuários</span>
           </div>
-          <div className="topbar-search">
-            <i className="fa-solid fa-magnifying-glass" />
-            <input type="text" placeholder="Buscar..." />
-          </div>
           <div className="topbar-actions">
-            <button className="topbar-btn" title="Notificações">
-              <i className="fa-solid fa-bell" />
-              <span className="topbar-notif" />
-            </button>
-            <button className="topbar-btn" title="Sair" onClick={handleLogout}>
+            <button className="topbar-btn topbar-btn-danger" title="Sair" onClick={handleLogout}>
               <i className="fa-solid fa-right-from-bracket" />
             </button>
             <Avatar user={currentUser} size={34} radius={10} />
@@ -604,7 +596,17 @@ export default function UsersPage() {
                           </td>
                           <td>
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                              {(acessosMap[u.id] ?? []).length === 0
+                              {['super_administrador', 'administrador'].includes(u.perfil) ? (
+                                <span style={{
+                                  display: 'inline-flex', alignItems: 'center', gap: 5,
+                                  padding: '2px 8px', borderRadius: 99,
+                                  background: 'var(--brand-50)', border: '1px solid var(--brand-200)',
+                                  color: 'var(--brand-700)', fontSize: 11, fontWeight: 600,
+                                }}>
+                                  <i className="fa-solid fa-shield-halved" style={{ fontSize: 9 }} />
+                                  Todos os workspaces
+                                </span>
+                              ) : (acessosMap[u.id] ?? []).length === 0
                                 ? <span style={{ color: 'var(--gray-300)', fontSize: 12 }}>—</span>
                                 : (acessosMap[u.id] ?? []).map(a => (
                                     <span key={a.espaco_trabalho_id} title={NIVEL_LABELS[a.nivel_acesso]} style={{

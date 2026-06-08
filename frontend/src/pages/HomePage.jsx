@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import '../styles/home.css'
+import '../styles/workspace.css'
 import logoSidebarFull from '../assets/logo-sidebar-full.png'
 import logoSidebarIcon from '../assets/logo-sidebar-icon.png'
 import Avatar from '../components/Avatar'
@@ -19,7 +20,7 @@ const ADMIN_PERFIS = ['super_administrador', 'administrador']
 
 export default function HomePage() {
   const navigate = useNavigate()
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = useState(() => sessionStorage.getItem('sidebar_expanded') === '1')
   const user = JSON.parse(sessionStorage.getItem('cgid_user') || '{}')
   const isAdmin = ADMIN_PERFIS.includes(user.perfil)
 
@@ -28,15 +29,33 @@ export default function HomePage() {
   const [workspaces, setWorkspaces] = useState([])
   const [expediente, setExpediente] = useState(null)
 
+  // estado para usuário não-admin
+  const [minhaHome, setMinhaHome] = useState(null)
+  const [wsExpandido, setWsExpandido] = useState({})
+
   useEffect(() => {
-    fetch(`${API}/dashboard/kpis`)
-      .then(r => r.json()).then(setKpis).catch(console.error)
-    fetch(`${API}/dashboard/eventos`)
-      .then(r => r.json()).then(setEvents).catch(console.error)
-    fetch(`${API}/dashboard/workspaces`)
-      .then(r => r.json()).then(setWorkspaces).catch(console.error)
-    fetch(`${API}/dashboard/expediente`)
-      .then(r => r.json()).then(setExpediente).catch(console.error)
+    if (isAdmin) {
+      fetch(`${API}/dashboard/expediente`)
+        .then(r => r.json()).then(setExpediente).catch(console.error)
+      fetch(`${API}/dashboard/kpis`)
+        .then(r => r.json()).then(setKpis).catch(console.error)
+      fetch(`${API}/dashboard/eventos`)
+        .then(r => r.json()).then(setEvents).catch(console.error)
+      fetch(`${API}/dashboard/workspaces`)
+        .then(r => r.json()).then(setWorkspaces).catch(console.error)
+    } else {
+      fetch(`${API}/usuarios/${user.id}/expediente`, {
+        headers: { 'X-Usuario-Id': user.id },
+      }).then(r => r.json()).then(setExpediente).catch(console.error)
+
+      fetch(`${API}/usuarios/${user.id}/minha-home`, {
+        headers: { 'X-Usuario-Id': user.id },
+      }).then(r => r.json()).then(data => {
+        setMinhaHome(data)
+        // expande o primeiro workspace por padrão
+        if (data.length > 0) setWsExpandido({ [data[0].id]: true })
+      }).catch(console.error)
+    }
   }, [])
 
   // calcula pct relativo ao maior valor para as barras
@@ -59,7 +78,7 @@ export default function HomePage() {
           }
           <button
             className="sb-toggle"
-            onClick={() => setExpanded(v => !v)}
+            onClick={() => setExpanded(v => { sessionStorage.setItem('sidebar_expanded', v ? '' : '1'); return !v })}
             title={expanded ? 'Retrair menu' : 'Expandir menu'}
           >
             <i className={`fa-solid ${expanded ? 'fa-chevron-left' : 'fa-chevron-right'}`} />
@@ -82,7 +101,7 @@ export default function HomePage() {
             <span className="sb-label">Workspace</span>
           </div>
           <div className="sb-link" onClick={() => navigate('/favoritos')}>
-            <div className="sb-icon"><i className="fa-solid fa-bookmark" /></div>
+            <div className="sb-icon"><i className="fa-solid fa-star" /></div>
             <span className="sb-label">Favoritos</span>
           </div>
           {user.perfil === 'super_administrador' && (
@@ -103,7 +122,8 @@ export default function HomePage() {
           <div className="sb-user">
             <Avatar user={user} size={36} radius={10} />
             <div className="sb-user-info">
-              <div className="sb-user-name">{user.email}</div>
+              <div className="sb-user-name">{user.nome}</div>
+              <div className="sb-user-email">{user.email}</div>
               <div className="sb-user-role">{PERFIL_LABEL[user.perfil] ?? user.perfil}</div>
             </div>
           </div>
@@ -120,16 +140,50 @@ export default function HomePage() {
             <span className="bc-sep"><i className="fa-solid fa-chevron-right" /></span>
             <span className="bc-current">Home</span>
           </div>
-          <div className="topbar-search">
-            <i className="fa-solid fa-magnifying-glass" />
-            <input type="text" placeholder="Buscar..." />
-          </div>
+
+          {expediente && expediente.configurado && (() => {
+            const ok = expediente.dentro_expediente
+            const diaInativo = expediente.dia_inativo
+            const excecaoDia = expediente.excecao_ativa && !expediente.hora_inicio
+            const excecaoHora = expediente.excecao_ativa && !!expediente.hora_inicio
+
+            let label, horario, stateClass
+            if (isAdmin) {
+              label = ok ? 'Expediente' : 'Fora do expediente'
+              horario = expediente.hora_inicio ? `${expediente.hora_inicio} – ${expediente.hora_fim}` : null
+              stateClass = ok ? 'exp-ok' : 'exp-neutral'
+            } else if (diaInativo) {
+              label = 'Acesso bloqueado'; stateClass = 'exp-off'
+            } else if (excecaoDia) {
+              label = 'Acesso especial'; stateClass = 'exp-warn'
+            } else if (ok) {
+              label = 'Expediente'
+              horario = excecaoHora ? expediente.janela_excecao : `${expediente.hora_inicio} – ${expediente.hora_fim}`
+              stateClass = 'exp-ok'
+            } else {
+              label = 'Fora do expediente'
+              horario = `${expediente.hora_inicio} – ${expediente.hora_fim}`
+              stateClass = 'exp-off'
+            }
+
+            return (
+              <div className={`topbar-exp ${stateClass}`}>
+                <span className="topbar-exp-dot" />
+                <span className="topbar-exp-label">{label}</span>
+                {horario && <span className="topbar-exp-divider" />}
+                {horario && <span className="topbar-exp-horario">{horario}</span>}
+                {!isAdmin && expediente.excecao_ativa && (
+                  <span className="topbar-exp-badge">
+                    <i className="fa-solid fa-shield-halved" />
+                    {excecaoDia ? 'Dia bloqueado' : 'Exceção'}
+                  </span>
+                )}
+              </div>
+            )
+          })()}
+
           <div className="topbar-actions">
-            <button className="topbar-btn" title="Notificações">
-              <i className="fa-solid fa-bell" />
-              <span className="topbar-notif" />
-            </button>
-            <button className="topbar-btn" title="Sair" onClick={handleLogout}>
+            <button className="topbar-btn topbar-btn-danger" title="Sair" onClick={handleLogout}>
               <i className="fa-solid fa-right-from-bracket" />
             </button>
             <Avatar user={user} size={34} radius={10} />
@@ -147,13 +201,93 @@ export default function HomePage() {
               </div>
             </div>
 
-            {!isAdmin && (
-              <div className="card" style={{ padding: '32px 24px', textAlign: 'center', color: 'var(--gray-500)' }}>
-                <i className="fa-solid fa-chart-pie" style={{ fontSize: 40, marginBottom: 12, color: 'var(--brand-400)' }} />
-                <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>Bem-vindo ao portal CGID</div>
-                <div style={{ fontSize: 14 }}>Utilize o menu lateral para acessar os recursos disponíveis para o seu perfil.</div>
+            {!isAdmin && (<>
+
+              {/* ── Boas-vindas ── */}
+              <div className="card home-welcome">
+                <Avatar user={user} size={48} radius={13} />
+                <div className="home-welcome-info">
+                  <div className="home-welcome-name">Olá, {user.nome?.split(' ')[0] || user.email} 👋</div>
+                  <div className="home-welcome-role">{PERFIL_LABEL[user.perfil] ?? user.perfil} · {user.email}</div>
+                </div>
               </div>
-            )}
+
+              {/* ── Meus workspaces e relatórios ── */}
+              <div className="ph" style={{ marginBottom: 12 }}>
+                <div>
+                  <div className="ph-title">Meus acessos</div>
+                  <div className="ph-sub">Workspaces e relatórios disponíveis para você</div>
+                </div>
+              </div>
+
+              {minhaHome === null && (
+                <div className="card" style={{ padding: 32, textAlign: 'center', color: 'var(--gray-400)' }}>
+                  <i className="fa-solid fa-circle-notch fa-spin" style={{ fontSize: 22 }} />
+                </div>
+              )}
+
+              {minhaHome?.length === 0 && (
+                <div className="card" style={{ padding: '32px 24px', textAlign: 'center', color: 'var(--gray-400)' }}>
+                  <i className="fa-solid fa-folder-open" style={{ fontSize: 36, marginBottom: 12, color: 'var(--gray-300)' }} />
+                  <div style={{ fontSize: 14, fontWeight: 600 }}>Nenhum acesso configurado</div>
+                  <div style={{ fontSize: 13, marginTop: 4 }}>Solicite ao administrador para liberar seus acessos.</div>
+                </div>
+              )}
+
+              {minhaHome?.length > 0 && (
+                <div className="home-ws-list">
+                  {minhaHome.map(ws => (
+                    <div className="card home-ws-card" key={ws.id}>
+                      <div
+                        className="home-ws-header"
+                        onClick={() => setWsExpandido(v => ({ ...v, [ws.id]: !v[ws.id] }))}
+                      >
+                        <div className="home-ws-icon" style={{ background: ws.cor || 'var(--brand-500)' }}>
+                          <i className={`fa-solid ${ws.icone || 'fa-building-columns'}`} />
+                        </div>
+                        <div className="home-ws-meta">
+                          <div className="home-ws-nome">{ws.nome}</div>
+                          <div className="home-ws-sub">
+                            {ws.relatorios.length} {ws.relatorios.length !== 1 ? 'relatórios disponíveis' : 'relatório disponível'}
+                          </div>
+                        </div>
+                        <i className={`fa-solid fa-chevron-${wsExpandido[ws.id] ? 'up' : 'down'} home-ws-chevron`} />
+                      </div>
+
+                      {wsExpandido[ws.id] && (
+                        <div className="home-ws-relatorios">
+                          {ws.relatorios.length === 0 ? (
+                            <div className="home-ws-empty">Nenhum relatório publicado neste workspace.</div>
+                          ) : ws.relatorios.map(r => (
+                            <div key={r.id} className="ws-report-row" style={{ cursor: 'default' }}>
+                              <div className="ws-report-icon">
+                                <i className="fa-solid fa-chart-bar" />
+                              </div>
+                              <div className="ws-report-info">
+                                <div className="ws-report-name">{r.nome}</div>
+                                <div className="ws-report-cat">{r.categoria ?? 'Sem categoria'}</div>
+                              </div>
+                              <div className="ws-report-actions">
+                                <button
+                                  className="btn btn-ghost btn-sm"
+                                  title={r.id_relatorio_pbi ? 'Visualizar relatório' : 'Sem link configurado'}
+                                  disabled={!r.id_relatorio_pbi}
+                                  onClick={() => r.id_relatorio_pbi && navigate(`/workspaces?ws=${ws.id}&rel=${r.id}`)}
+                                  style={!r.id_relatorio_pbi ? { opacity: 0.4, cursor: 'not-allowed' } : {}}
+                                >
+                                  <i className="fa-solid fa-arrow-up-right-from-square" /> Abrir
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+            </>)}
 
             {/* Dashboard — somente admins */}
             {isAdmin && (<>

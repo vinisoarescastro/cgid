@@ -23,6 +23,7 @@ class Usuario(Base):
     perfil            = Column(String(30),  nullable=False)   # super_administrador | administrador | gerente | operador | visitante
     status            = Column(String(20),  nullable=False, default="ativo")  # ativo | inativo | bloqueado
     tentativas_login  = Column(SmallInteger, nullable=False, default=0)
+    senha_provisoria  = Column(Boolean, nullable=False, default=False)
     ultimo_login      = Column(DateTime, nullable=True)
     foto_url          = Column(String(500), nullable=True)
     mfa_ativo         = Column(Boolean, nullable=False, default=False)
@@ -184,14 +185,15 @@ class RegraExpediente(Base):
 class GrupoExcecao(Base):
     __tablename__ = "grupos_excecao"
 
-    id             = Column(String(36), primary_key=True, default=new_uuid)
-    nome           = Column(String(255), nullable=False)
-    fora_horario   = Column(Boolean, nullable=False, default=True)
-    janela_inicio  = Column(Time, nullable=True)
-    janela_fim     = Column(Time, nullable=True)
-    status         = Column(String(20), nullable=False, default="ativo")  # ativo | inativo
-    criado_em      = Column(DateTime, nullable=False, server_default=func.now())
-    criado_por_id  = Column(String(36), ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True)
+    id                  = Column(String(36), primary_key=True, default=new_uuid)
+    nome                = Column(String(255), nullable=False)
+    fora_horario        = Column(Boolean, nullable=False, default=True)
+    janela_inicio       = Column(Time, nullable=True)
+    janela_fim          = Column(Time, nullable=True)
+    ignora_dia_inativo  = Column(Boolean, nullable=False, default=False)
+    status              = Column(String(20), nullable=False, default="ativo")  # ativo | inativo
+    criado_em           = Column(DateTime, nullable=False, server_default=func.now())
+    criado_por_id       = Column(String(36), ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True)
 
     membros = relationship("MembroGrupoExcecao", back_populates="grupo", cascade="all, delete-orphan")
 

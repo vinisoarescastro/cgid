@@ -52,7 +52,7 @@ function AbaExpediente() {
 
   async function salvar(dia) {
     const r = regras.find(x => x.dia_semana === dia)
-    if (!r.hora_inicio || !r.hora_fim) return
+    if (r.ativo && (!r.hora_inicio || !r.hora_fim)) return
     setSalvando(dia)
     try {
       const res = await apiFetch(`/configuracoes/expediente/${dia}`, {
@@ -79,7 +79,7 @@ function AbaExpediente() {
   return (
     <div>
       <div style={{ fontSize: 13, color: 'var(--gray-500)', marginBottom: 16 }}>
-        Configure os horários de acesso ao portal por dia da semana. Dias inativos não bloqueiam o acesso, apenas dias <strong>ativos com "bloquear fora"</strong> impedem o login fora do horário.
+        Configure os horários de acesso ao portal por dia da semana. Dias <strong>inativos bloqueiam o acesso por completo</strong>. Dias ativos permitem acesso dentro do horário — ative "bloquear fora" para impedir login fora do intervalo configurado.
       </div>
       <div className="sched-grid">
         <div className="sched-header">
@@ -91,7 +91,8 @@ function AbaExpediente() {
           <span />
         </div>
         {regras.map(r => (
-          <div className={`sched-row${r.ativo ? '' : ' inativo'}`} key={r.dia_semana}>
+          <div key={r.dia_semana}>
+          <div className={`sched-row${r.ativo ? '' : ' inativo'}`}>
             <div className="sched-dia">{r.nome_dia}</div>
 
             <input
@@ -124,7 +125,7 @@ function AbaExpediente() {
             <button
               className="btn btn-ghost btn-sm"
               style={{ whiteSpace: 'nowrap', fontSize: 12 }}
-              disabled={salvando === r.dia_semana || !r.ativo}
+              disabled={salvando === r.dia_semana}
               onClick={() => salvar(r.dia_semana)}
             >
               {salvando === r.dia_semana
@@ -141,6 +142,7 @@ function AbaExpediente() {
               {erros[r.dia_semana]}
             </div>
           )}
+          </div>
         ))}
       </div>
     </div>
@@ -151,10 +153,11 @@ function AbaExpediente() {
 function ModalGrupo({ grupo, onClose, onSave }) {
   const editando = !!grupo
   const [form, setForm] = useState({
-    nome:          grupo?.nome          ?? '',
-    fora_horario:  grupo?.fora_horario  ?? true,
-    janela_inicio: grupo?.janela_inicio ?? '',
-    janela_fim:    grupo?.janela_fim    ?? '',
+    nome:               grupo?.nome               ?? '',
+    fora_horario:       grupo?.fora_horario       ?? true,
+    janela_inicio:      grupo?.janela_inicio      ?? '',
+    janela_fim:         grupo?.janela_fim         ?? '',
+    ignora_dia_inativo: grupo?.ignora_dia_inativo ?? false,
   })
   const [loading, setLoading] = useState(false)
   const [erro, setErro]       = useState('')
@@ -170,7 +173,8 @@ function ModalGrupo({ grupo, onClose, onSave }) {
       const r = await apiFetch(path, {
         method,
         body: { nome: form.nome.trim(), fora_horario: form.fora_horario,
-                janela_inicio: form.janela_inicio || null, janela_fim: form.janela_fim || null },
+                janela_inicio: form.janela_inicio || null, janela_fim: form.janela_fim || null,
+                ignora_dia_inativo: form.ignora_dia_inativo },
       })
       if (!r.ok) { const d = await r.json(); throw new Error(d.detail) }
       onSave(await r.json())
@@ -211,6 +215,14 @@ function ModalGrupo({ grupo, onClose, onSave }) {
             </div>
           </div>
         )}
+
+        <div className="modal-field" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <Toggle checked={form.ignora_dia_inativo} onChange={v => set('ignora_dia_inativo', v)} />
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--gray-800)' }}>Acesso em dias bloqueados</div>
+            <div style={{ fontSize: 12, color: 'var(--gray-400)' }}>Membros podem acessar mesmo em dias com expediente inativo</div>
+          </div>
+        </div>
 
         {erro && <div style={{ fontSize: 12, color: 'var(--red-500)', marginBottom: 8 }}>{erro}</div>}
 
@@ -414,6 +426,11 @@ function AbaGrupos() {
                   : 'Acesso irrestrito fora do expediente'
                 : 'Sem acesso fora do expediente'}
             </span>
+            {g.ignora_dia_inativo && (
+              <span className="badge badge-amber" title="Acessa em dias com expediente inativo">
+                <i className="fa-solid fa-calendar-xmark" /> Dias bloqueados
+              </span>
+            )}
             <span className={`badge ${g.status === 'ativo' ? 'badge-green' : 'badge-gray'}`}>{g.status}</span>
             <button className="btn btn-ghost btn-sm" onClick={() => setModalGrupo(g)}>
               <i className="fa-solid fa-pen" />
@@ -567,7 +584,7 @@ function AbaCredenciaisPBI() {
 // ─── Página principal ─────────────────────────────────────────────────────────
 export default function SettingsPage() {
   const navigate  = useNavigate()
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = useState(() => sessionStorage.getItem('sidebar_expanded') === '1')
   const user    = JSON.parse(sessionStorage.getItem('cgid_user') || '{}')
   const isAdmin = ADMIN_PERFIS.includes(user.perfil)
   const isSuperAdmin = user.perfil === SUPER_ADMIN
@@ -599,7 +616,7 @@ export default function SettingsPage() {
             ? <img src={logoSidebarFull} alt="Brasil Terrenos" className="sb-logo-full" />
             : <img src={logoSidebarIcon} alt="Brasil Terrenos" className="sb-logo-icon-img" />
           }
-          <button className="sb-toggle" onClick={() => setExpanded(v => !v)}
+          <button className="sb-toggle" onClick={() => setExpanded(v => { sessionStorage.setItem('sidebar_expanded', v ? '' : '1'); return !v })}
             title={expanded ? 'Retrair menu' : 'Expandir menu'}>
             <i className={`fa-solid ${expanded ? 'fa-chevron-left' : 'fa-chevron-right'}`} />
           </button>
@@ -620,7 +637,7 @@ export default function SettingsPage() {
             <span className="sb-label">Workspace</span>
           </div>
           <div className="sb-link" onClick={() => navigate('/favoritos')}>
-            <div className="sb-icon"><i className="fa-solid fa-bookmark" /></div>
+            <div className="sb-icon"><i className="fa-solid fa-star" /></div>
             <span className="sb-label">Favoritos</span>
           </div>
           {isSuperAdmin && (
@@ -638,7 +655,8 @@ export default function SettingsPage() {
           <div className="sb-user">
             <Avatar user={user} size={36} radius={10} />
             <div className="sb-user-info">
-              <div className="sb-user-name">{user.email}</div>
+              <div className="sb-user-name">{user.nome}</div>
+              <div className="sb-user-email">{user.email}</div>
               <div className="sb-user-role">{PERFIL_LABEL[user.perfil] ?? user.perfil}</div>
             </div>
           </div>
@@ -653,16 +671,8 @@ export default function SettingsPage() {
             <span className="bc-sep"><i className="fa-solid fa-chevron-right" /></span>
             <span className="bc-current">Configurações</span>
           </div>
-          <div className="topbar-search">
-            <i className="fa-solid fa-magnifying-glass" />
-            <input type="text" placeholder="Buscar..." />
-          </div>
           <div className="topbar-actions">
-            <button className="topbar-btn" title="Notificações">
-              <i className="fa-solid fa-bell" />
-              <span className="topbar-notif" />
-            </button>
-            <button className="topbar-btn" title="Sair" onClick={handleLogout}>
+            <button className="topbar-btn topbar-btn-danger" title="Sair" onClick={handleLogout}>
               <i className="fa-solid fa-right-from-bracket" />
             </button>
             <Avatar user={user} size={34} radius={10} />

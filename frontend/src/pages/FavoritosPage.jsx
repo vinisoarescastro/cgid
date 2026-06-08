@@ -40,7 +40,7 @@ function WsIcone({ icone, cor, size = 14 }) {
 
 export default function FavoritosPage() {
   const navigate   = useNavigate()
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = useState(() => sessionStorage.getItem('sidebar_expanded') === '1')
   const user    = JSON.parse(sessionStorage.getItem('cgid_user') || '{}')
   const isAdmin = ADMIN_PERFIS.includes(user.perfil)
 
@@ -89,7 +89,7 @@ export default function FavoritosPage() {
             ? <img src={logoSidebarFull} alt="Brasil Terrenos" className="sb-logo-full" />
             : <img src={logoSidebarIcon} alt="Brasil Terrenos" className="sb-logo-icon-img" />
           }
-          <button className="sb-toggle" onClick={() => setExpanded(v => !v)}
+          <button className="sb-toggle" onClick={() => setExpanded(v => { sessionStorage.setItem('sidebar_expanded', v ? '' : '1'); return !v })}
             title={expanded ? 'Retrair menu' : 'Expandir menu'}>
             <i className={`fa-solid ${expanded ? 'fa-chevron-left' : 'fa-chevron-right'}`} />
           </button>
@@ -110,7 +110,7 @@ export default function FavoritosPage() {
             <span className="sb-label">Workspace</span>
           </div>
           <div className="sb-link active">
-            <div className="sb-icon"><i className="fa-solid fa-bookmark" /></div>
+            <div className="sb-icon"><i className="fa-solid fa-star" /></div>
             <span className="sb-label">Favoritos</span>
           </div>
           {user.perfil === 'super_administrador' && (
@@ -130,7 +130,8 @@ export default function FavoritosPage() {
           <div className="sb-user">
             <Avatar user={user} size={36} radius={10} />
             <div className="sb-user-info">
-              <div className="sb-user-name">{user.email}</div>
+              <div className="sb-user-name">{user.nome}</div>
+              <div className="sb-user-email">{user.email}</div>
               <div className="sb-user-role">{PERFIL_LABEL[user.perfil] ?? user.perfil}</div>
             </div>
           </div>
@@ -145,16 +146,8 @@ export default function FavoritosPage() {
             <span className="bc-sep"><i className="fa-solid fa-chevron-right" /></span>
             <span className="bc-current">Favoritos</span>
           </div>
-          <div className="topbar-search">
-            <i className="fa-solid fa-magnifying-glass" />
-            <input type="text" placeholder="Buscar..." />
-          </div>
           <div className="topbar-actions">
-            <button className="topbar-btn" title="Notificações">
-              <i className="fa-solid fa-bell" />
-              <span className="topbar-notif" />
-            </button>
-            <button className="topbar-btn" title="Sair" onClick={handleLogout}>
+            <button className="topbar-btn topbar-btn-danger" title="Sair" onClick={handleLogout}>
               <i className="fa-solid fa-right-from-bracket" />
             </button>
             <Avatar user={user} size={34} radius={10} />

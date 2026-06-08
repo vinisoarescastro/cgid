@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func, or_
 from passlib.context import CryptContext
@@ -33,6 +33,28 @@ pwd = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 MAX_TENTATIVAS = 5
 
+from database import SessionLocal
+
+@app.middleware("http")
+async def bloquear_senha_provisoria(request: Request, call_next):
+    uid = request.headers.get("X-Usuario-Id")
+    if not uid:
+        return await call_next(request)
+    path = request.url.path
+    if path.endswith("/alterar-senha") or request.method == "OPTIONS":
+        return await call_next(request)
+    db = SessionLocal()
+    try:
+        usuario = db.query(Usuario).filter(Usuario.id == uid).first()
+        if usuario and usuario.senha_provisoria:
+            return JSONResponse(
+                status_code=403,
+                content={"code": "SENHA_PROVISORIA", "detail": "Troca de senha obrigatória antes de continuar."},
+            )
+    finally:
+        db.close()
+    return await call_next(request)
+
 
 # ─── Schemas ─────────────────────────────────────────────────────────────────
 class LoginInput(BaseModel):
@@ -52,6 +74,7 @@ class LoginResponse(BaseModel):
     sucesso: bool
     mensagem: str
     usuario: Optional[UsuarioPublico] = None
+    requer_troca_senha: bool = False
 
 
 # ─── Utilitários ─────────────────────────────────────────────────────────────
@@ -101,6 +124,25 @@ def _usuario_tem_excecao_horario(usuario_id: str, db: Session) -> bool:
     ).first() is not None
 
 
+def _vincular_admins_workspace(workspace_id: str, db: Session):
+    """Garante que todos os admins/super_admins ativos tenham AcessoWorkspace total neste workspace."""
+    admins = db.query(Usuario).filter(
+        Usuario.perfil.in_(["super_administrador", "administrador"]),
+        Usuario.status == "ativo",
+    ).all()
+    for admin in admins:
+        existe = db.query(AcessoWorkspace).filter(
+            AcessoWorkspace.usuario_id == admin.id,
+            AcessoWorkspace.espaco_trabalho_id == workspace_id,
+        ).first()
+        if not existe:
+            db.add(AcessoWorkspace(
+                usuario_id=admin.id,
+                espaco_trabalho_id=workspace_id,
+                nivel_acesso="total",
+            ))
+
+
 def _verificar_expediente(usuario_id: str, db: Session) -> Optional[str]:
     """
     Verifica se o acesso está dentro do horário de expediente.
@@ -111,8 +153,21 @@ def _verificar_expediente(usuario_id: str, db: Session) -> Optional[str]:
 
     regra = db.query(RegraExpediente).filter(RegraExpediente.dia_semana == dia_db).first()
 
-    if not regra or not regra.ativo or not regra.bloquear_fora:
-        return None  # sem restrição para este dia
+    if not regra:
+        return None  # dia sem regra configurada = sem restrição
+
+    if not regra.ativo:
+        # Verifica se o usuário está em algum grupo que ignora dias inativos
+        pode_ignorar = db.query(MembroGrupoExcecao).join(GrupoExcecao).filter(
+            MembroGrupoExcecao.usuario_id == usuario_id,
+            GrupoExcecao.status == "ativo",
+            GrupoExcecao.ignora_dia_inativo == True,
+        ).first()
+        if not pode_ignorar:
+            return "Acesso não permitido neste dia da semana."
+
+    if not regra.bloquear_fora:
+        return None  # regra ativa mas sem bloqueio fora do horário
 
     hora_atual = agora.time().replace(tzinfo=None)
     if regra.hora_inicio <= hora_atual <= regra.hora_fim:
@@ -177,6 +232,7 @@ def login(request: Request, dados: LoginInput, db: Session = Depends(get_db)):
         sucesso=True,
         mensagem="Login realizado com sucesso.",
         usuario=UsuarioPublico.model_validate(usuario),
+        requer_troca_senha=usuario.senha_provisoria,
     )
 
 
@@ -259,6 +315,7 @@ def criar_usuario(request: Request, dados: UsuarioCriar, db: Session = Depends(g
     usuario = Usuario(
         nome=dados.nome, email=dados.email,
         hash_senha=pwd.hash(senha), perfil=dados.perfil, status="ativo",
+        senha_provisoria=not bool(dados.senha),
     )
     db.add(usuario)
     db.flush()
@@ -316,12 +373,43 @@ def resetar_senha(usuario_id: str, request: Request, db: Session = Depends(get_d
         raise HTTPException(status_code=404, detail="Usuário não encontrado.")
     autor = get_usuario_requisicao(request, db)
     usuario.hash_senha = pwd.hash(SENHA_PADRAO)
+    usuario.senha_provisoria = True
     usuario.tentativas_login = 0
     if usuario.status == "bloqueado":
         usuario.status = "ativo"
     registrar_log(db, "usuario", "usuarios", f"Senha redefinida para padrão: {usuario.email}", usuario=autor, request=request)
     db.commit()
     return {"mensagem": "Senha redefinida para o padrão com sucesso."}
+
+
+class AlterarSenhaInput(BaseModel):
+    senha_nova: str
+    confirmacao: str
+
+@app.post("/usuarios/{usuario_id}/alterar-senha", status_code=200)
+def alterar_senha(usuario_id: str, request: Request, dados: AlterarSenhaInput, db: Session = Depends(get_db)):
+    usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
+    if not usuario:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+
+    # Apenas o próprio usuário pode alterar sua senha por este endpoint
+    uid_requisicao = request.headers.get("X-Usuario-Id")
+    if uid_requisicao != usuario_id:
+        raise HTTPException(status_code=403, detail="Sem permissão para alterar a senha deste usuário.")
+
+    if dados.senha_nova != dados.confirmacao:
+        raise HTTPException(status_code=422, detail="As senhas não coincidem.")
+    if len(dados.senha_nova) < 8:
+        raise HTTPException(status_code=422, detail="A senha deve ter pelo menos 8 caracteres.")
+    if dados.senha_nova == SENHA_PADRAO:
+        raise HTTPException(status_code=422, detail="Escolha uma senha diferente da senha padrão do sistema.")
+
+    usuario.hash_senha = pwd.hash(dados.senha_nova)
+    usuario.senha_provisoria = False
+    registrar_log(db, "usuario", "usuarios", f"Senha alterada pelo próprio usuário: {usuario.email}",
+                  usuario=usuario, request=request)
+    db.commit()
+    return {"mensagem": "Senha alterada com sucesso."}
 
 
 @app.delete("/usuarios/{usuario_id}", status_code=204)
@@ -365,6 +453,146 @@ def listar_workspaces(incluir_arquivados: bool = False, db: Session = Depends(ge
     if not incluir_arquivados:
         q = q.filter(EspacoTrabalho.status == "ativo")
     return q.order_by(EspacoTrabalho.nome).all()
+
+
+@app.get("/usuarios/{usuario_id}/expediente")
+def expediente_usuario(usuario_id: str, db: Session = Depends(get_db)):
+    """Retorna o status de expediente personalizado do usuário, considerando grupos de exceção."""
+    agora = datetime.now(TZ_BRASILIA)
+    dia_db = agora.isoweekday() % 7
+    hora_atual = agora.time().replace(tzinfo=None)
+
+    regra = db.query(RegraExpediente).filter(
+        RegraExpediente.dia_semana == dia_db,
+    ).first()
+
+    if not regra:
+        return {
+            "configurado": False,
+            "dentro_expediente": True,
+            "hora_inicio": None,
+            "hora_fim": None,
+            "hora_atual": agora.strftime("%H:%M"),
+            "excecao_ativa": False,
+            "janela_excecao": None,
+        }
+
+    if not regra.ativo:
+        pode_ignorar = db.query(MembroGrupoExcecao).join(GrupoExcecao).filter(
+            MembroGrupoExcecao.usuario_id == usuario_id,
+            GrupoExcecao.status == "ativo",
+            GrupoExcecao.ignora_dia_inativo == True,
+        ).first()
+        if not pode_ignorar:
+            return {
+                "configurado": True,
+                "dentro_expediente": False,
+                "bloquear_fora": True,
+                "hora_inicio": None,
+                "hora_fim": None,
+                "hora_atual": agora.strftime("%H:%M"),
+                "excecao_ativa": False,
+                "janela_excecao": None,
+                "dia_inativo": True,
+            }
+        # usuário tem grupo que ignora dia inativo — trata como dia ativo sem restrição de horário
+        return {
+            "configurado": True,
+            "dentro_expediente": True,
+            "bloquear_fora": False,
+            "hora_inicio": None,
+            "hora_fim": None,
+            "hora_atual": agora.strftime("%H:%M"),
+            "excecao_ativa": True,
+            "janela_excecao": None,
+            "dia_inativo": False,
+        }
+
+    dentro_base = regra.hora_inicio <= hora_atual <= regra.hora_fim
+
+    # Busca grupos de exceção ativos do usuário com janela de horário definida
+    grupos = (
+        db.query(GrupoExcecao)
+        .join(MembroGrupoExcecao, MembroGrupoExcecao.grupo_id == GrupoExcecao.id)
+        .filter(
+            MembroGrupoExcecao.usuario_id == usuario_id,
+            GrupoExcecao.status == "ativo",
+            GrupoExcecao.fora_horario == True,
+        ).all()
+    )
+
+    janela_excecao = None
+    dentro_excecao = False
+
+    if not dentro_base:
+        for g in grupos:
+            if g.janela_inicio and g.janela_fim:
+                if g.janela_inicio <= hora_atual <= g.janela_fim:
+                    dentro_excecao = True
+                    janela_excecao = f"{g.janela_inicio.strftime('%H:%M')} – {g.janela_fim.strftime('%H:%M')}"
+                    break
+            else:
+                dentro_excecao = True
+                break
+
+    excecao_ativa = dentro_excecao  # só ativa quando é ela que garante o acesso
+    dentro = dentro_base or dentro_excecao
+
+    return {
+        "configurado": True,
+        "dentro_expediente": dentro,
+        "bloquear_fora": regra.bloquear_fora,
+        "hora_inicio": regra.hora_inicio.strftime("%H:%M"),
+        "hora_fim": regra.hora_fim.strftime("%H:%M"),
+        "hora_atual": agora.strftime("%H:%M"),
+        "excecao_ativa": excecao_ativa,
+        "janela_excecao": janela_excecao,
+    }
+
+
+@app.get("/usuarios/{usuario_id}/minha-home")
+def minha_home(usuario_id: str, db: Session = Depends(get_db)):
+    """Retorna workspaces acessíveis + relatórios de cada um para o usuário."""
+    acessos = (
+        db.query(AcessoWorkspace, EspacoTrabalho)
+        .join(EspacoTrabalho, AcessoWorkspace.espaco_trabalho_id == EspacoTrabalho.id)
+        .filter(AcessoWorkspace.usuario_id == usuario_id, EspacoTrabalho.status == "ativo")
+        .all()
+    )
+
+    resultado = []
+    for acesso, ws in acessos:
+        if acesso.nivel_acesso == "apenas_relatorios":
+            ids_permitidos = {
+                r for (r,) in db.query(AcessoRelatorio.relatorio_id)
+                .filter(AcessoRelatorio.usuario_id == usuario_id)
+                .all()
+            }
+            relatorios = db.query(Relatorio).filter(
+                Relatorio.espaco_trabalho_id == ws.id,
+                Relatorio.status == "publicado",
+                Relatorio.id.in_(ids_permitidos),
+            ).order_by(Relatorio.nome).all()
+        else:
+            relatorios = db.query(Relatorio).filter(
+                Relatorio.espaco_trabalho_id == ws.id,
+                Relatorio.status == "publicado",
+            ).order_by(Relatorio.nome).all()
+
+        resultado.append({
+            "id": ws.id,
+            "nome": ws.nome,
+            "icone": ws.icone,
+            "cor": ws.cor,
+            "descricao": ws.descricao,
+            "nivel_acesso": acesso.nivel_acesso,
+            "relatorios": [
+                {"id": r.id, "nome": r.nome, "categoria": r.categoria, "id_relatorio_pbi": r.id_relatorio_pbi}
+                for r in relatorios
+            ],
+        })
+
+    return resultado
 
 
 @app.get("/usuarios/{usuario_id}/acessos", response_model=List[AcessoWorkspaceItem])
@@ -548,6 +776,11 @@ def listar_logs(
     q     = _build_log_query(db, tipo_evento, modulo, usuario, ip, data_inicio, data_fim)
     total = q.count()
     logs  = q.order_by(LogAuditoria.momento.desc()).offset((pagina - 1) * por_pagina).limit(por_pagina).all()
+
+    # resolve nomes atuais em lote (evita N+1)
+    ids_usuarios = {l.usuario_id for l in logs if l.usuario_id}
+    usuarios_map = {u.id: u for u in db.query(Usuario).filter(Usuario.id.in_(ids_usuarios)).all()} if ids_usuarios else {}
+
     return LogsResponse(
         total=total,
         pagina=pagina,
@@ -557,8 +790,8 @@ def listar_logs(
                 id=l.id,
                 momento=l.momento.isoformat() if l.momento else "",
                 usuario_id=l.usuario_id,
-                nome_usuario=l.nome_usuario,
-                email_usuario=l.email_usuario,
+                nome_usuario=usuarios_map[l.usuario_id].nome if l.usuario_id in usuarios_map else l.nome_usuario,
+                email_usuario=usuarios_map[l.usuario_id].email if l.usuario_id in usuarios_map else l.email_usuario,
                 tipo_evento=l.tipo_evento,
                 modulo=l.modulo,
                 detalhe=l.detalhe,
@@ -582,15 +815,20 @@ def exportar_logs_csv(
 ):
     logs = _build_log_query(db, tipo_evento, modulo, usuario, ip, data_inicio, data_fim) \
                .order_by(LogAuditoria.momento.desc()).all()
+
+    ids_csv = {l.usuario_id for l in logs if l.usuario_id}
+    usuarios_csv = {u.id: u for u in db.query(Usuario).filter(Usuario.id.in_(ids_csv)).all()} if ids_csv else {}
+
     buf = io.StringIO()
     w   = csv.writer(buf)
     w.writerow(["ID", "Momento", "Usuário", "E-mail", "Tipo Evento", "Módulo", "Detalhe", "IP", "Valor Anterior", "Valor Novo"])
     for l in logs:
+        u_atual = usuarios_csv.get(l.usuario_id)
         w.writerow([
             l.id,
             l.momento.isoformat() if l.momento else "",
-            l.nome_usuario or "",
-            l.email_usuario or "",
+            (u_atual.nome if u_atual else l.nome_usuario) or "",
+            (u_atual.email if u_atual else l.email_usuario) or "",
             l.tipo_evento,
             l.modulo,
             l.detalhe,
@@ -724,15 +962,25 @@ def dashboard_workspaces(db: Session = Depends(get_db)):
             Relatorio.status == "publicado",
         ).count()
 
-        acesso_total = db.query(AcessoWorkspace).filter(
-            AcessoWorkspace.espaco_trabalho_id == ws.id,
-            AcessoWorkspace.nivel_acesso == "total",
-        ).count()
+        acesso_total = (
+            db.query(AcessoWorkspace)
+            .join(Usuario, AcessoWorkspace.usuario_id == Usuario.id)
+            .filter(
+                AcessoWorkspace.espaco_trabalho_id == ws.id,
+                AcessoWorkspace.nivel_acesso == "total",
+                Usuario.perfil.notin_(["super_administrador", "administrador"]),
+            ).count()
+        )
 
-        acesso_parcial = db.query(AcessoWorkspace).filter(
-            AcessoWorkspace.espaco_trabalho_id == ws.id,
-            AcessoWorkspace.nivel_acesso == "apenas_relatorios",
-        ).count()
+        acesso_parcial = (
+            db.query(AcessoWorkspace)
+            .join(Usuario, AcessoWorkspace.usuario_id == Usuario.id)
+            .filter(
+                AcessoWorkspace.espaco_trabalho_id == ws.id,
+                AcessoWorkspace.nivel_acesso == "apenas_relatorios",
+                Usuario.perfil.notin_(["super_administrador", "administrador"]),
+            ).count()
+        )
 
         resultado.append({
             "nome":          ws.nome,
@@ -807,6 +1055,8 @@ def criar_workspace(request: Request, dados: WorkspaceCreate, db: Session = Depe
         descricao=dados.descricao, id_workspace_pbi=dados.id_workspace_pbi, status="ativo",
     )
     db.add(ws)
+    db.flush()
+    _vincular_admins_workspace(ws.id, db)
     db.commit()
     db.refresh(ws)
     registrar_log(db, "sistema", "espacos_trabalho", f"Workspace criado: {ws.nome}",
@@ -853,6 +1103,7 @@ def reativar_workspace(workspace_id: str, request: Request, db: Session = Depend
         raise HTTPException(status_code=404, detail="Workspace não encontrado.")
     autor = get_usuario_requisicao(request, db)
     ws.status = "ativo"
+    _vincular_admins_workspace(ws.id, db)
     db.commit()
     registrar_log(db, "sistema", "espacos_trabalho", f"Workspace reativado: {ws.nome}", usuario=autor, request=request)
     db.commit()
@@ -877,6 +1128,7 @@ def listar_usuarios_workspace(workspace_id: str, db: Session = Depends(get_db)):
             AcessoWorkspace.espaco_trabalho_id == workspace_id,
             AcessoWorkspace.nivel_acesso != "nenhum",
             Usuario.status == "ativo",
+            Usuario.perfil.notin_(["super_administrador", "administrador"]),
         )
         .order_by(Usuario.nome)
         .all()
@@ -1224,19 +1476,21 @@ class MembroItem(BaseModel):
     email:      str
 
 class GrupoItem(BaseModel):
-    id:            str
-    nome:          str
-    fora_horario:  bool
-    janela_inicio: Optional[str]
-    janela_fim:    Optional[str]
-    status:        str
-    membros:       List[MembroItem] = []
+    id:                 str
+    nome:               str
+    fora_horario:       bool
+    janela_inicio:      Optional[str]
+    janela_fim:         Optional[str]
+    ignora_dia_inativo: bool = False
+    status:             str
+    membros:            List[MembroItem] = []
 
 class GrupoInput(BaseModel):
-    nome:          str
-    fora_horario:  bool = True
-    janela_inicio: Optional[str] = None
-    janela_fim:    Optional[str] = None
+    nome:               str
+    fora_horario:       bool = True
+    janela_inicio:      Optional[str] = None
+    janela_fim:         Optional[str] = None
+    ignora_dia_inativo: bool = False
 
 class AdicionarMembroInput(BaseModel):
     usuario_id: str
@@ -1252,6 +1506,7 @@ def _grupo_to_item(g: GrupoExcecao, db: Session) -> GrupoItem:
         id=g.id, nome=g.nome, fora_horario=g.fora_horario, status=g.status,
         janela_inicio=g.janela_inicio.strftime("%H:%M") if g.janela_inicio else None,
         janela_fim=g.janela_fim.strftime("%H:%M") if g.janela_fim else None,
+        ignora_dia_inativo=g.ignora_dia_inativo,
         membros=[MembroItem(usuario_id=u.id, nome=u.nome, email=u.email) for _, u in membros],
     )
 
@@ -1270,7 +1525,7 @@ def criar_grupo(request: Request, dados: GrupoInput, db: Session = Depends(get_d
     autor = get_usuario_requisicao(request, db)
     ji = dtime.fromisoformat(dados.janela_inicio) if dados.janela_inicio else None
     jf = dtime.fromisoformat(dados.janela_fim)    if dados.janela_fim    else None
-    g = GrupoExcecao(nome=dados.nome, fora_horario=dados.fora_horario, janela_inicio=ji, janela_fim=jf)
+    g = GrupoExcecao(nome=dados.nome, fora_horario=dados.fora_horario, janela_inicio=ji, janela_fim=jf, ignora_dia_inativo=dados.ignora_dia_inativo)
     db.add(g)
     db.commit()
     db.refresh(g)
@@ -1290,9 +1545,10 @@ def atualizar_grupo(grupo_id: str, request: Request, dados: GrupoInput, db: Sess
                             "janela_inicio": g.janela_inicio.strftime("%H:%M") if g.janela_inicio else None,
                             "janela_fim": g.janela_fim.strftime("%H:%M") if g.janela_fim else None}, ensure_ascii=False)
     g.nome          = dados.nome
-    g.fora_horario  = dados.fora_horario
-    g.janela_inicio = dtime.fromisoformat(dados.janela_inicio) if dados.janela_inicio else None
-    g.janela_fim    = dtime.fromisoformat(dados.janela_fim)    if dados.janela_fim    else None
+    g.fora_horario       = dados.fora_horario
+    g.janela_inicio      = dtime.fromisoformat(dados.janela_inicio) if dados.janela_inicio else None
+    g.janela_fim         = dtime.fromisoformat(dados.janela_fim)    if dados.janela_fim    else None
+    g.ignora_dia_inativo = dados.ignora_dia_inativo
     db.commit()
     registrar_log(db, "sistema", "grupos_excecao", f"Grupo de exceção atualizado: {g.nome}",
                   usuario=autor, request=request, valor_anterior=anterior, valor_novo=_grupo_snapshot(dados))
