@@ -317,6 +317,6 @@ VITE_AMBIENTE=development
 
 | Versão | Data | Autor | Descrição |
 |--------|------|-------|-----------|
-| 1.0 | Maio/2026 | — | Criação inicial do documento (stack NestJS) |
-| 2.0 | Maio/2026 | — | Reescrita completa: migração para Python + FastAPI, SQL Server, remoção de Redis e BullMQ, nomes em Português |
+| 1.0 | Maio/2026 | Vinicius Soares | Criação inicial do documento (stack NestJS) |
+| 2.0 | Maio/2026 | Vinicius Soares | Reescrita completa: migração para Python + FastAPI, SQL Server, remoção de Redis e BullMQ, nomes em Português |
 | 2.1 | Junho/2026 | Vinicius Soares | Atualização para estado atual do protótipo: rotas diretas FastAPI, sessionStorage, apiFetch com X-Usuario-Id, endpoints de favoritos, auditoria, configurações e Power BI Embedded |

@@ -114,4 +114,4 @@ O portal resolve uma necessidade latente em empresas que usam Power BI como plat
 
 | Versão | Data | Autor | Descrição |
 |--------|------|-------|-----------|
-| 1.0 | Maio/2026 | — | Criação inicial do documento |
+| 1.0 | Maio/2026 | Vinicius Soares | Criação inicial do documento |

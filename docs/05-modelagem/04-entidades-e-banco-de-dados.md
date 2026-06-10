@@ -604,8 +604,8 @@ Cada script deve ter:
 
 | Versão | Data | Autor | Descrição |
 |--------|------|-------|-----------|
-| 1.0 | Maio/2026 | — | Criação inicial do documento |
-| 1.1 | Maio/2026 | — | Reescrita para SQL Server: tipos nativos, triggers INSTEAD OF, índices |
-| 2.0 | Maio/2026 | — | Migração completa para nomes em Português do Brasil; substituição de Prisma Migrate por SQLAlchemy create_all |
+| 1.0 | Maio/2026 | Vinicius Soares | Criação inicial do documento |
+| 1.1 | Maio/2026 | Vinicius Soares | Reescrita para SQL Server: tipos nativos, triggers INSTEAD OF, índices |
+| 2.0 | Maio/2026 | Vinicius Soares | Migração completa para nomes em Português do Brasil; substituição de Prisma Migrate por SQLAlchemy create_all |
 | 2.1 | Junho/2026 | Vinicius Soares | Adicionada coluna `ignora_dia_inativo` (BIT DEFAULT 0) em `grupos_excecao`; documentação de migration para bancos existentes |
 | 2.2 | Junho/2026 | Vinicius Soares | Adicionadas colunas `senha_provisoria` e `foto_url` em `usuarios`; adicionado `critico` ao enum `tipo_evento` de `logs_auditoria`; nova tabela 15 `historico_config_critica` para backup de campos críticos; nota sobre credenciais PBI lidas do banco (não do .env); banco de desenvolvimento é SQLite |

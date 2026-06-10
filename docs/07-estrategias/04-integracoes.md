@@ -258,5 +258,5 @@ Fluent Bit (sidecar container)
 
 | Versão | Data | Autor | Descrição |
 |--------|------|-------|-----------|
-| 1.0 | Maio/2026 | — | Criação inicial do documento |
-| 1.1 | Junho/2026 | — | Atualização da seção Power BI: endpoint V2, suporte a DirectLake, credenciais lidas do banco |
+| 1.0 | Maio/2026 | Vinicius Soares | Criação inicial do documento |
+| 1.1 | Junho/2026 | Vinicius Soares | Atualização da seção Power BI: endpoint V2, suporte a DirectLake, credenciais lidas do banco |

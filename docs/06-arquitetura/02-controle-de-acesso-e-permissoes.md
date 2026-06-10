@@ -230,6 +230,6 @@ Ao criar ou reativar um workspace, o sistema executa `_vincular_admins_workspace
 
 | Versão | Data | Autor | Descrição |
 |--------|------|-------|-----------|
-| 1.0 | Maio/2026 | — | Criação inicial do documento |
+| 1.0 | Maio/2026 | Vinicius Soares | Criação inicial do documento |
 | 1.1 | Junho/2026 | Vinicius Soares | Atualizada matriz: Configurações para Admin/Super Admin, credenciais PBI exclusivas do Super Admin e filtro server-side para relatórios específicos |
 | 1.2 | Junho/2026 | Vinicius Soares | Corrigida matriz de Auditoria: "Visualizar (todos)" e "Exportar" são exclusivos do Super Admin (RN-AUD-05); pseudocódigo `validar_expediente` atualizado com `ativo=false`, `ignora_dia_inativo` e janelas de exceção; adicionada seção 8 sobre auto-vínculo de admins a workspaces |

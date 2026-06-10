@@ -109,7 +109,7 @@ https://app.powerbi.com/groups/{WORKSPACE_ID}/reports/{REPORT_ID}/...
 **Exemplo:**
 ```
 https://app.powerbi.com/groups/72810fa1-8575-4fc0-95db-1b078bb079a9/reports/6946901b-7ba9-4ad4-88a8-e20b7b4417d7/...
-                                └─────────────── Workspace ID ───────────────┘         └──────────── Report ID ────────────────┘
+                             └─────────── Workspace ID ───────────┘        └──────────── Report ID ─────────────┘
 ```
 
 ---
@@ -222,5 +222,5 @@ O Client Secret criado no Azure expira conforme a validade definida (máximo 24 
 
 | Versão | Data | Autor | Descrição |
 |--------|------|-------|-----------|
-| 1.0 | Junho/2026 | — | Criação do guia completo com base na implementação real |
+| 1.0 | Junho/2026 | Vinicius Soares | Criação do guia completo com base na implementação real |
 | 1.1 | Junho/2026 | Vinicius Soares | Adicionada seção sobre segurança de campos críticos; Etapa 4 atualizada com confirmação "CONFIRMAR" |

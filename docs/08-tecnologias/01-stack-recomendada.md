@@ -315,9 +315,9 @@ npm run dev
 
 ## Histórico de Alterações
 
-| Versão | Data | Descrição |
-|---|---|---|
-| 1.0 | Maio/2026 | Criação inicial com stack NestJS + Prisma + Redis |
-| 2.0 | Maio/2026 | Migração para Python + FastAPI + SQLAlchemy; remoção de Redis e BullMQ; simplificação do frontend |
-| 3.0 | Maio/2026 | Atualização para estado real do projeto: React 19, Vite 8, React Router v7, SQLite como banco de desenvolvimento, remoção de TanStack Query/Axios/React Hook Form/Yup, estrutura de pastas atualizada (pages/, styles/, routes/, components/), endpoints de dashboard implementados |
-| 3.1 | Junho/2026 | Inclusão de powerbi-client, requests, páginas Favoritos/Auditoria/Configurações, utilitário apiFetch e endpoints de Power BI, auditoria, favoritos e configurações |
+| Versão | Data | Autor |  Descrição |
+|---|---|---|---|
+| 1.0 | Maio/2026 | Vinicius Soares | Criação inicial com stack NestJS + Prisma + Redis |
+| 2.0 | Maio/2026 | Vinicius Soares | Migração para Python + FastAPI + SQLAlchemy; remoção de Redis e BullMQ; simplificação do frontend |
+| 3.0 | Maio/2026 | Vinicius Soares | Atualização para estado real do projeto: React 19, Vite 8, React Router v7, SQLite como banco de desenvolvimento, remoção de TanStack Query/Axios/React Hook Form/Yup, estrutura de pastas atualizada (pages/, styles/, routes/, components/), endpoints de dashboard implementados |
+| 3.1 | Junho/2026 | Vinicius Soares | Inclusão de powerbi-client, requests, páginas Favoritos/Auditoria/Configurações, utilitário apiFetch e endpoints de Power BI, auditoria, favoritos e configurações |

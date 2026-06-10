@@ -244,5 +244,5 @@ Pre-commit hook: detect-secrets
 
 | Versão | Data | Autor | Descrição |
 |--------|------|-------|-----------|
-| 1.0 | Maio/2026 | — | Criação inicial do documento |
+| 1.0 | Maio/2026 | Vinicius Soares | Criação inicial do documento |
 | 1.1 | Junho/2026 | Vinicius Soares | Pipeline de autorização (3.1) atualizado: admins isentos do `validar_expediente`; demais perfis verificados contra regra + grupos de exceção |
