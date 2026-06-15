@@ -33,7 +33,6 @@ function WsIcone({ icone, cor, size = 14 }) {
 export default function FavoritosPage() {
   const navigate   = useNavigate()
   const user    = JSON.parse(sessionStorage.getItem('cgid_user') || '{}')
-  const isAdmin = ADMIN_PERFIS.includes(user.perfil)
 
   const [favoritos, setFavoritos]         = useState([])
   const [loading, setLoading]             = useState(true)

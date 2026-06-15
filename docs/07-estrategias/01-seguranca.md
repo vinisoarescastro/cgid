@@ -56,7 +56,33 @@ Revogação:
   - Toda requisição autenticada valida o sid do JWT contra uma sessão ativa
 ```
 
-### 2.3 Proteção Contra Força Bruta
+### 2.3 Controle de Sessão Única
+
+```
+Mecanismo implementado (v1.0):
+  - Cada login bem-sucedido gera um token opaco (32 bytes, secrets.token_urlsafe)
+  - Token armazenado como hash SHA-256 na tabela sessoes_autenticacao
+  - Token transmitido via header X-Session-Token em cada requisição
+  - Middleware validar_sessao verifica o hash em cada requisição autenticada
+
+Revogação por novo login:
+  - Ao receber novo login, o backend busca sessões ativas do usuário
+    (revogado_em IS NULL e expira_em > agora)
+  - Se houver sessão ativa: registra log de segurança com IP anterior e IP atual,
+    marca revogado_em = agora para todas as sessões ativas
+  - Nova sessão é criada; apenas o novo token é válido
+
+Notificação da sessão revogada:
+  - Frontend faz polling a cada 20 segundos via GET /sessao/ping
+  - Middleware retorna 401 SESSAO_REVOGADA quando token está revogado
+  - apiFetch intercepta o 401 e dispara evento customizado cgid:sessao_revogada
+  - SessaoGuard (App.jsx) exibe modal bloqueante com contador regressivo de 15s
+  - Ao encerrar: sessionStorage limpo + redirect para /login?motivo=sessao_revogada
+
+Expiração padrão de sessão: 12 horas
+```
+
+### 2.4 Proteção Contra Força Bruta
 
 ```
 Por conta de usuário:
@@ -246,3 +272,4 @@ Pre-commit hook: detect-secrets
 |--------|------|-------|-----------|
 | 1.0 | Maio/2026 | Vinicius Soares | Criação inicial do documento |
 | 1.1 | Junho/2026 | Vinicius Soares | Pipeline de autorização (3.1) atualizado: admins isentos do `validar_expediente`; demais perfis verificados contra regra + grupos de exceção |
+| 1.2 | Junho/2026 | Vinicius Soares | Adicionada seção 2.3: controle de sessão única — token opaco com hash SHA-256, revogação automática por novo login, log de segurança com IPs, polling de 20s e modal bloqueante no frontend |

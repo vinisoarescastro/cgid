@@ -6,13 +6,13 @@ from sqlalchemy import func, or_
 from passlib.context import CryptContext
 from pydantic import BaseModel
 from typing import Optional, List
-from datetime import datetime, timezone, date as date_type, time as time_type
+from datetime import datetime, timezone, timedelta, date as date_type, time as time_type
 from zoneinfo import ZoneInfo
-import csv, io, json, os
+import csv, io, json, os, secrets, hashlib
 import requests as http_requests
 
 from database import engine, get_db, Base
-from models import Usuario, LogAuditoria, EspacoTrabalho, Relatorio, AcessoWorkspace, AcessoRelatorio, RegraExpediente, GrupoExcecao, MembroGrupoExcecao, ConfiguracaoSistema, Favorito, HistoricoConfigCritica
+from models import Usuario, LogAuditoria, EspacoTrabalho, Relatorio, AcessoWorkspace, AcessoRelatorio, RegraExpediente, GrupoExcecao, MembroGrupoExcecao, ConfiguracaoSistema, Favorito, HistoricoConfigCritica, SessaoAutenticacao
 
 PBI_TENANT_ID     = os.getenv("PBI_TENANT_ID", "")
 PBI_CLIENT_ID     = os.getenv("PBI_CLIENT_ID", "")
@@ -36,21 +36,40 @@ MAX_TENTATIVAS = 5
 from database import SessionLocal
 
 @app.middleware("http")
-async def bloquear_senha_provisoria(request: Request, call_next):
+async def validar_sessao(request: Request, call_next):
     uid = request.headers.get("X-Usuario-Id")
     if not uid:
         return await call_next(request)
     path = request.url.path
     if path.endswith("/alterar-senha") or request.method == "OPTIONS":
         return await call_next(request)
+
+    # Preserva o header CORS nas respostas diretas do middleware
+    origin = request.headers.get("origin", "http://localhost:5173")
+    cors_headers = {"Access-Control-Allow-Origin": origin, "Access-Control-Allow-Credentials": "true"}
+
+    token_bruto = request.headers.get("X-Session-Token")
     db = SessionLocal()
     try:
         usuario = db.query(Usuario).filter(Usuario.id == uid).first()
-        if usuario and usuario.senha_provisoria:
-            return JSONResponse(
-                status_code=403,
-                content={"code": "SENHA_PROVISORIA", "detail": "Troca de senha obrigatória antes de continuar."},
-            )
+        if not usuario:
+            return JSONResponse(status_code=401, content={"code": "SESSAO_INVALIDA", "detail": "Sessão inválida."}, headers=cors_headers)
+
+        if usuario.senha_provisoria:
+            return JSONResponse(status_code=403, content={"code": "SENHA_PROVISORIA", "detail": "Troca de senha obrigatória antes de continuar."}, headers=cors_headers)
+
+        if token_bruto:
+            hash_token = hashlib.sha256(token_bruto.encode()).hexdigest()
+            sessao = db.query(SessaoAutenticacao).filter(
+                SessaoAutenticacao.usuario_id == uid,
+                SessaoAutenticacao.hash_refresh_token == hash_token,
+                SessaoAutenticacao.revogado_em == None,
+                SessaoAutenticacao.expira_em > datetime.now(timezone.utc).replace(tzinfo=None),
+            ).first()
+            if not sessao:
+                return JSONResponse(status_code=401, content={"code": "SESSAO_REVOGADA", "detail": "Sua sessão foi encerrada. Faça login novamente."}, headers=cors_headers)
+            sessao.ultimo_uso_em = datetime.now(timezone.utc).replace(tzinfo=None)
+            db.commit()
     finally:
         db.close()
     return await call_next(request)
@@ -75,6 +94,7 @@ class LoginResponse(BaseModel):
     mensagem: str
     usuario: Optional[UsuarioPublico] = None
     requer_troca_senha: bool = False
+    session_token: Optional[str] = None
 
 
 # ─── Utilitários ─────────────────────────────────────────────────────────────
@@ -239,6 +259,38 @@ def login(request: Request, dados: LoginInput, db: Session = Depends(get_db)):
 
     usuario.tentativas_login = 0
     usuario.ultimo_login = datetime.now(timezone.utc)
+
+    agora = datetime.now(timezone.utc).replace(tzinfo=None)
+
+    # ── Sessão única: revogar sessões ativas anteriores
+    sessoes_ativas = db.query(SessaoAutenticacao).filter(
+        SessaoAutenticacao.usuario_id == usuario.id,
+        SessaoAutenticacao.revogado_em == None,
+        SessaoAutenticacao.expira_em > agora,
+    ).all()
+
+    if sessoes_ativas:
+        ip_anterior = sessoes_ativas[0].endereco_ip
+        registrar_log(
+            db, "seguranca", "autenticacao",
+            f"Nova sessão iniciada com sessão anterior ativa (IP anterior: {ip_anterior}, IP atual: {ip}). Sessão anterior revogada.",
+            usuario, ip=ip,
+        )
+        for s in sessoes_ativas:
+            s.revogado_em = agora
+
+    # ── Criar nova sessão
+    token_bruto = secrets.token_urlsafe(32)
+    hash_token  = hashlib.sha256(token_bruto.encode()).hexdigest()
+    nova_sessao = SessaoAutenticacao(
+        usuario_id         = usuario.id,
+        hash_refresh_token = hash_token,
+        expira_em          = agora + timedelta(hours=12),
+        endereco_ip        = ip,
+        user_agent         = request.headers.get("User-Agent", "")[:500],
+    )
+    db.add(nova_sessao)
+
     registrar_log(db, "autenticacao", "autenticacao", "Login realizado com sucesso", usuario, ip=ip)
     db.commit()
 
@@ -247,7 +299,17 @@ def login(request: Request, dados: LoginInput, db: Session = Depends(get_db)):
         mensagem="Login realizado com sucesso.",
         usuario=UsuarioPublico.model_validate(usuario),
         requer_troca_senha=usuario.senha_provisoria,
+        session_token=token_bruto,
     )
+
+
+# ─── Sessão ──────────────────────────────────────────────────────────────────
+
+@app.get("/sessao/ping")
+def sessao_ping():
+    """Endpoint leve para o frontend verificar se a sessão ainda está ativa.
+    A validação real acontece no middleware — se chegar aqui, a sessão é válida."""
+    return {"ok": True}
 
 
 # ─── Schemas de Usuários ─────────────────────────────────────────────────────

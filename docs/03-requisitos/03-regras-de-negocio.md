@@ -24,6 +24,10 @@
 | RN-AUTH-04 | Um usuário com status `bloqueado` **não pode fazer login** e deve receber mensagem específica (diferente de "credenciais inválidas") | Segurança - não revelar motivo do bloqueio para usuários mal-intencionados; diferente para usuários legítimos |
 | RN-AUTH-05 | O sistema deve **verificar a restrição de expediente a cada tentativa de login**, não apenas no momento de criação da sessão | Garantir que a regra temporal seja respeitada sempre |
 | RN-AUTH-06 | A sessão não deve ser renovada automaticamente se o usuário tentar usar o portal **fora do horário de expediente** (salvo exceções) | Consistência com a política de expediente |
+| RN-AUTH-07 | O sistema permite **apenas uma sessão ativa por usuário** — um novo login revoga automaticamente todas as sessões anteriores daquele usuário | Prevenção de compartilhamento de credenciais |
+| RN-AUTH-08 | Quando um novo login encontra sessão anterior ativa, o evento é registrado em `logs_auditoria` com tipo `seguranca`, IP da sessão anterior e IP do novo acesso | Rastreabilidade de uso indevido de credenciais |
+| RN-AUTH-09 | A sessão anterior revogada recebe notificação em **até 20 segundos** via polling; modal bloqueante é exibido informando que a conta foi acessada em outro dispositivo | UX de segurança — transparência ao usuário legítimo |
+| RN-AUTH-10 | O token de sessão é transmitido via header `X-Session-Token` e armazenado como hash SHA-256 na tabela `sessoes_autenticacao` — o valor bruto nunca é persistido | Segurança — comprometimento do banco não expõe tokens ativos |
 
 ---
 
@@ -153,3 +157,4 @@
 | 1.8 | Junho/2026 | Vinicius Soares | RN-SCHED-08/09: semantica de `ativo=false` (dia bloqueado) vs `bloquear_fora=false`; `ignora_dia_inativo` em grupos de exceção. RN-SCHED-10/11: indicador de expediente no topbar para todos os perfis. RN-AUD-06: resolução de nome atual nos logs. RN-SYS-07–10: auto-vínculo de admins em workspaces, ocultação da lista, home não-admin, footer da sidebar |
 | 1.9 | Junho/2026 | Vinicius Soares | RN-PBI-07/08: endpoint V2 GenerateToken e credenciais lidas do banco. Nova seção RN-CONF (01–05): segurança de campos críticos — somente-leitura, confirmação digitada, log critico, backup automático e histórico visual |
 | 2.0 | Junho/2026 | Vinicius Soares | RN-SYS-11: TopbarExpediente em todas as páginas. RN-SYS-12/13: exclusão permanente de workspace com cascade (≠ arquivamento). Nova seção RN-WS (01–04): regras de exclusão — confirmação, disponibilidade, log de auditoria e fechamento do painel |
+| 2.1 | Junho/2026 | Vinicius Soares | Adicionados RN-AUTH-07 a 10: sessão única por usuário, log de sessão simultânea, notificação em tempo real via polling e armazenamento seguro do token como hash SHA-256 |

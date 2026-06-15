@@ -6,7 +6,6 @@ import WorkspacePage from '../pages/WorkspacePage'
 import SettingsPage  from '../pages/SettingsPage'
 import AuditPage      from '../pages/AuditPage'
 import FavoritosPage  from '../pages/FavoritosPage'
-
 function PrivateRoute({ children }) {
   const user = sessionStorage.getItem('cgid_user')
   return user ? children : <Navigate to="/login" replace />

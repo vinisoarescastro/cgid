@@ -143,6 +143,9 @@
 | RF-SEC-01 | Senhas devem ser armazenadas com hash bcrypt (salt ≥ 12) | Banco não contém senhas em texto puro; comparação usa `bcrypt.compare()` | v1.0 | 🔴 |
 | RF-SEC-02 | O sistema deve aplicar rate limiting de 100 requisições/minuto por IP | Após limite, resposta 429 com cabeçalho `Retry-After` | v1.0 | 🔴 |
 | RF-SEC-03 | O sistema deve configurar headers de segurança HTTP | HSTS, CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy presentes em todas as respostas | v1.0 | 🔴 |
+| RF-SEC-04 | O sistema deve permitir apenas uma sessão ativa por usuário (sessão única) | Novo login invalida a sessão anterior; sessão anterior recebe evento de revogação em até 20 segundos; token de sessão é registrado em `sessoes_autenticacao` com hash SHA-256 | v1.0 | 🔴 |
+| RF-SEC-05 | O sistema deve detectar e registrar tentativa de sessão simultânea | Quando novo login encontra sessão ativa, gera registro em `logs_auditoria` com tipo `seguranca`, IP anterior e IP atual | v1.0 | 🔴 |
+| RF-SEC-06 | O frontend deve notificar o usuário em tempo real quando sua sessão for revogada | Modal bloqueante exibido em até 20 segundos após a revogação, com mensagem explicativa e contador regressivo; redirecionamento automático para login com aviso | v1.0 | 🔴 |
 
 ---
 
@@ -190,3 +193,4 @@
 | 1.9 | Junho/2026 | Vinicius Soares | RF-SCHED-08/09 atualizados: semântica de `ativo=false` (dia bloqueado) e `ignora_dia_inativo`; RF-SCHED-10 (indicador de expediente no topbar para todos os perfis); RF-AUD-06 (resolução de nome atual nos logs); RF-UX-03 a 06: footer da sidebar, home não-admin, filtro de admins em workspaces, badge "Todos os workspaces" |
 | 2.0 | Junho/2026 | Vinicius Soares | RF-PBI-07/08: endpoint V2 GenerateToken (suporte DirectLake) e credenciais lidas do banco. RF-CONF-05 a 08: segurança de campos críticos (somente-leitura, confirmação digitada, log crítico, backup automático, histórico visual) |
 | 2.1 | Junho/2026 | Vinicius Soares | Adicionada seção RF-WS (gestão de workspaces): RF-WS-01 a 06 (CRUD, arquivamento, exclusão permanente com cascade, vínculos) e RF-WS-07 (TopbarExpediente em todas as páginas) |
+| 2.2 | Junho/2026 | Vinicius Soares | Adicionados RF-SEC-04 a 06: sessão única por usuário com revogação automática, detecção de sessão simultânea com log de auditoria e notificação em tempo real via modal bloqueante |

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import '../styles/login.css'
 import logoBranco from '../assets/logo-bt-branco.png'
 import logoColorido from '../assets/logo-bt-colorido.png'
@@ -8,6 +8,10 @@ const API = 'http://localhost:8000'
 
 export default function LoginPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const avisoSessao = searchParams.get('motivo') === 'sessao_revogada'
+    ? 'Sua sessão foi encerrada porque a conta foi acessada em outro dispositivo.'
+    : null
 
   // ── etapa: 'login' | 'trocar_senha'
   const [etapa, setEtapa] = useState('login')
@@ -46,10 +50,11 @@ export default function LoginPage() {
       if (data.sucesso) {
         if (data.requer_troca_senha) {
           // Não salva em sessionStorage ainda — usuário fica bloqueado até trocar
-          setUsuarioPendente(data.usuario)
+          setUsuarioPendente({ ...data.usuario, _session_token: data.session_token })
           setEtapa('trocar_senha')
         } else {
           sessionStorage.setItem('cgid_user', JSON.stringify(data.usuario))
+          sessionStorage.setItem('cgid_session_token', data.session_token)
           navigate('/')
         }
       } else {
@@ -91,7 +96,9 @@ export default function LoginPage() {
         return
       }
       // Só agora salva a sessão e libera o portal
-      sessionStorage.setItem('cgid_user', JSON.stringify(usuarioPendente))
+      const { _session_token, ...dadosUsuario } = usuarioPendente
+      sessionStorage.setItem('cgid_user', JSON.stringify(dadosUsuario))
+      sessionStorage.setItem('cgid_session_token', _session_token)
       navigate('/')
     } catch {
       setErroTroca('Não foi possível conectar ao servidor. Tente novamente.')
@@ -149,6 +156,13 @@ export default function LoginPage() {
             <>
               <div className="login-right-title">Bem-vindo de volta</div>
               <div className="login-right-sub">Entre com suas credenciais corporativas</div>
+
+              {avisoSessao && (
+                <div className="lf-error" style={{ marginBottom: '16px' }}>
+                  <i className="fa-solid fa-triangle-exclamation" />
+                  {avisoSessao}
+                </div>
+              )}
 
               <form onSubmit={handleSubmit} noValidate>
                 <div className="lf-group">
