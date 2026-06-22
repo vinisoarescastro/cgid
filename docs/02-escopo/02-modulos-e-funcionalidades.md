@@ -70,6 +70,9 @@ O sistema é composto por **10 módulos funcionais** organizados em duas camadas
 | F-DASH-09 | Indicador de expediente no topbar calculado pelo servidor (todos os perfis) | v1.0 | 🔴 Obrigatório |
 | F-DASH-10 | Botão "Abrir" em relatório da home: navega direto para o relatório na página de Workspaces (deep-link via query params) | v1.0 | 🔴 Obrigatório |
 | F-DASH-11 | Botão "Abrir" desabilitado para relatórios sem `id_relatorio_pbi` configurado (mesmo layout, estado inativo) | v1.0 | 🔴 Obrigatório |
+| F-DASH-12 | Gráfico de área "Acessos ao longo do tempo" com filtro por período (diário/semanal/mensal) e seletor de data no modo diário; exibe logins e acessos negados | v1.1 | 🟡 Recomendado |
+| F-DASH-13 | Gráfico de rosca "Distribuição por Workspace" com relatórios publicados por workspace, cores do workspace, labels com linhas e percentuais | v1.1 | 🟡 Recomendado |
+| F-DASH-14 | Lista de ranking "Top Relatórios Acessados" com filtro por período (diário/semanal/mensal), barra de progresso e cor do workspace | v1.1 | 🟡 Recomendado |
 
 ---
 
@@ -252,3 +255,4 @@ O sistema é composto por **10 módulos funcionais** organizados em duas camadas
 | 1.4    | Jun/2026  | Vinicius Soares | Correção: ícones de workspace no modal de usuário passam a usar prefixo fa-solid; acessos carregados atomicamente via Promise.all e pré-populados do cache da página mãe |
 | 1.5    | Jun/2026  | Vinicius Soares | Adicionados módulos implementados de favoritos, CRUD de relatórios, permissões específicas, auditoria CSV e configurações por abas |
 | 1.6    | Jun/2026  | Vinicius Soares | MOD-02: descrição atualizada para home não-admin; F-DASH-02 revisado; F-DASH-10/11 (deep-link e botão desabilitado). F-WS-19/20, F-SCHED-07, F-USR-09 adicionados |
+| 1.7    | Jun/2026  | Vinicius Soares | Adicionados F-DASH-12 a 14: gráficos analíticos (área, rosca, ranking de relatórios) com filtros por período e registro de acesso ao embed |

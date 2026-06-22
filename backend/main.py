@@ -1114,6 +1114,112 @@ def dashboard_expediente(db: Session = Depends(get_db)):
     }
 
 
+@app.get("/dashboard/acessos-por-dia")
+def dashboard_acessos_por_dia(
+    periodo: str = Query("semanal", pattern="^(diario|semanal|mensal)$"),
+    data: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+):
+    hoje = datetime.now(timezone.utc).date()
+    LABELS_DIA = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"]
+
+    if periodo == "diario":
+        try:
+            dia = date_type.fromisoformat(data) if data else hoje
+        except ValueError:
+            dia = hoje
+        resultado = []
+        for hora in range(24):
+            logins = db.query(LogAuditoria).filter(
+                LogAuditoria.tipo_evento == "autenticacao",
+                LogAuditoria.detalhe.ilike("%sucesso%"),
+                func.date(LogAuditoria.momento) == dia,
+                func.extract("hour", LogAuditoria.momento) == hora,
+            ).count()
+            negados = db.query(LogAuditoria).filter(
+                LogAuditoria.tipo_evento == "seguranca",
+                func.date(LogAuditoria.momento) == dia,
+                func.extract("hour", LogAuditoria.momento) == hora,
+            ).count()
+            resultado.append({"label": f"{hora:02d}h", "logins": logins, "negados": negados})
+        return resultado
+
+    if periodo == "semanal":
+        dias = [hoje - timedelta(days=i) for i in range(6, -1, -1)]
+        resultado = []
+        for dia in dias:
+            logins = db.query(LogAuditoria).filter(
+                LogAuditoria.tipo_evento == "autenticacao",
+                LogAuditoria.detalhe.ilike("%sucesso%"),
+                func.date(LogAuditoria.momento) == dia,
+            ).count()
+            negados = db.query(LogAuditoria).filter(
+                LogAuditoria.tipo_evento == "seguranca",
+                func.date(LogAuditoria.momento) == dia,
+            ).count()
+            resultado.append({"label": f"{LABELS_DIA[dia.weekday()]} {dia.strftime('%d/%m')}", "logins": logins, "negados": negados})
+        return resultado
+
+    # mensal — últimos 30 dias
+    dias = [hoje - timedelta(days=i) for i in range(29, -1, -1)]
+    resultado = []
+    for dia in dias:
+        logins = db.query(LogAuditoria).filter(
+            LogAuditoria.tipo_evento == "autenticacao",
+            LogAuditoria.detalhe.ilike("%sucesso%"),
+            func.date(LogAuditoria.momento) == dia,
+        ).count()
+        negados = db.query(LogAuditoria).filter(
+            LogAuditoria.tipo_evento == "seguranca",
+            func.date(LogAuditoria.momento) == dia,
+        ).count()
+        resultado.append({"label": dia.strftime("%d/%m"), "logins": logins, "negados": negados})
+    return resultado
+
+
+@app.get("/dashboard/top-relatorios")
+def dashboard_top_relatorios(
+    limit: int = Query(8, ge=1, le=20),
+    periodo: str = Query("semanal", pattern="^(diario|semanal|mensal)$"),
+    data: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+):
+    hoje = datetime.now(timezone.utc).date()
+
+    if periodo == "diario":
+        try:
+            dia = date_type.fromisoformat(data) if data else hoje
+        except ValueError:
+            dia = hoje
+        filtro_data = func.date(LogAuditoria.momento) == dia
+    elif periodo == "semanal":
+        filtro_data = func.date(LogAuditoria.momento) >= hoje - timedelta(days=7)
+    else:
+        filtro_data = func.date(LogAuditoria.momento) >= hoje - timedelta(days=30)
+
+    rows = (
+        db.query(
+            LogAuditoria.detalhe,
+            func.count(LogAuditoria.id).label("acessos"),
+        )
+        .filter(LogAuditoria.tipo_evento == "relatorio", filtro_data)
+        .group_by(LogAuditoria.detalhe)
+        .order_by(func.count(LogAuditoria.id).desc())
+        .limit(limit)
+        .all()
+    )
+    resultado = []
+    for row in rows:
+        nome = row.detalhe.replace("Relatório visualizado: ", "")
+        rel = db.query(Relatorio).filter(Relatorio.nome == nome).first()
+        cor = None
+        if rel:
+            ws = db.query(EspacoTrabalho).filter(EspacoTrabalho.id == rel.espaco_trabalho_id).first()
+            cor = ws.cor if ws else None
+        resultado.append({"nome": nome, "acessos": row.acessos, "cor": cor})
+    return resultado
+
+
 # ─── Workspace CRUD ───────────────────────────────────────────────────────────
 
 class WorkspaceCreate(BaseModel):
@@ -1952,7 +2058,18 @@ def embed_relatorio(relatorio_id: str, request: Request, db: Session = Depends(g
 
     token_data = token_resp.json()
     autor = get_usuario_requisicao(request, db)
-    registrar_log(db, "relatorio", "relatorios", f"Relatório visualizado: {rel.nome}", usuario=autor, request=request)
+    # Deduplicação: ignora se já foi registrado o mesmo acesso nos últimos 5s (React StrictMode chama o effect duas vezes em dev)
+    detalhe_log = f"Relatório visualizado: {rel.nome}"
+    janela = datetime.now(timezone.utc) - timedelta(seconds=5)
+    ja_registrado = db.query(LogAuditoria).filter(
+        LogAuditoria.tipo_evento == "relatorio",
+        LogAuditoria.detalhe == detalhe_log,
+        LogAuditoria.usuario_id == (autor.id if autor else None),
+        LogAuditoria.momento >= janela,
+    ).first()
+    if not ja_registrado:
+        registrar_log(db, "relatorio", "relatorios", detalhe_log, usuario=autor, request=request)
+        db.commit()
 
     return EmbedResponse(
         embed_url=embed_url,

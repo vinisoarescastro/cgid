@@ -180,6 +180,19 @@
 
 ---
 
+## RF-DASH — Gráficos e Análise do Painel Administrativo
+
+| ID | Descrição | Critério de Aceite | Versão | Prioridade |
+|----|-----------|-------------------|--------|-----------|
+| RF-DASH-01 | O painel administrativo deve exibir gráfico de área "Acessos ao longo do tempo" com linhas separadas para logins e acessos negados | Gráfico exibe dados reais; logins em cinza-escuro, negados em vermelho; tooltip interativo | v1.1 | 🟡 |
+| RF-DASH-02 | O gráfico de acessos deve suportar filtro por período: diário (hora a hora), semanal (últimos 7 dias) e mensal (últimos 30 dias) | Botões de seleção de período; no modo diário, seletor de data disponível; padrão é semanal | v1.1 | 🟡 |
+| RF-DASH-03 | O painel administrativo deve exibir gráfico de rosca "Distribuição por Workspace" com relatórios publicados por workspace | Fatias com cores do workspace; labels com linhas saindo das fatias exibindo nome e percentual | v1.1 | 🟡 |
+| RF-DASH-04 | O painel administrativo deve exibir lista de ranking "Top Relatórios Acessados" com os mais visualizados no período | Lista ordenada por acessos; barra de fundo proporcional com cor do workspace; contador de acessos como badge | v1.1 | 🟡 |
+| RF-DASH-05 | A lista de Top Relatórios deve suportar filtro por período (diário/semanal/mensal) com seletor de data no modo diário | Botões de seleção; padrão semanal; dados recarregados ao trocar período | v1.1 | 🟡 |
+| RF-DASH-06 | O sistema deve registrar logs de acesso a relatórios Power BI com identificação do usuário, nome do relatório e timestamp | `LogAuditoria` com `tipo_evento = "relatorio"`, `detalhe` e `usuario_id` preenchidos; deduplicação de 10 segundos para evitar registro duplo em React StrictMode | v1.1 | 🟡 |
+
+---
+
 ## Histórico de Alterações
 
 | Versão | Data | Autor | Descrição |
@@ -197,4 +210,5 @@
 | 2.0 | Junho/2026 | Vinicius Soares | RF-PBI-07/08: endpoint V2 GenerateToken (suporte DirectLake) e credenciais lidas do banco. RF-CONF-05 a 08: segurança de campos críticos (somente-leitura, confirmação digitada, log crítico, backup automático, histórico visual) |
 | 2.1 | Junho/2026 | Vinicius Soares | Adicionada seção RF-WS (gestão de workspaces): RF-WS-01 a 06 (CRUD, arquivamento, exclusão permanente com cascade, vínculos) e RF-WS-07 (TopbarExpediente em todas as páginas) |
 | 2.2 | Junho/2026 | Vinicius Soares | Adicionados RF-SEC-04 a 06: sessão única por usuário com revogação automática, detecção de sessão simultânea com log de auditoria e notificação em tempo real via modal bloqueante |
+| 2.3 | Junho/2026 | Vinicius Soares | Adicionada seção RF-DASH (01-06): gráficos de área, rosca e ranking de relatórios com filtros por período e registro de log de acesso ao embed PBI |
 | 2.3 | Junho/2026 | Vinicius Soares | RF-CONF-01 atualizado: Client Secret revelável via botão de olho (rota protegida). Adicionados RF-WS-08 (contadores nos cards), RF-WS-09 (degradê de status nos relatórios), RF-WS-10 (verificação do nome PBI no modal) |

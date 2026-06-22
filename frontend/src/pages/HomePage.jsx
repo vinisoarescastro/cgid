@@ -1,5 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import {
+  ResponsiveContainer,
+  AreaChart, Area,
+  PieChart, Pie, Cell,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+} from 'recharts'
 import '../styles/home.css'
 import '../styles/workspace.css'
 import Avatar from '../components/Avatar'
@@ -26,15 +32,19 @@ const user = JSON.parse(sessionStorage.getItem('cgid_user') || '{}')
   const [kpis, setKpis] = useState(null)
   const [events, setEvents] = useState([])
   const [workspaces, setWorkspaces] = useState([])
-  const [expediente, setExpediente] = useState(null)
+
+  const [acessosPorDia, setAcessosPorDia] = useState([])
+  const [topRelatorios, setTopRelatorios] = useState([])
+  const [periodoTop, setPeriodoTop] = useState('semanal')
+  const [dataTop, setDataTop] = useState(() => new Date().toISOString().slice(0, 10))
+  const [periodo, setPeriodo] = useState('semanal')
+  const [dataDiario, setDataDiario] = useState(() => new Date().toISOString().slice(0, 10))
   // estado para usuário não-admin
   const [minhaHome, setMinhaHome] = useState(null)
   const [wsExpandido, setWsExpandido] = useState({})
 
   useEffect(() => {
     if (isAdmin) {
-      fetch(`${API}/dashboard/expediente`)
-        .then(r => r.json()).then(setExpediente).catch(console.error)
       fetch(`${API}/dashboard/kpis`)
         .then(r => r.json()).then(setKpis).catch(console.error)
       fetch(`${API}/dashboard/eventos`)
@@ -46,14 +56,26 @@ const user = JSON.parse(sessionStorage.getItem('cgid_user') || '{}')
         headers: { 'X-Usuario-Id': user.id },
       }).then(r => r.json()).then(data => {
         setMinhaHome(data)
-        // expande o primeiro workspace por padrão
         if (data.length > 0) setWsExpandido({ [data[0].id]: true })
       }).catch(console.error)
     }
-  }, [])
+  }, [isAdmin, user.id])
 
-  // calcula pct relativo ao maior valor para as barras
-  const maxReports = Math.max(...workspaces.map(w => w.reports), 1)
+  useEffect(() => {
+    if (!isAdmin) return
+    const params = new URLSearchParams({ periodo })
+    if (periodo === 'diario') params.set('data', dataDiario)
+    fetch(`${API}/dashboard/acessos-por-dia?${params}`)
+      .then(r => r.json()).then(setAcessosPorDia).catch(console.error)
+  }, [isAdmin, periodo, dataDiario])
+
+  useEffect(() => {
+    if (!isAdmin) return
+    const params = new URLSearchParams({ periodo: periodoTop })
+    if (periodoTop === 'diario') params.set('data', dataTop)
+    fetch(`${API}/dashboard/top-relatorios?${params}`)
+      .then(r => r.json()).then(setTopRelatorios).catch(console.error)
+  }, [isAdmin, periodoTop, dataTop])
 
   function handleLogout() {
     sessionStorage.removeItem('cgid_user')
@@ -251,8 +273,147 @@ const user = JSON.parse(sessionStorage.getItem('cgid_user') || '{}')
               </div>
             </div>
 
-            {/* Eventos + Barras */}
+            {/* Linha + Rosca lado a lado */}
+            <div className="two-col" style={{ marginBottom: 16, gridTemplateColumns: '5fr 3fr' }}>
+
+              {/* Acessos ao longo do tempo */}
+              <div className="card">
+                <div className="card-hd">
+                  <div>
+                    <div className="card-title">Acessos ao longo do tempo</div>
+                    <div className="card-sub">
+                      {periodo === 'diario' ? `Por hora · ${dataDiario.split('-').reverse().join('/')}` : periodo === 'semanal' ? 'Últimos 7 dias' : 'Últimos 30 dias'}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {['diario', 'semanal', 'mensal'].map(p => (
+                      <button
+                        key={p}
+                        onClick={() => setPeriodo(p)}
+                        style={{
+                          padding: '4px 10px', borderRadius: 6, fontSize: 12, fontWeight: 500, cursor: 'pointer', border: '1px solid',
+                          background: periodo === p ? 'var(--brand-500)' : 'transparent',
+                          color: periodo === p ? '#fff' : 'var(--gray-500)',
+                          borderColor: periodo === p ? 'var(--brand-500)' : 'var(--gray-200)',
+                        }}
+                      >
+                        {p === 'diario' ? 'Diário' : p === 'semanal' ? 'Semanal' : 'Mensal'}
+                      </button>
+                    ))}
+                    {periodo === 'diario' && (
+                      <input
+                        type="date"
+                        value={dataDiario}
+                        max={new Date().toISOString().slice(0, 10)}
+                        onChange={e => setDataDiario(e.target.value)}
+                        style={{ fontSize: 12, padding: '3px 8px', borderRadius: 6, border: '1px solid var(--gray-200)', color: 'var(--gray-600)', outline: 'none' }}
+                      />
+                    )}
+                  </div>
+                </div>
+                <div className="card-bd" style={{ paddingTop: 4 }}>
+                  <ResponsiveContainer width="100%" height={260}>
+                    <AreaChart data={acessosPorDia} margin={{ top: 8, right: 16, left: -16, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="gradLogins" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#475569" stopOpacity={0.2} />
+                          <stop offset="95%" stopColor="#475569" stopOpacity={0} />
+                        </linearGradient>
+                        <linearGradient id="gradNegados" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#ef4444" stopOpacity={0.15} />
+                          <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--gray-100)" vertical={false} />
+                      <XAxis dataKey="label" tick={{ fontSize: 11, fill: 'var(--gray-400)' }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+                      <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: 'var(--gray-400)' }} tickLine={false} axisLine={false} width={28} />
+                      <Tooltip
+                        contentStyle={{ borderRadius: 8, border: '1px solid var(--gray-100)', fontSize: 12, padding: '6px 12px' }}
+                        formatter={(val, name) => [val, name === 'logins' ? 'Logins' : 'Acessos negados']}
+                      />
+                      <Legend formatter={name => name === 'logins' ? 'Logins' : 'Acessos negados'} iconType="circle" wrapperStyle={{ fontSize: 12 }} />
+                      <Area type="monotone" dataKey="logins" stroke="#475569" strokeWidth={2} fill="url(#gradLogins)" dot={false} activeDot={{ r: 5, strokeWidth: 0 }} />
+                      <Area type="monotone" dataKey="negados" stroke="#ef4444" strokeWidth={2} fill="url(#gradNegados)" dot={false} activeDot={{ r: 5, strokeWidth: 0 }} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Distribuição por Workspace */}
+              <div className="card">
+                <div className="card-hd">
+                  <div>
+                    <div className="card-title">Distribuição por Workspace</div>
+                    <div className="card-sub">Relatórios publicados por workspace</div>
+                  </div>
+                </div>
+                <div className="card-bd" style={{ paddingTop: 4 }}>
+                  {(() => {
+                    const dados = workspaces.filter(w => w.publicados > 0)
+                    const total = dados.reduce((s, w) => s + w.publicados, 0)
+
+                    const renderLabel = ({ cx, cy, midAngle, outerRadius, name, value, fill }) => {
+                      const RADIAN = Math.PI / 180
+                      const r1 = outerRadius + 10
+                      const r2 = outerRadius + 22
+                      const x1 = cx + r1 * Math.cos(-midAngle * RADIAN)
+                      const y1 = cy + r1 * Math.sin(-midAngle * RADIAN)
+                      const x2 = cx + r2 * Math.cos(-midAngle * RADIAN)
+                      const y2 = cy + r2 * Math.sin(-midAngle * RADIAN)
+                      const x3 = x2 + (x2 > cx ? 14 : -14)
+                      const anchor = x2 > cx ? 'start' : 'end'
+                      const pct = total > 0 ? Math.round((value / total) * 100) : 0
+                      if (pct < 5) return null
+                      return (
+                        <g>
+                          <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={fill} strokeWidth={1.5} />
+                          <line x1={x2} y1={y2} x2={x3} y2={y2} stroke={fill} strokeWidth={1.5} />
+                          <text x={x3 + (x2 > cx ? 3 : -3)} y={y2 - 5} textAnchor={anchor} fontSize={11} fill="var(--gray-600)" fontWeight={500}>
+                            {name.length > 14 ? name.slice(0, 13) + '…' : name}
+                          </text>
+                          <text x={x3 + (x2 > cx ? 3 : -3)} y={y2 + 7} textAnchor={anchor} fontSize={11} fill={fill} fontWeight={700}>
+                            {pct}%
+                          </text>
+                        </g>
+                      )
+                    }
+
+                    return (
+                      <ResponsiveContainer width="100%" height={260}>
+                        <PieChart>
+                          <Pie
+                            data={dados}
+                            dataKey="publicados"
+                            nameKey="nome"
+                            cx="50%"
+                            cy="50%"
+                            innerRadius="38%"
+                            outerRadius="56%"
+                            paddingAngle={2}
+                            strokeWidth={0}
+                            label={renderLabel}
+                            labelLine={false}
+                            isAnimationActive={false}
+                          >
+                            {dados.map((ws, i) => (
+                              <Cell key={ws.nome} fill={ws.cor || `hsl(${i * 60}, 60%, 50%)`} />
+                            ))}
+                          </Pie>
+                          <Tooltip
+                            contentStyle={{ borderRadius: 8, border: '1px solid var(--gray-100)', fontSize: 12, padding: '6px 10px' }}
+                            formatter={(val, name) => [`${val} relatório${val !== 1 ? 's' : ''}`, name]}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    )
+                  })()}
+                </div>
+              </div>
+            </div>
+
+            {/* Eventos Recentes + Top Relatórios */}
             <div className="two-col" style={{ marginBottom: 16 }}>
+
               <div className="card">
                 <div className="card-hd">
                   <div>
@@ -286,56 +447,67 @@ const user = JSON.parse(sessionStorage.getItem('cgid_user') || '{}')
               <div className="card">
                 <div className="card-hd">
                   <div>
-                    <div className="card-title">Distribuição por Workspace</div>
-                    <div className="card-sub">Relatórios publicados por workspace</div>
+                    <div className="card-title">Top Relatórios Acessados</div>
+                    <div className="card-sub">
+                      {periodoTop === 'diario' ? `Por dia · ${dataTop.split('-').reverse().join('/')}` : periodoTop === 'semanal' ? 'Últimos 7 dias' : 'Últimos 30 dias'}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {['diario', 'semanal', 'mensal'].map(p => (
+                      <button key={p} onClick={() => setPeriodoTop(p)} style={{
+                        padding: '4px 10px', borderRadius: 6, fontSize: 12, fontWeight: 500, cursor: 'pointer', border: '1px solid',
+                        background: periodoTop === p ? 'var(--brand-500)' : 'transparent',
+                        color: periodoTop === p ? '#fff' : 'var(--gray-500)',
+                        borderColor: periodoTop === p ? 'var(--brand-500)' : 'var(--gray-200)',
+                      }}>
+                        {p === 'diario' ? 'Diário' : p === 'semanal' ? 'Semanal' : 'Mensal'}
+                      </button>
+                    ))}
+                    {periodoTop === 'diario' && (
+                      <input type="date" value={dataTop} max={new Date().toISOString().slice(0, 10)}
+                        onChange={e => setDataTop(e.target.value)}
+                        style={{ fontSize: 12, padding: '3px 8px', borderRadius: 6, border: '1px solid var(--gray-200)', color: 'var(--gray-600)', outline: 'none' }}
+                      />
+                    )}
                   </div>
                 </div>
-                <div className="card-bd">
-                  {workspaces.map(b => (
-                    <div className="bar-row" key={b.nome}>
-                      <div className="bar-meta">
-                        <span className="bar-name">{b.nome}</span>
-                        <span className="bar-count">{b.reports}</span>
-                      </div>
-                      <div className="bar-track">
-                        <div className="bar-fill" style={{ width: `${Math.round((b.reports / maxReports) * 100)}%`, background: b.cor ?? undefined }} />
-                      </div>
+                <div className="card-bd" style={{ padding: '4px 0' }}>
+                  {topRelatorios.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--gray-300)' }}>
+                      <i className="fa-solid fa-chart-bar" style={{ fontSize: 28, marginBottom: 8, display: 'block' }} />
+                      <div style={{ fontSize: 13 }}>Nenhum acesso registrado ainda</div>
                     </div>
-                  ))}
-                  {expediente && (
-                    <div style={{
-                      marginTop: 16, padding: '12px 16px', borderRadius: 'var(--r-md)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      background: expediente.dentro_expediente ? 'var(--brand-50)' : '#fef2f2',
-                      border: `1px solid ${expediente.dentro_expediente ? 'var(--brand-100)' : '#fecaca'}`,
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <i className="fa-solid fa-clock" style={{ fontSize: 14, color: expediente.dentro_expediente ? 'var(--brand-500)' : '#ef4444' }} />
-                        <div>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: expediente.dentro_expediente ? 'var(--brand-800)' : '#991b1b' }}>
-                            {!expediente.configurado
-                              ? 'Expediente não configurado'
-                              : expediente.dentro_expediente
-                                ? 'Dentro do expediente'
-                                : 'Fora do expediente'}
-                          </div>
-                          <div style={{ fontSize: 12, color: expediente.dentro_expediente ? 'var(--brand-600)' : '#b91c1c' }}>
-                            {expediente.configurado
-                              ? `${expediente.hora_inicio} — ${expediente.hora_fim} · Agora: ${expediente.hora_atual}`
-                              : `Hora atual: ${expediente.hora_atual}`}
-                          </div>
+                  ) : (() => {
+                    const max = topRelatorios[0]?.acessos || 1
+                    return topRelatorios.map((r, i) => {
+                      const cor = r.cor || 'var(--brand-500)'
+                      const pct = Math.round((r.acessos / max) * 100)
+                      return (
+                        <div key={r.nome} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 12, padding: '9px 20px', overflow: 'hidden' }}>
+                          {/* barra de fundo proporcional */}
+                          <div style={{ position: 'absolute', inset: 0, width: `${pct}%`, background: cor, opacity: 0.10, transition: 'width 0.5s ease', pointerEvents: 'none' }} />
+                          {/* rank */}
+                          <span style={{ fontSize: 13, fontWeight: 800, color: cor, width: 18, flexShrink: 0, textAlign: 'center', opacity: 0.9 }}>
+                            {i + 1}
+                          </span>
+                          {/* nome */}
+                          <span style={{ flex: 1, fontSize: 12, fontWeight: 500, color: 'var(--gray-700)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {r.nome}
+                          </span>
+                          {/* pill de contagem */}
+                          <span style={{
+                            flexShrink: 0, fontSize: 11, fontWeight: 700, padding: '2px 8px',
+                            borderRadius: 99, background: cor + '1a', color: cor,
+                          }}>
+                            {r.acessos}×
+                          </span>
                         </div>
-                      </div>
-                      {expediente.configurado && (
-                        <span className={`status-pill ${expediente.dentro_expediente ? 'status-online' : 'status-offline'}`}>
-                          <span className={`status-dot ${expediente.dentro_expediente ? 'green' : 'red'}`} />
-                          {expediente.dentro_expediente ? 'Online' : expediente.bloquear_fora ? 'Bloqueado' : 'Fora do horário'}
-                        </span>
-                      )}
-                    </div>
-                  )}
+                      )
+                    })
+                  })()}
                 </div>
               </div>
+
             </div>
 
             {/* Tabela de Workspaces */}

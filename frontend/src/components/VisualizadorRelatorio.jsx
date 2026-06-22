@@ -19,7 +19,10 @@ export default function VisualizadorRelatorio({ relatorio, onClose }) {
 
     async function carregar() {
       try {
-        const resp = await fetch(`${API}/relatorios/${relatorio.id}/embed`)
+        const user = JSON.parse(sessionStorage.getItem('cgid_user') || '{}')
+        const resp = await fetch(`${API}/relatorios/${relatorio.id}/embed`, {
+          headers: { 'X-Usuario-Id': user.id ?? '' },
+        })
         if (!resp.ok) {
           const d = await resp.json()
           throw new Error(d.detail || 'Erro ao obter token de embed.')

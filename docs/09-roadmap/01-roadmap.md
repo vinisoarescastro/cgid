@@ -3,7 +3,7 @@
 > **Documento:** 09-roadmap/01-roadmap.md  
 > **Status:** Em andamento  
 > **Criado em:** Maio/2026  
-> **Atualizado em:** Maio/2026
+> **Atualizado em:** Junho/2026
 
 ---
 
@@ -145,6 +145,9 @@ Infra    Permissões     Workspaces  Exceções     Dashboard   Ajustes    MVP v
 | 6 | Painel gerencial com KPIs globais | Dashboard |
 | 7 | Status dos serviços integrados | Dashboard |
 | 8 | Home adaptada por perfil (admin vs. operador) | Dashboard |
+| 9 | Gráfico de área "Acessos ao longo do tempo" com filtros por período (diário/semanal/mensal) | Dashboard |
+| 10 | Gráfico de rosca "Distribuição por Workspace" com labels e cores do workspace | Dashboard |
+| 11 | Ranking "Top Relatórios Acessados" com filtros por período e cores do workspace | Dashboard |
 | 9 | Painel de segurança com checklist | Security |
 | 10 | Health checks (`/saude`, `/saude/banco`) | Backend |
 
