@@ -592,11 +592,32 @@ function ModalWorkspace({ workspace, onClose, onSave }) {
   const [editandoId, setEditandoId]   = useState(false)
   const [pendente, setPendente]       = useState(false)
   const [verHistorico, setVerHistorico] = useState(false)
+  const [pbiWsInfo, setPbiWsInfo]     = useState(null)
+  const [verificandoWs, setVerificandoWs] = useState(false)
 
   const idOriginal    = workspace?.id_workspace_pbi ?? ''
   const idFoiAlterado = editando && editandoId && form.id_workspace_pbi.trim() !== idOriginal
 
-  function set(field, val) { setForm(f => ({ ...f, [field]: val })) }
+  useEffect(() => {
+    if (editando && idOriginal) verificarWsNoPbi(idOriginal)
+  }, [])
+
+  function set(field, val) {
+    setForm(f => ({ ...f, [field]: val }))
+    if (field === 'id_workspace_pbi') setPbiWsInfo(null)
+  }
+
+  async function verificarWsNoPbi(wsId) {
+    wsId = (wsId ?? form.id_workspace_pbi).trim()
+    if (!wsId) return
+    setVerificandoWs(true); setPbiWsInfo(null)
+    try {
+      const r = await apiFetch(`/pbi/workspace-info?workspace_pbi_id=${encodeURIComponent(wsId)}`)
+      if (r.ok) setPbiWsInfo(await r.json())
+    } catch { /* silencioso */ } finally {
+      setVerificandoWs(false)
+    }
+  }
 
   function tentarSalvar() {
     if (!form.nome.trim()) { setErro('O nome é obrigatório.'); return }
@@ -639,6 +660,16 @@ function ModalWorkspace({ workspace, onClose, onSave }) {
         <div className="modal-field">
           <label className="modal-label">Nome *</label>
           <input className="modal-input" value={form.nome} onChange={e => set('nome', e.target.value)} placeholder="Ex: Controladoria" />
+          {verificandoWs && (
+            <div style={{ fontSize: 11, color: 'var(--gray-400)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+              <i className="fa-solid fa-spinner fa-spin" /> Buscando nome no Power BI...
+            </div>
+          )}
+          {!verificandoWs && pbiWsInfo?.name && (
+            <div style={{ fontSize: 11, color: 'var(--gray-400)', marginTop: 4 }}>
+              Nome no Power BI: <strong style={{ color: 'var(--gray-600)' }}>{pbiWsInfo.name}</strong>
+            </div>
+          )}
         </div>
         <div className="modal-field" style={{ display: 'flex', gap: 12, alignItems: 'flex-end' }}>
           <div style={{ flex: 1 }}>

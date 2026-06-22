@@ -1865,6 +1865,26 @@ class EmbedResponse(BaseModel):
     workspace_id: str
 
 
+@app.get("/pbi/workspace-info")
+def pbi_workspace_info(workspace_pbi_id: str, db: Session = Depends(get_db)):
+    """Retorna o nome do workspace no Power BI para confirmação durante a configuração."""
+    try:
+        access_token = _pbi_access_token(db)
+    except HTTPException as e:
+        raise e
+    headers = {"Authorization": f"Bearer {access_token}"}
+    resp = http_requests.get(
+        f"https://api.powerbi.com/v1.0/myorg/groups/{workspace_pbi_id}",
+        headers=headers,
+        timeout=15,
+    )
+    if resp.status_code == 404:
+        raise HTTPException(status_code=404, detail="Workspace não encontrado no Power BI. Verifique o ID informado.")
+    if not resp.ok:
+        raise HTTPException(status_code=502, detail=f"Erro ao consultar Power BI: {resp.text}")
+    data = resp.json()
+    return {"name": data.get("name", ""), "type": data.get("type", "")}
+
 @app.get("/pbi/relatorio-info")
 def pbi_relatorio_info(workspace_pbi_id: str, report_pbi_id: str, db: Session = Depends(get_db)):
     """Retorna o nome do relatório no Power BI para confirmação durante a configuração."""
