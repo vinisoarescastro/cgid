@@ -490,6 +490,8 @@ function AbaCredenciaisPBI() {
   const [editando, setEditando]         = useState(false)
   const [salvando, setSalvando]         = useState(false)
   const [mostrarSecret, setMostrarSecret] = useState(false)
+  const [secretRevelado, setSecretRevelado] = useState('')
+  const [revelando, setRevelando]           = useState(false)
   const [pendente, setPendente]         = useState(false)
   const [verHistorico, setVerHistorico] = useState(false)
   const [feedback, setFeedback] = useState('')
@@ -508,6 +510,20 @@ function AbaCredenciaisPBI() {
   }, [])
 
   function set(k, v) { setForm(f => ({ ...f, [k]: v })) }
+
+  async function toggleRevelarSecret() {
+    if (secretRevelado) { setSecretRevelado(''); return }
+    setRevelando(true)
+    try {
+      const res = await apiFetch('/configuracoes/pbi/secret')
+      if (res.ok) {
+        const d = await res.json()
+        setSecretRevelado(d.client_secret || '')
+      }
+    } finally {
+      setRevelando(false)
+    }
+  }
 
   function tentarSalvar() {
     setErro('')
@@ -558,7 +574,6 @@ function AbaCredenciaisPBI() {
           {[
             { label: 'Tenant ID (Directory ID)', valor: original.tenant_id },
             { label: 'Client ID (Application ID)', valor: original.client_id },
-            { label: 'Client Secret', valor: original.client_secret },
           ].map(({ label, valor }) => (
             <div className="modal-field" key={label}>
               <label className="modal-label">{label}</label>
@@ -571,6 +586,26 @@ function AbaCredenciaisPBI() {
               </div>
             </div>
           ))}
+          <div className="modal-field">
+            <label className="modal-label">Client Secret</label>
+            <div className="pbi-secret-wrap">
+              <div style={{
+                flex: 1, padding: '8px 12px', background: 'var(--gray-50)',
+                border: '1px solid var(--gray-200)', borderRadius: 'var(--r-md)',
+                fontSize: 13, color: 'var(--gray-600)', fontFamily: 'monospace',
+                minHeight: 36, display: 'flex', alignItems: 'center',
+              }}>
+                {original.client_secret
+                  ? (secretRevelado || original.client_secret)
+                  : <span style={{ color: 'var(--gray-300)' }}>não configurado</span>}
+              </div>
+              {original.client_secret && (
+                <button className="pbi-secret-toggle" onClick={toggleRevelarSecret} type="button" disabled={revelando} title={secretRevelado ? 'Ocultar' : 'Revelar secret'}>
+                  <i className={`fa-solid ${revelando ? 'fa-spinner fa-spin' : secretRevelado ? 'fa-eye-slash' : 'fa-eye'}`} />
+                </button>
+              )}
+            </div>
+          </div>
           <div className="cfg-save-bar">
             {feedback && (
               <span className="cfg-save-feedback">

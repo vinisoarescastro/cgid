@@ -75,6 +75,9 @@
 | RF-WS-05 | Admins devem gerenciar os relatórios de um workspace (criar, editar, arquivar, excluir) | CRUD de relatórios dentro do detalhe do workspace; criação e exclusão geram log de auditoria | v1.0 | 🔴 |
 | RF-WS-06 | Admins devem vincular e desvincular usuários a um workspace com nível de acesso | Vínculo reflete imediatamente nas permissões; ação gera log de auditoria | v1.0 | 🔴 |
 | RF-WS-07 | O indicador de expediente (`TopbarExpediente`) deve ser exibido no topbar de **todas as páginas** do portal | Pill de expediente visível em: Home, Workspaces, Usuários, Favoritos, Auditoria e Configurações; comportamento idêntico ao da página Home | v1.0 | 🔴 |
+| RF-WS-08 | Os cards de workspace devem exibir contadores de relatórios (total, publicados e ativos) e usuários vinculados | Card exibe: nº de usuários vinculados, total de relatórios, nº de publicados (com ícone verde); contadores fornecidos por `GET /dashboard/workspaces` | v1.0 | 🟡 |
+| RF-WS-09 | Relatórios dentro de um workspace devem ter indicação visual de status (publicado/rascunho) | Linhas de relatório publicado têm degradê verde (esquerda → transparente); rascunho têm degradê cinza (esquerda → transparente) | v1.0 | 🟡 |
+| RF-WS-10 | No modal de edição de relatório, o nome do relatório no Power BI deve ser exibido automaticamente | Ao abrir o modal, se `id_relatorio_pbi` e `id_workspace_pbi` estiverem preenchidos, busca `GET /pbi/relatorio-info` e exibe o nome abaixo do campo Nome; campo "Verificar" disponível manualmente para novos IDs | v1.0 | 🟡 |
 
 ---
 
@@ -153,7 +156,7 @@
 
 | ID | Descrição | Critério de Aceite | Versão | Prioridade |
 |----|-----------|-------------------|--------|-----------|
-| RF-CONF-01 | Super Admin deve configurar as credenciais Power BI (Client ID, Tenant ID, Client Secret) | Credenciais salvas no banco (`configuracoes_sistema`); Client Secret exibido mascarado após salvar; integração PBI usa as credenciais configuradas | v1.0 | 🔴 |
+| RF-CONF-01 | Super Admin deve configurar as credenciais Power BI (Client ID, Tenant ID, Client Secret) | Credenciais salvas no banco (`configuracoes_sistema`); Client Secret exibido mascarado após salvar com botão de olho que revela o valor real via `GET /configuracoes/pbi/secret` (restrito a Admin/Super Admin); integração PBI usa as credenciais configuradas | v1.0 | 🔴 |
 | RF-CONF-02 | Somente Admin e Super Admin podem acessar o módulo de configurações; aba de Credenciais PBI é exclusiva do Super Admin | Perfis sem permissão são redirecionados para Home; aba PBI não aparece para Admins comuns | v1.0 | 🔴 |
 | RF-CONF-03 | O sistema deve exibir o ambiente atual (produção/homologação) no header | Badge de ambiente visível para todos os admins | v1.0 | 🟡 |
 | RF-CONF-04 | A página de Configurações deve ter abas: Expediente, Grupos de Exceção e Credenciais Power BI | Cada aba carrega e salva dados de forma independente; alterações refletem imediatamente no comportamento do sistema. A grade de Expediente é exibida em formato de tabela compacta (cabeçalho + uma linha por dia da semana) | v1.0 | 🔴 |
@@ -194,3 +197,4 @@
 | 2.0 | Junho/2026 | Vinicius Soares | RF-PBI-07/08: endpoint V2 GenerateToken (suporte DirectLake) e credenciais lidas do banco. RF-CONF-05 a 08: segurança de campos críticos (somente-leitura, confirmação digitada, log crítico, backup automático, histórico visual) |
 | 2.1 | Junho/2026 | Vinicius Soares | Adicionada seção RF-WS (gestão de workspaces): RF-WS-01 a 06 (CRUD, arquivamento, exclusão permanente com cascade, vínculos) e RF-WS-07 (TopbarExpediente em todas as páginas) |
 | 2.2 | Junho/2026 | Vinicius Soares | Adicionados RF-SEC-04 a 06: sessão única por usuário com revogação automática, detecção de sessão simultânea com log de auditoria e notificação em tempo real via modal bloqueante |
+| 2.3 | Junho/2026 | Vinicius Soares | RF-CONF-01 atualizado: Client Secret revelável via botão de olho (rota protegida). Adicionados RF-WS-08 (contadores nos cards), RF-WS-09 (degradê de status nos relatórios), RF-WS-10 (verificação do nome PBI no modal) |

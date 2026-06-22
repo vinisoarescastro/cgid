@@ -97,7 +97,7 @@ PBI_CLIENT_SECRET=<valor do secret>
 
 | Endpoint | Propósito | Observação |
 |----------|-----------|------------|
-| `GET /v1.0/myorg/groups/{groupId}/reports/{reportId}` | Buscar embed URL e dataset ID do relatório | Usado antes de gerar o token |
+| `GET /v1.0/myorg/groups/{groupId}/reports/{reportId}` | Buscar embed URL, dataset ID e nome do relatório | Usado antes de gerar o token e na rota `/pbi/relatorio-info` |
 | `POST /v1.0/myorg/GenerateToken` | Gerar embed token (V2) | Obrigatório para datasets DirectLake/Fabric |
 
 > **Importante:** O endpoint V1 por relatório (`/groups/{id}/reports/{id}/GenerateToken`) **não suporta datasets DirectLake** (Microsoft Fabric/OneLake). O CGID usa o endpoint V2 (`/myorg/GenerateToken`) para garantir compatibilidade com todos os tipos de dataset.
@@ -131,6 +131,21 @@ embed_token = token_resp.json()["token"]
 ### Credenciais — Lidas do Banco, Não do .env
 
 As credenciais PBI (`PBI_TENANT_ID`, `PBI_CLIENT_ID`, `PBI_CLIENT_SECRET`) são configuradas pela interface do CGID em **Configurações → Power BI** e armazenadas na tabela `configuracoes_sistema`. O backend as lê do banco em cada requisição de embed — não do arquivo `.env`.
+
+### Cache do Access Token Azure AD
+
+O access token obtido do Azure AD é cacheado em memória (`_pbi_token_cache`) e reutilizado até 5 minutos antes de expirar (TTL padrão: 3600s). Isso elimina a chamada ao Azure AD nas requisições subsequentes, reduzindo a latência de abertura de relatórios de ~3 chamadas para ~2.
+
+```python
+_pbi_token_cache: dict = {"token": None, "expires_at": 0}
+# expires_at = time.time() + expires_in - 300 (margem de 5 min)
+```
+
+> **Nota:** O cache é por processo. Em múltiplas instâncias uvicorn, cada processo mantém seu próprio cache — comportamento correto e seguro.
+
+### Rota de Verificação de Relatório
+
+`GET /pbi/relatorio-info?workspace_pbi_id={id}&report_pbi_id={id}` — retorna o `name` e `webUrl` do relatório diretamente da API do Power BI. Usado no frontend para confirmar o nome do relatório ao configurar um `id_relatorio_pbi`. Utiliza o access token cacheado.
 
 ### Limites e Throttling da API PBI
 
@@ -260,3 +275,4 @@ Fluent Bit (sidecar container)
 |--------|------|-------|-----------|
 | 1.0 | Maio/2026 | Vinicius Soares | Criação inicial do documento |
 | 1.1 | Junho/2026 | Vinicius Soares | Atualização da seção Power BI: endpoint V2, suporte a DirectLake, credenciais lidas do banco |
+| 1.2 | Junho/2026 | Vinicius Soares | Cache do access token Azure AD em memória (TTL - 5 min); nova rota `GET /pbi/relatorio-info` para verificação de nome do relatório; tabela de endpoints atualizada |

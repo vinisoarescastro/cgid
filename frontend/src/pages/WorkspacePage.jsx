@@ -355,7 +355,7 @@ function ModalAdicionarUsuario({ workspaceId, relatoriosWs, usuariosJaVinculados
 }
 
 // ─── Modal criar/editar relatório ────────────────────────────────────────────
-function ModalRelatorio({ workspaceId, relatorio, onClose, onSave }) {
+function ModalRelatorio({ workspaceId, workspacePbiId, relatorio, onClose, onSave }) {
   const editando = !!relatorio
   const [form, setForm] = useState({
     nome:             relatorio?.nome             ?? '',
@@ -364,16 +364,45 @@ function ModalRelatorio({ workspaceId, relatorio, onClose, onSave }) {
     descricao:        relatorio?.descricao        ?? '',
     id_relatorio_pbi: relatorio?.id_relatorio_pbi ?? '',
   })
-  const [loading, setLoading]       = useState(false)
+  const [loading, setLoading]         = useState(false)
   const [erro, setErro]               = useState('')
   const [editandoId, setEditandoId]   = useState(false)
   const [pendente, setPendente]       = useState(false)
   const [verHistorico, setVerHistorico] = useState(false)
+  const [pbiInfo, setPbiInfo]         = useState(null)
+  const [pbiInfoErro, setPbiInfoErro] = useState('')
+  const [verificando, setVerificando] = useState(false)
 
   const idOriginal    = relatorio?.id_relatorio_pbi ?? ''
   const idFoiAlterado = editando && editandoId && form.id_relatorio_pbi.trim() !== idOriginal
 
-  function set(field, val) { setForm(f => ({ ...f, [field]: val })) }
+  useEffect(() => {
+    if (editando && idOriginal && workspacePbiId) verificarNoPbi(idOriginal)
+  }, [])
+
+  function set(field, val) {
+    setForm(f => ({ ...f, [field]: val }))
+    if (field === 'id_relatorio_pbi') { setPbiInfo(null); setPbiInfoErro('') }
+  }
+
+  async function verificarNoPbi(reportId) {
+    reportId = (reportId ?? form.id_relatorio_pbi).trim()
+    if (!reportId || !workspacePbiId) return
+    setVerificando(true); setPbiInfo(null); setPbiInfoErro('')
+    try {
+      const r = await apiFetch(`/pbi/relatorio-info?workspace_pbi_id=${encodeURIComponent(workspacePbiId)}&report_pbi_id=${encodeURIComponent(reportId)}`)
+      if (r.ok) {
+        setPbiInfo(await r.json())
+      } else {
+        const d = await r.json()
+        setPbiInfoErro(d.detail || 'Não foi possível verificar o relatório.')
+      }
+    } catch {
+      setPbiInfoErro('Erro de conexão ao verificar o relatório.')
+    } finally {
+      setVerificando(false)
+    }
+  }
 
   function tentarSalvar() {
     if (!form.nome.trim()) { setErro('O nome é obrigatório.'); return }
@@ -418,6 +447,16 @@ function ModalRelatorio({ workspaceId, relatorio, onClose, onSave }) {
         <div className="modal-field">
           <label className="modal-label">Nome *</label>
           <input className="modal-input" autoFocus value={form.nome} onChange={e => set('nome', e.target.value)} placeholder="Ex: Painel de Vendas" />
+          {verificando && (
+            <div style={{ fontSize: 11, color: 'var(--gray-400)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+              <i className="fa-solid fa-spinner fa-spin" /> Buscando nome no Power BI...
+            </div>
+          )}
+          {!verificando && pbiInfo?.name && (
+            <div style={{ fontSize: 11, color: 'var(--gray-400)', marginTop: 4 }}>
+              Nome no Power BI: <strong style={{ color: 'var(--gray-600)' }}>{pbiInfo.name}</strong>
+            </div>
+          )}
         </div>
         <div className="modal-field">
           <label className="modal-label">Categoria</label>
@@ -459,9 +498,38 @@ function ModalRelatorio({ workspaceId, relatorio, onClose, onSave }) {
                   Alterar este ID pode fazer o relatório parar de carregar. Será solicitada confirmação ao salvar.
                 </div>
               )}
-              <input className="modal-input" value={form.id_relatorio_pbi}
-                onChange={e => set('id_relatorio_pbi', e.target.value)}
-                placeholder="UUID do relatório no Power BI" autoFocus={editandoId} />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input className="modal-input" style={{ flex: 1 }} value={form.id_relatorio_pbi}
+                  onChange={e => set('id_relatorio_pbi', e.target.value)}
+                  placeholder="UUID do relatório no Power BI" autoFocus={editandoId} />
+                {workspacePbiId && (
+                  <button type="button" className="btn btn-ghost btn-sm"
+                    onClick={() => verificarNoPbi()}
+                    disabled={verificando || !form.id_relatorio_pbi.trim()}
+                    title="Verificar nome do relatório no Power BI">
+                    {verificando
+                      ? <i className="fa-solid fa-spinner fa-spin" />
+                      : <><i className="fa-solid fa-magnifying-glass" /> Verificar</>}
+                  </button>
+                )}
+              </div>
+              {pbiInfo && (
+                <div style={{ fontSize: 12, color: '#16a34a', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 'var(--r-md)', padding: '6px 10px', marginTop: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <i className="fa-solid fa-circle-check" />
+                  Relatório encontrado: <strong>{pbiInfo.name}</strong>
+                </div>
+              )}
+              {pbiInfoErro && (
+                <div style={{ fontSize: 12, color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 'var(--r-md)', padding: '6px 10px', marginTop: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <i className="fa-solid fa-circle-exclamation" />
+                  {pbiInfoErro}
+                </div>
+              )}
+              {!workspacePbiId && (
+                <div style={{ fontSize: 11, color: '#f59e0b', marginTop: 4 }}>
+                  Configure o ID do workspace Power BI para habilitar a verificação.
+                </div>
+              )}
               <div style={{ fontSize: 11, color: 'var(--gray-400)', marginTop: 4 }}>
                 Encontre na URL do Power BI: app.powerbi.com/groups/.../reports/<strong>{'<este-id>'}</strong>
               </div>
@@ -1134,7 +1202,7 @@ export default function WorkspacePage() {
                       ) : (
                         <div className="ws-report-list">
                           {relFiltrados.map(r => (
-                            <div className="ws-report-row" key={r.id}>
+                            <div className={`ws-report-row ws-report-row--${r.status}`} key={r.id}>
                               <div className="ws-report-icon">
                                 <i className="fa-solid fa-chart-bar" />
                               </div>
@@ -1390,20 +1458,26 @@ export default function WorkspacePage() {
                             <>
                               <div className="ws-card-stats">
                                 <div className="ws-stat">
-                                  <i className="fa-solid fa-chart-bar" />
-                                  {s ? `${s.reports} relatório(s)` : '— relatórios'}
+                                  <i className="fa-solid fa-users" />
+                                  {s ? `${s.totalAccess + s.partialAccess} usuário(s)` : '—'}
                                 </div>
                                 <div className="ws-stat">
-                                  <i className="fa-solid fa-users" />
-                                  {s ? `${s.totalAccess + s.partialAccess} usuário(s)` : '— usuários'}
+                                  <i className="fa-solid fa-chart-bar" />
+                                  {s ? `${s.reports} relatório(s)` : '—'}
                                 </div>
+                                {s && s.publicados > 0 && (
+                                  <div className="ws-stat">
+                                    <i className="fa-solid fa-circle-check" style={{ color: '#86efac' }} />
+                                    {s.publicados} ativo{s.publicados !== 1 ? 's' : ''}
+                                  </div>
+                                )}
                               </div>
                               <div className="ws-card-footer">
                                 {!isAdmin && (
                                   <span className={`ws-nivel-badge ${badge.cls}`}>{badge.label}</span>
                                 )}
-                                <span style={{ fontSize: 12, color: 'var(--gray-400)', marginLeft: 'auto' }}>
-                                  Ver relatórios <i className="fa-solid fa-chevron-right" style={{ fontSize: 10 }} />
+                                <span className="ws-card-ver">
+                                  Ver relatórios <i className="fa-solid fa-chevron-right" />
                                 </span>
                               </div>
                             </>
@@ -1456,6 +1530,7 @@ export default function WorkspacePage() {
       {modalRelatorio && wsAtivo && (
         <ModalRelatorio
           workspaceId={wsAtivo.id}
+          workspacePbiId={wsAtivo.id_workspace_pbi}
           relatorio={modalRelatorio === 'criar' ? null : modalRelatorio}
           onClose={() => setModalRelatorio(null)}
           onSave={aoSalvarRelatorio}

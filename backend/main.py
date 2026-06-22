@@ -1035,9 +1035,14 @@ def dashboard_workspaces(db: Session = Depends(get_db)):
 
     resultado = []
     for ws in workspaces:
-        total_relatorios = db.query(Relatorio).filter(
+        publicados = db.query(Relatorio).filter(
             Relatorio.espaco_trabalho_id == ws.id,
             Relatorio.status == "publicado",
+        ).count()
+
+        rascunhos = db.query(Relatorio).filter(
+            Relatorio.espaco_trabalho_id == ws.id,
+            Relatorio.status == "rascunho",
         ).count()
 
         acesso_total = (
@@ -1063,7 +1068,9 @@ def dashboard_workspaces(db: Session = Depends(get_db)):
         resultado.append({
             "nome":          ws.nome,
             "cor":           ws.cor,
-            "reports":       total_relatorios,
+            "reports":       publicados + rascunhos,
+            "publicados":    publicados,
+            "rascunhos":     rascunhos,
             "totalAccess":   acesso_total,
             "partialAccess": acesso_parcial,
         })
@@ -1755,6 +1762,14 @@ def listar_credenciais_pbi(db: Session = Depends(get_db)):
         client_secret="••••••••" if secret else "",
     )
 
+@app.get("/configuracoes/pbi/secret")
+def revelar_secret_pbi(request: Request, db: Session = Depends(get_db)):
+    autor = get_usuario_requisicao(request, db)
+    if not autor or autor.perfil not in PERFIS_ADMIN:
+        raise HTTPException(status_code=403, detail="Acesso restrito a administradores.")
+    r = db.query(ConfiguracaoSistema).filter(ConfiguracaoSistema.chave == "PBI_CLIENT_SECRET").first()
+    return {"client_secret": r.valor if r else ""}
+
 @app.put("/configuracoes/pbi", response_model=CredenciaisPBIItem)
 def salvar_credenciais_pbi(request: Request, dados: CredenciaisPBIInput, db: Session = Depends(get_db)):
     def _get(chave):
@@ -1797,8 +1812,16 @@ def salvar_credenciais_pbi(request: Request, dados: CredenciaisPBIInput, db: Ses
 
 # ─── Power BI Embed ───────────────────────────────────────────────────────────
 
+_pbi_token_cache: dict = {"token": None, "expires_at": 0}
+
 def _pbi_access_token(db: Session = None) -> str:
-    """Obtém access token do Azure AD via client credentials (Service Principal)."""
+    """Obtém access token do Azure AD via client credentials (Service Principal).
+    O token é cacheado em memória e reutilizado até 5 minutos antes de expirar."""
+    import time
+
+    if _pbi_token_cache["token"] and time.time() < _pbi_token_cache["expires_at"]:
+        return _pbi_token_cache["token"]
+
     def _cfg(chave):
         if db:
             r = db.query(ConfiguracaoSistema).filter(ConfiguracaoSistema.chave == chave).first()
@@ -1827,7 +1850,11 @@ def _pbi_access_token(db: Session = None) -> str:
     )
     if not resp.ok:
         raise HTTPException(status_code=502, detail=f"Falha ao autenticar no Azure AD: {resp.text}")
-    return resp.json()["access_token"]
+
+    data = resp.json()
+    _pbi_token_cache["token"]      = data["access_token"]
+    _pbi_token_cache["expires_at"] = time.time() + data.get("expires_in", 3600) - 300
+    return _pbi_token_cache["token"]
 
 
 class EmbedResponse(BaseModel):
@@ -1836,6 +1863,27 @@ class EmbedResponse(BaseModel):
     token_expiry: str
     report_id:   str
     workspace_id: str
+
+
+@app.get("/pbi/relatorio-info")
+def pbi_relatorio_info(workspace_pbi_id: str, report_pbi_id: str, db: Session = Depends(get_db)):
+    """Retorna o nome do relatório no Power BI para confirmação durante a configuração."""
+    try:
+        access_token = _pbi_access_token(db)
+    except HTTPException as e:
+        raise e
+    headers = {"Authorization": f"Bearer {access_token}"}
+    resp = http_requests.get(
+        f"https://api.powerbi.com/v1.0/myorg/groups/{workspace_pbi_id}/reports/{report_pbi_id}",
+        headers=headers,
+        timeout=15,
+    )
+    if resp.status_code == 404:
+        raise HTTPException(status_code=404, detail="Relatório não encontrado no Power BI. Verifique os IDs informados.")
+    if not resp.ok:
+        raise HTTPException(status_code=502, detail=f"Erro ao consultar Power BI: {resp.text}")
+    data = resp.json()
+    return {"name": data.get("name", ""), "web_url": data.get("webUrl", "")}
 
 
 @app.get("/relatorios/{relatorio_id}/embed", response_model=EmbedResponse)

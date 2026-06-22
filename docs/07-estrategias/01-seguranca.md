@@ -227,9 +227,9 @@ Pre-commit hook: detect-secrets
 | Prática | Implementação |
 |---------|--------------|
 | Service Principal | Apenas permissões mínimas necessárias no Azure |
-| Client Secret | Nunca no frontend; sempre em variável de ambiente criptografada |
+| Client Secret | Armazenado na tabela `configuracoes_sistema`; nunca exposto ao frontend diretamente; revelação do valor real via `GET /configuracoes/pbi/secret` restrita a perfis `administrador` e `super_administrador` (403 para demais) |
 | Tokens de embed | Gerados server-side; TTL de 1h; sem reutilização entre usuários |
-| Cache de tokens | Por usuário + relatório em cache temporário seguro no backend; Redis apenas se houver múltiplas instâncias em v2 |
+| Cache do access token | Token Azure AD cacheado em memória por processo com TTL = `expires_in - 300s`; não compartilhado entre usuários; sem dados sensíveis expostos |
 | Whitelist de embeds | CSP `frameSrc` restringe apenas domínios oficiais do PBI |
 | RLS (v2.0) | Username do usuário passado no token para RLS no dataset |
 
@@ -273,3 +273,4 @@ Pre-commit hook: detect-secrets
 | 1.0 | Maio/2026 | Vinicius Soares | Criação inicial do documento |
 | 1.1 | Junho/2026 | Vinicius Soares | Pipeline de autorização (3.1) atualizado: admins isentos do `validar_expediente`; demais perfis verificados contra regra + grupos de exceção |
 | 1.2 | Junho/2026 | Vinicius Soares | Adicionada seção 2.3: controle de sessão única — token opaco com hash SHA-256, revogação automática por novo login, log de segurança com IPs, polling de 20s e modal bloqueante no frontend |
+| 1.3 | Junho/2026 | Vinicius Soares | Seção 9 atualizada: Client Secret revelável via rota protegida por perfil; cache do access token Azure AD documentado |
