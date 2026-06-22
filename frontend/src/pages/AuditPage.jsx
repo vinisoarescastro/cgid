@@ -20,7 +20,7 @@ const TIPO_META = {
   acesso:       { icon: 'fa-ban',              label: 'Acesso'       },
   relatorio:    { icon: 'fa-chart-bar',        label: 'Relatório'    },
   sistema:      { icon: 'fa-gear',                label: 'Sistema'      },
-  critico:      { icon: 'fa-shield-exclamation',  label: 'Crítico'      },
+  critico:      { icon: 'fa-triangle-exclamation', label: 'Crítico'      },
 }
 
 function TipoBadge({ tipo }) {
