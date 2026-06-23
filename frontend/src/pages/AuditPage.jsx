@@ -5,6 +5,7 @@ import '../styles/audit.css'
 import Avatar from '../components/Avatar'
 import Sidebar from '../components/Sidebar'
 import TopbarExpediente from '../components/TopbarExpediente'
+import { logout } from '../utils/api'
 
 const API = 'http://localhost:8000'
 
@@ -63,10 +64,7 @@ export default function AuditPage() {
   // linha expandida
   const [expandido, setExpandido] = useState(null)
 
-  function handleLogout() {
-    sessionStorage.removeItem('cgid_user')
-    navigate('/login')
-  }
+  function handleLogout() { logout(navigate) }
 
   // Redireciona não-admins
   useEffect(() => {

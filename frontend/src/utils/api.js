@@ -31,4 +31,13 @@ export function apiFetch(path, options = {}) {
   })
 }
 
+export async function logout(navigate) {
+  try {
+    await apiFetch('/api/logout', { method: 'POST' })
+  } catch (_) {}
+  sessionStorage.removeItem('cgid_user')
+  sessionStorage.removeItem('cgid_session_token')
+  if (navigate) navigate('/login')
+}
+
 export default API

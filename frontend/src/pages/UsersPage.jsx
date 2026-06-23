@@ -5,7 +5,7 @@ import '../styles/users.css'
 import Avatar from '../components/Avatar'
 import Sidebar from '../components/Sidebar'
 import TopbarExpediente from '../components/TopbarExpediente'
-import { apiFetch } from '../utils/api'
+import { apiFetch, logout } from '../utils/api'
 
 const API = 'http://localhost:8000'
 
@@ -443,10 +443,7 @@ export default function UsersPage() {
     }
   }
 
-  function handleLogout() {
-    sessionStorage.removeItem('cgid_user')
-    navigate('/login')
-  }
+  function handleLogout() { logout(navigate) }
 
   return (
     <div className="app-shell">

@@ -11,6 +11,7 @@ import '../styles/workspace.css'
 import Avatar from '../components/Avatar'
 import Sidebar from '../components/Sidebar'
 import TopbarExpediente from '../components/TopbarExpediente'
+import { logout } from '../utils/api'
 
 const API = 'http://localhost:8000'
 
@@ -77,10 +78,7 @@ const user = JSON.parse(sessionStorage.getItem('cgid_user') || '{}')
       .then(r => r.json()).then(setTopRelatorios).catch(console.error)
   }, [isAdmin, periodoTop, dataTop])
 
-  function handleLogout() {
-    sessionStorage.removeItem('cgid_user')
-    navigate('/login')
-  }
+  function handleLogout() { logout(navigate) }
 
   return (
     <div className="app-shell">

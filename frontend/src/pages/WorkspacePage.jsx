@@ -6,7 +6,7 @@ import Avatar from '../components/Avatar'
 import Sidebar from '../components/Sidebar'
 import IconPicker from '../components/IconPicker'
 import VisualizadorRelatorio from '../components/VisualizadorRelatorio'
-import { apiFetch } from '../utils/api'
+import { apiFetch, logout } from '../utils/api'
 import ModalConfirmacao from '../components/ModalConfirmacao'
 import ModalHistoricoCritico from '../components/ModalHistoricoCritico'
 import TopbarExpediente from '../components/TopbarExpediente'
@@ -825,10 +825,7 @@ export default function WorkspacePage() {
   // stats cache (from dashboard)
   const [stats, setStats] = useState({})
 
-  function handleLogout() {
-    sessionStorage.removeItem('cgid_user')
-    navigate('/login')
-  }
+  function handleLogout() { logout(navigate) }
 
   useEffect(() => {
     // carrega workspaces

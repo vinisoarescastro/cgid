@@ -104,7 +104,7 @@ db.flush()
 
 # ─── 2. Permissões por perfil ────────────────────────────────────────────────
 print("Inserindo permissões por perfil...")
-MODULOS = ["usuarios", "permissoes", "relatorios", "workspaces", "auditoria", "seguranca", "configuracoes", "expediente", "grupos_excecao"]
+MODULOS = ["usuarios", "permissoes", "relatorios", "workspaces", "auditoria", "seguranca", "configuracoes", "expediente", "grupos_excecao", "landbank"]
 
 for modulo in MODULOS:
     upsert_permissao("super_administrador", modulo,
@@ -128,6 +128,7 @@ for modulo in MODULOS:
         pode_criar=False, pode_editar=False,
         pode_excluir=False, pode_exportar=False, pode_gerenciar=False)
 
+    # landbank: acesso negado por padrão a visitante (liberado individualmente pelo admin)
     upsert_permissao("visitante", modulo,
         pode_visualizar=modulo in ("relatorios",),
         pode_criar=False, pode_editar=False,

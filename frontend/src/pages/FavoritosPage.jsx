@@ -6,6 +6,7 @@ import Avatar from '../components/Avatar'
 import Sidebar from '../components/Sidebar'
 import TopbarExpediente from '../components/TopbarExpediente'
 import VisualizadorRelatorio from '../components/VisualizadorRelatorio'
+import { logout } from '../utils/api'
 
 const API = 'http://localhost:8000'
 
@@ -39,10 +40,7 @@ export default function FavoritosPage() {
   const [busca, setBusca]                 = useState('')
   const [relatorioAberto, setRelatorioAberto] = useState(null)
 
-  function handleLogout() {
-    sessionStorage.removeItem('cgid_user')
-    navigate('/login')
-  }
+  function handleLogout() { logout(navigate) }
 
   useEffect(() => {
     fetch(`${API}/usuarios/${user.id}/favoritos`)

@@ -59,6 +59,7 @@ export default function Sidebar({ user, active }) {
         {isAdmin && link('usuarios', '/usuarios', 'fa-users', 'Usuários')}
         {link('workspaces', '/workspaces', 'fa-building-columns', 'Workspace')}
         {link('favoritos', '/favoritos', 'fa-star', 'Favoritos')}
+        {isAdmin && link('landbank', '/landbank', 'fa-map-location-dot', 'Land Bank')}
         {isSuperAdmin && link('auditoria', '/auditoria', 'fa-file-lines', 'Auditoria')}
         {isAdmin && link('configuracoes', '/configuracoes', 'fa-gear', 'Configurações')}
       </nav>

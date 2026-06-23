@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi.responses import StreamingResponse, JSONResponse, FileResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func, or_
 from passlib.context import CryptContext
@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime, timezone, timedelta, date as date_type, time as time_type
 from zoneinfo import ZoneInfo
+from pathlib import Path
 import csv, io, json, os, secrets, hashlib
 import requests as http_requests
 
@@ -301,6 +302,29 @@ def login(request: Request, dados: LoginInput, db: Session = Depends(get_db)):
         requer_troca_senha=usuario.senha_provisoria,
         session_token=token_bruto,
     )
+
+
+@app.post("/api/logout")
+def logout(request: Request, db: Session = Depends(get_db)):
+    usuario = get_usuario_requisicao(request, db)
+    if not usuario:
+        return {"ok": True}
+
+    token_bruto = request.headers.get("X-Session-Token", "")
+    if token_bruto:
+        hash_token = hashlib.sha256(token_bruto.encode()).hexdigest()
+        agora = datetime.now(timezone.utc).replace(tzinfo=None)
+        sessao = db.query(SessaoAutenticacao).filter(
+            SessaoAutenticacao.usuario_id == usuario.id,
+            SessaoAutenticacao.hash_refresh_token == hash_token,
+            SessaoAutenticacao.revogado_em == None,
+        ).first()
+        if sessao:
+            sessao.revogado_em = agora
+
+    registrar_log(db, "autenticacao", "autenticacao", "Logout realizado", usuario, request=request)
+    db.commit()
+    return {"ok": True}
 
 
 # ─── Sessão ──────────────────────────────────────────────────────────────────
@@ -2078,3 +2102,22 @@ def embed_relatorio(relatorio_id: str, request: Request, db: Session = Depends(g
         report_id=rel.id_relatorio_pbi,
         workspace_id=ws.id_workspace_pbi,
     )
+
+
+# ─── Land Bank ────────────────────────────────────────────────────────────────
+
+PERFIS_ACESSO_LANDBANK = {"super_administrador", "administrador"}
+
+_LB_DIR = Path(__file__).parent / "static" / "landbank"
+
+
+@app.get("/api/landbank/data")
+def landbank_data(request: Request, db: Session = Depends(get_db)):
+    usuario = get_usuario_requisicao(request, db)
+    if not usuario or usuario.perfil not in PERFIS_ACESSO_LANDBANK:
+        raise HTTPException(status_code=403, detail="Acesso ao Land Bank não autorizado.")
+    data_path = _LB_DIR / "data.json"
+    if not data_path.exists():
+        raise HTTPException(status_code=503, detail="data.json não encontrado. Execute gerar_data.py.")
+    return FileResponse(path=data_path, media_type="application/json",
+                        headers={"Cache-Control": "max-age=3600, private"})

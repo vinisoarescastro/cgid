@@ -5,7 +5,7 @@ import '../styles/settings.css'
 import Avatar from '../components/Avatar'
 import Sidebar from '../components/Sidebar'
 import TopbarExpediente from '../components/TopbarExpediente'
-import { apiFetch } from '../utils/api'
+import { apiFetch, logout } from '../utils/api'
 import ModalConfirmacao from '../components/ModalConfirmacao'
 import ModalHistoricoCritico from '../components/ModalHistoricoCritico'
 
@@ -702,10 +702,7 @@ export default function SettingsPage() {
 
   const [aba, setAba] = useState('expediente')
 
-  function handleLogout() {
-    sessionStorage.removeItem('cgid_user')
-    navigate('/login')
-  }
+  function handleLogout() { logout(navigate) }
 
   useEffect(() => {
     if (!isAdmin) navigate('/')

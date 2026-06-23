@@ -89,3 +89,6 @@ htmlcov/
 # Alembic
 # (manter migrations/versions/ no repositório)
 
+# Land Bank — arquivos fonte KML (grandes, gerados externamente)
+backend/static/landbank/kml/
+
