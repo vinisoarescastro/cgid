@@ -5,7 +5,7 @@
 > **ORM:** SQLAlchemy 2.0  
 > **Banco (desenvolvimento):** SQLite 3 (`backend/cgid.db`)  
 > **Banco (produção recomendado):** SQL Server 2019+  
-> **Última revisão:** 2026-06-22
+> **Última revisão:** 2026-06-23
 
 ---
 
@@ -32,14 +32,16 @@ O CGID é um portal de acesso controlado a relatórios do **Power BI**. O banco 
 
 | Pilar | Tabelas Envolvidas |
 |---|---|
-| **Autenticação e Sessões** | `usuarios`, `sessoes_autenticacao` |
-| **RBAC (controle de acesso)** | `permissoes_perfil`, `sobrescritas_permissao`, `acessos_workspace`, `acessos_relatorio` |
+| **Autenticação e Sessões** | `usuarios`, `sessoes_autenticacao` — token de sessão opaco (SHA-256), sem JWT |
+| **RBAC (controle de acesso)** | `permissoes_perfil`, `sobrescritas_permissao`² , `acessos_workspace`, `acessos_relatorio` |
 | **Conteúdo (workspaces e relatórios)** | `espacos_trabalho`, `relatorios`, `favoritos` |
 | **Restrições de horário** | `regras_expediente`, `grupos_excecao`, `membros_grupo_excecao` |
 | **Auditoria e rastreabilidade** | `logs_auditoria`, `historico_config_critica` |
 | **Configurações globais** | `configuracoes_sistema` |
 
 **Total:** 15 tabelas.
+
+> ² `permissoes_perfil` e `sobrescritas_permissao` estão definidas no schema e populadas pelo `seed.py`, mas **não são consultadas pelo `main.py`** na versão atual. O controle de acesso é feito por verificação direta de perfil (`PERFIS_ADMIN = {"super_administrador", "administrador"}`). Estas tabelas são reservadas para implementação futura do RBAC granular via API.
 
 O schema é definido inteiramente via modelos SQLAlchemy em `backend/models.py`. A criação física das tabelas ocorre automaticamente na inicialização do servidor (`Base.metadata.create_all(bind=engine)` em `backend/main.py`) ou ao executar `backend/seed.py`.
 
@@ -58,8 +60,9 @@ O schema é definido inteiramente via modelos SQLAlchemy em `backend/models.py`.
       │
       ├──────────────────────────────── N ──► sessoes_autenticacao
       │                                       id | usuario_id (FK) | hash_refresh_token (UQ)
-      │                                       criado_em | expira_em | ultimo_uso_em
+      │                                       criado_em | expira_em(12h) | ultimo_uso_em
       │                                       revogado_em | endereco_ip | user_agent
+      │                                       [token opaco SHA-256 — sem JWT; sessão única]
       │
       ├──────────────────────────────── N ──► sobrescritas_permissao
       │                                       id | usuario_id (FK) | modulo (UQ:usuario+modulo)
@@ -108,7 +111,7 @@ Tabelas independentes (sem FK de entrada):
 | # | Tabela | Finalidade |
 |---|--------|-----------|
 | 1 | `usuarios` | Contas de usuário com autenticação, MFA, perfis de acesso e rastreamento de criação |
-| 2 | `sessoes_autenticacao` | Sessões JWT ativas com refresh token hasheado e rastreamento de IP/dispositivo |
+| 2 | `sessoes_autenticacao` | Sessões de autenticação ativas; armazena SHA-256 do token de sessão opaco (sem JWT); expiração em 12h; sessão única por usuário |
 | 3 | `espacos_trabalho` | Agrupamentos lógicos de relatórios Power BI (equivalente ao workspace do PBI) |
 | 4 | `relatorios` | Relatórios Power BI individuais vinculados a um workspace |
 | 5 | `acessos_workspace` | Concessão de acesso de um usuário a um workspace (RBAC granular) |
@@ -155,15 +158,17 @@ Tabelas independentes (sem FK de entrada):
 
 ### 4.2 `sessoes_autenticacao`
 
+> **Nota de implementação:** A autenticação usa token de sessão opaco, **não JWT**. No login, o backend gera um token aleatório (`secrets.token_urlsafe(32)`), armazena seu SHA-256 nesta tabela e retorna o token bruto ao frontend. A cada requisição, o frontend envia o token via `X-Session-Token`; o middleware calcula o SHA-256 e valida contra esta tabela. A expiração é de **12 horas** (não 24). O sistema implementa sessão única: ao fazer um novo login, todas as sessões ativas anteriores são revogadas (`revogado_em` preenchido).
+
 | Coluna | Tipo | Nulo | Padrão | Restrições | Descrição |
 |--------|------|------|--------|-----------|-----------|
-| `id` | TEXT(36) | NÃO | UUID | PK | ID da sessão (campo `sid` no JWT) |
+| `id` | TEXT(36) | NÃO | UUID | PK | ID da sessão |
 | `usuario_id` | TEXT(36) | NÃO | — | FK → `usuarios.id` CASCADE, INDEX | Usuário dono da sessão |
-| `hash_refresh_token` | TEXT(255) | NÃO | — | NOT NULL, UNIQUE | SHA-256 do refresh token opaco |
+| `hash_refresh_token` | TEXT(255) | NÃO | — | NOT NULL, UNIQUE | SHA-256 do token de sessão opaco |
 | `criado_em` | DATETIME | NÃO | `CURRENT_TIMESTAMP` | NOT NULL | Criação (UTC) |
-| `expira_em` | DATETIME | NÃO | — | NOT NULL | Expiração do refresh token |
-| `ultimo_uso_em` | DATETIME | SIM | NULL | — | Última renovação do token |
-| `revogado_em` | DATETIME | SIM | NULL | — | Timestamp de logout/bloqueio (NULL = sessão ativa) |
+| `expira_em` | DATETIME | NÃO | — | NOT NULL | Expiração da sessão (12 horas após criação) |
+| `ultimo_uso_em` | DATETIME | SIM | NULL | — | Última validação do token (atualizado pelo middleware) |
+| `revogado_em` | DATETIME | SIM | NULL | — | Timestamp de logout ou revogação por nova sessão (NULL = ativa) |
 | `endereco_ip` | TEXT(45) | SIM | NULL | — | IPv4 ou IPv6 de origem |
 | `user_agent` | TEXT(500) | SIM | NULL | — | Identificação do browser/dispositivo |
 
@@ -259,6 +264,8 @@ Tabelas independentes (sem FK de entrada):
 
 **Módulos válidos:** `usuarios`, `permissoes`, `relatorios`, `workspaces`, `auditoria`, `seguranca`, `configuracoes`, `expediente`, `grupos_excecao`
 
+> **Status de implementação:** Esta tabela é populada pelo `seed.py` mas **não é consultada pelo `main.py`** na versão atual. O controle de acesso é feito por perfil diretamente no código dos endpoints. O uso desta tabela para RBAC granular está previsto para implementação futura.
+
 ---
 
 ### 4.8 `sobrescritas_permissao`
@@ -279,6 +286,8 @@ Tabelas independentes (sem FK de entrada):
 
 **Constraints:**
 - `uq_sp_usuario_modulo` — UNIQUE em `(usuario_id, modulo)`
+
+> **Status de implementação:** Idem `permissoes_perfil` — tabela definida e populada (vazia por padrão, sem linhas de seed), mas não consultada pelo `main.py` na versão atual.
 
 ---
 
@@ -352,8 +361,8 @@ Tabelas independentes (sem FK de entrada):
 | `usuario_id` | TEXT(36) | SIM | NULL | INDEX (sem FK intencional) | ID do usuário (NULL para eventos de sistema) |
 | `nome_usuario` | TEXT(255) | SIM | NULL | — | Snapshot do nome (imutável) |
 | `email_usuario` | TEXT(255) | SIM | NULL | — | Snapshot do e-mail (imutável) |
-| `tipo_evento` | TEXT(50) | NÃO | — | NOT NULL, INDEX | `autenticacao` \| `usuario` \| `permissao` \| `acesso` \| `relatorio` \| `seguranca` \| `sistema` \| `critico` |
-| `modulo` | TEXT(100) | NÃO | — | NOT NULL, INDEX | Módulo afetado |
+| `tipo_evento` | TEXT(50) | NÃO | — | NOT NULL, INDEX | `autenticacao` \| `usuario` \| `acesso` \| `relatorio` \| `seguranca` \| `sistema` \| `critico` — ver nota |
+| `modulo` | TEXT(100) | NÃO | — | NOT NULL, INDEX | Módulo afetado — ver valores reais abaixo |
 | `detalhe` | TEXT | NÃO | — | NOT NULL | Descrição do evento |
 | `endereco_ip` | TEXT(45) | SIM | NULL | — | IPv4 ou IPv6 |
 | `valor_anterior` | TEXT | SIM | NULL | — | Valor anterior em JSON |
@@ -364,6 +373,25 @@ Tabelas independentes (sem FK de entrada):
 - `ix_la_usuario_id` — em `usuario_id`
 - `ix_la_tipo_evento` — em `tipo_evento`
 - `ix_la_modulo` — em `modulo`
+
+**Valores reais de `tipo_evento` gerados pelo `main.py`:**
+
+| Valor | Quando é gerado |
+|-------|----------------|
+| `autenticacao` | Login bem-sucedido |
+| `seguranca` | Falha de login, bloqueio de conta, revogação de sessão, acesso negado por expediente |
+| `usuario` | CRUD de usuários, reset/alteração de senha |
+| `acesso` | Concessão e revogação de acesso a workspaces e relatórios |
+| `relatorio` | Visualização de relatório Power BI via embed |
+| `sistema` | CRUD de workspaces, relatórios, expediente, grupos de exceção, configurações PBI |
+| `critico` | Alteração de campos críticos (IDs PBI, credenciais) — gerado quando `id_workspace_pbi` ou `id_relatorio_pbi` muda |
+
+> `permissao` aparece no mapeamento de ícones da UI mas **não é gerado por nenhuma chamada `registrar_log` na versão atual**. Está reservado para quando o RBAC granular (`permissoes_perfil`) for implementado.
+
+**Valores reais de `modulo` gerados pelo `main.py`:**
+`autenticacao`, `usuarios`, `acessos_workspace`, `acessos_relatorio`, `espacos_trabalho`, `relatorios`, `expediente`, `grupos_excecao`, `configuracoes_pbi`
+
+> Estes valores diferem dos módulos de `permissoes_perfil` (`usuarios`, `workspaces`, `auditoria`, etc.). O campo `modulo` em `logs_auditoria` é livre e reflete a entidade de banco afetada, não o módulo RBAC.
 
 **Por que não há FK para `usuarios`?**  
 Registros de auditoria devem sobreviver à exclusão do usuário. A ausência de FK é intencional para preservar o histórico completo.
@@ -413,13 +441,15 @@ Registros de auditoria devem sobreviver à exclusão do usuário. A ausência de
 | `usuarios` | 1:N | `acessos_relatorio` | `usuario_id` | CASCADE |
 | `usuarios` | 1:N | `sobrescritas_permissao` | `usuario_id` | CASCADE |
 | `usuarios` | 1:N | `favoritos` | `usuario_id` | CASCADE |
-| `usuarios` | N:M | `grupos_excecao` | `membros_grupo_excecao` | SET NULL em `usuario_id` |
+| `usuarios` | N:M | `grupos_excecao` | `membros_grupo_excecao` | RESTRICT — sem ondelete¹ |
 | `usuarios` | self-ref | `usuarios` | `criado_por_id` | SET NULL |
 | `espacos_trabalho` | 1:N | `relatorios` | `espaco_trabalho_id` | CASCADE |
 | `espacos_trabalho` | 1:N | `acessos_workspace` | `espaco_trabalho_id` | CASCADE |
 | `relatorios` | 1:N | `acessos_relatorio` | `relatorio_id` | CASCADE |
 | `relatorios` | 1:N | `favoritos` | `relatorio_id` | CASCADE |
 | `grupos_excecao` | 1:N | `membros_grupo_excecao` | `grupo_id` | CASCADE |
+
+> ¹ O FK de `membros_grupo_excecao.usuario_id` → `usuarios.id` **não define `ondelete`**, portanto o comportamento no banco é RESTRICT (NO ACTION). A exclusão de um usuário com membros em grupos de exceção pode falhar em SQL Server ou deixar registros órfãos em SQLite (onde FK enforcement está desativado por padrão).
 
 ---
 
@@ -433,6 +463,12 @@ Ao excluir um USUÁRIO:
               grupos_excecao; concedido_por_id em acessos_*;
               definido_por_id em sobrescritas_permissao;
               atualizado_por_id em configuracoes_sistema
+  → ATENÇÃO: membros_grupo_excecao NÃO possui ondelete configurado.
+             Em SQLite (FK enforcement off por padrão), registros órfãos
+             podem restar. Em SQL Server, a exclusão falhará com FK
+             violation se o usuário pertencer a algum grupo de exceção.
+             A API não realiza limpeza explícita desta tabela ao excluir
+             um usuário — recomenda-se adicionar CASCADE ou limpeza manual.
 
 Ao excluir um WORKSPACE:
   → CASCADE: relatorios (e por consequência: acessos_relatorio, favoritos dos relatórios)
@@ -754,6 +790,8 @@ O script é **idempotente** (usa upsert — pode ser executado múltiplas vezes 
 
 ### 8.2 Matriz de permissões por perfil (45 linhas)
 
+> **Atenção:** Esta matriz é inserida pelo `seed.py` e existe no banco, mas **não é consultada pelo `main.py`** na versão atual. O controle de acesso é feito por verificação direta de perfil nos endpoints. Estas 45 linhas estão reservadas para o RBAC granular futuro.
+
 | Perfil | Módulos | visualizar | criar | editar | excluir | exportar | gerenciar |
 |--------|---------|:---:|:---:|:---:|:---:|:---:|:---:|
 | super_administrador | todos | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
@@ -1007,6 +1045,8 @@ PBI_CLIENT_SECRET=sua-chave-secreta-aqui
 | `pbi_workspace_id` | Workspace ID padrão Power BI | Não |
 | `pbi_client_secret` | Client Secret do app Azure AD | **Sim** |
 | `pbi_integracao_ativa` | `"true"` / `"false"` | Não |
+
+> As credenciais PBI também ficam armazenadas na tabela `configuracoes_sistema` e são lidas em runtime pelo `main.py` via `GET /configuracoes/pbi`. As variáveis de ambiente `PBI_TENANT_ID`, `PBI_CLIENT_ID` e `PBI_CLIENT_SECRET` definidas em `.env` sobrescrevem os valores do banco apenas se carregadas via `os.getenv()` no startup — na implementação atual o backend prioriza os valores do banco.
 
 ---
 
