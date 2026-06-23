@@ -5,13 +5,12 @@ import '../styles/settings.css'
 import Avatar from '../components/Avatar'
 import Sidebar from '../components/Sidebar'
 import TopbarExpediente from '../components/TopbarExpediente'
-import { apiFetch, logout } from '../utils/api'
+import { apiFetch, logout, temPermissao } from '../utils/api'
 import ModalConfirmacao from '../components/ModalConfirmacao'
 import ModalHistoricoCritico from '../components/ModalHistoricoCritico'
 
 const API = 'http://localhost:8000'
 
-const ADMIN_PERFIS = ['super_administrador', 'administrador']
 const SUPER_ADMIN  = 'super_administrador'
 
 function Toggle({ checked, onChange }) {
@@ -693,11 +692,188 @@ function AbaCredenciaisPBI() {
   )
 }
 
+// ─── Aba Permissões ───────────────────────────────────────────────────────────
+const MODULOS_LABEL = {
+  usuarios:       'Usuários',
+  permissoes:     'Permissões',
+  relatorios:     'Relatórios',
+  workspaces:     'Workspaces',
+  auditoria:      'Auditoria',
+  seguranca:      'Segurança',
+  configuracoes:  'Configurações',
+  expediente:     'Expediente',
+  grupos_excecao: 'Grupos de Exceção',
+  landbank:       'Land Bank',
+}
+
+const PERFIS_LABEL = {
+  super_administrador: 'Super Admin',
+  administrador:       'Administrador',
+  gerente:             'Gerente',
+  operador:            'Operador',
+  visitante:           'Visitante',
+}
+
+const ACOES = ['visualizar', 'criar', 'editar', 'excluir', 'exportar', 'gerenciar']
+const ACOES_LABEL = {
+  visualizar: 'Ver',
+  criar:      'Criar',
+  editar:     'Editar',
+  excluir:    'Excluir',
+  exportar:   'Exportar',
+  gerenciar:  'Gerenciar',
+}
+
+function AbaPermissoes() {
+  const [perfilSelecionado, setPerfilSelecionado] = useState('administrador')
+  const [matriz, setMatriz]     = useState({})   // { [perfil]: { [modulo]: {...acoes} } }
+  const [local, setLocal]       = useState({})   // edições locais
+  const [loading, setLoading]   = useState(true)
+  const [salvando, setSalvando] = useState(null) // modulo sendo salvo
+  const [ok, setOk]             = useState(null)
+  const [erros, setErros]       = useState({})
+
+  useEffect(() => {
+    apiFetch('/api/permissoes/perfis')
+      .then(r => r.json())
+      .then(lista => {
+        const m = {}
+        lista.forEach(item => {
+          if (!m[item.perfil]) m[item.perfil] = {}
+          m[item.perfil][item.modulo] = {
+            pode_visualizar: item.pode_visualizar,
+            pode_criar:      item.pode_criar,
+            pode_editar:     item.pode_editar,
+            pode_excluir:    item.pode_excluir,
+            pode_exportar:   item.pode_exportar,
+            pode_gerenciar:  item.pode_gerenciar,
+          }
+        })
+        setMatriz(m)
+        setLocal(m)
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [])
+
+  function toggle(modulo, campo) {
+    setLocal(prev => ({
+      ...prev,
+      [perfilSelecionado]: {
+        ...prev[perfilSelecionado],
+        [modulo]: {
+          ...prev[perfilSelecionado]?.[modulo],
+          [campo]: !prev[perfilSelecionado]?.[modulo]?.[campo],
+        },
+      },
+    }))
+  }
+
+  async function salvar(modulo) {
+    const dados = local[perfilSelecionado]?.[modulo]
+    if (!dados) return
+    setSalvando(modulo)
+    try {
+      const res = await apiFetch(`/api/permissoes/perfis/${perfilSelecionado}/${modulo}`, {
+        method: 'PUT',
+        body: dados,
+      })
+      if (!res.ok) { const d = await res.json(); throw new Error(d.detail) }
+      setMatriz(prev => ({
+        ...prev,
+        [perfilSelecionado]: { ...prev[perfilSelecionado], [modulo]: dados },
+      }))
+      setOk(modulo)
+      setErros(prev => ({ ...prev, [modulo]: null }))
+      setTimeout(() => setOk(v => v === modulo ? null : v), 2000)
+    } catch (e) {
+      setErros(prev => ({ ...prev, [modulo]: e.message || 'Erro ao salvar.' }))
+    } finally {
+      setSalvando(null)
+    }
+  }
+
+  if (loading) return (
+    <div style={{ padding: '40px 0', textAlign: 'center', fontSize: 13, color: 'var(--gray-400)' }}>
+      Carregando...
+    </div>
+  )
+
+  const modulosOrdenados = Object.keys(MODULOS_LABEL)
+
+  return (
+    <div>
+      <div style={{ fontSize: 13, color: 'var(--gray-500)', marginBottom: 16 }}>
+        Defina as permissões padrão de cada perfil por módulo. Alterações aqui afetam todos os usuários do perfil, exceto onde houver sobrescritas individuais.
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
+        {Object.entries(PERFIS_LABEL).map(([perfil, label]) => (
+          <button
+            key={perfil}
+            onClick={() => setPerfilSelecionado(perfil)}
+            className={`cfg-tab${perfilSelecionado === perfil ? ' active' : ''}`}
+            style={{ fontSize: 12, padding: '6px 14px' }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      <table className="perm-table">
+        <thead>
+          <tr>
+            <th>Módulo</th>
+            {ACOES.map(a => <th key={a}>{ACOES_LABEL[a]}</th>)}
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {modulosOrdenados.map(modulo => {
+            const dados = local[perfilSelecionado]?.[modulo] || {}
+            const orig  = matriz[perfilSelecionado]?.[modulo] || {}
+            const alterado = ACOES.some(a => dados[`pode_${a}`] !== orig[`pode_${a}`])
+            return (
+              <tr key={modulo}>
+                <td className="perm-modulo">{MODULOS_LABEL[modulo]}</td>
+                {ACOES.map(a => (
+                  <td key={a} className="perm-check">
+                    <Toggle
+                      checked={!!dados[`pode_${a}`]}
+                      onChange={() => toggle(modulo, `pode_${a}`)}
+                    />
+                  </td>
+                ))}
+                <td className="perm-action">
+                  {erros[modulo] && (
+                    <span style={{ fontSize: 11, color: 'var(--red-500)', marginRight: 8 }}>{erros[modulo]}</span>
+                  )}
+                  {ok === modulo && (
+                    <span style={{ fontSize: 11, color: 'var(--green-500)', marginRight: 8 }}>
+                      <i className="fa-solid fa-check" /> Salvo
+                    </span>
+                  )}
+                  <button
+                    className="btn-sm btn-primary"
+                    disabled={!alterado || salvando === modulo}
+                    onClick={() => salvar(modulo)}
+                  >
+                    {salvando === modulo ? 'Salvando...' : 'Salvar'}
+                  </button>
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 // ─── Página principal ─────────────────────────────────────────────────────────
 export default function SettingsPage() {
   const navigate  = useNavigate()
   const user    = JSON.parse(sessionStorage.getItem('cgid_user') || '{}')
-  const isAdmin = ADMIN_PERFIS.includes(user.perfil)
   const isSuperAdmin = user.perfil === SUPER_ADMIN
 
   const [aba, setAba] = useState('expediente')
@@ -705,13 +881,14 @@ export default function SettingsPage() {
   function handleLogout() { logout(navigate) }
 
   useEffect(() => {
-    if (!isAdmin) navigate('/')
+    if (!temPermissao('configuracoes')) navigate('/')
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const abas = [
-    { id: 'expediente', label: 'Expediente', icon: 'fa-clock' },
-    { id: 'grupos',     label: 'Grupos de Exceção', icon: 'fa-users' },
-    ...(isSuperAdmin ? [{ id: 'pbi', label: 'Credenciais Power BI', icon: 'fa-chart-pie' }] : []),
+    { id: 'expediente',  label: 'Expediente',         icon: 'fa-clock' },
+    { id: 'grupos',      label: 'Grupos de Exceção',  icon: 'fa-users' },
+    ...(isSuperAdmin ? [{ id: 'pbi',        label: 'Credenciais Power BI', icon: 'fa-chart-pie' }] : []),
+    ...(isSuperAdmin ? [{ id: 'permissoes', label: 'Permissões',           icon: 'fa-shield-halved' }] : []),
   ]
 
   return (
@@ -757,9 +934,10 @@ export default function SettingsPage() {
                   ))}
                 </div>
 
-                {aba === 'expediente' && <AbaExpediente />}
-                {aba === 'grupos'     && <AbaGrupos />}
-                {aba === 'pbi'        && isSuperAdmin && <AbaCredenciaisPBI />}
+                {aba === 'expediente'  && <AbaExpediente />}
+                {aba === 'grupos'      && <AbaGrupos />}
+                {aba === 'pbi'         && isSuperAdmin && <AbaCredenciaisPBI />}
+                {aba === 'permissoes'  && isSuperAdmin && <AbaPermissoes />}
               </div>
             </div>
           </div>

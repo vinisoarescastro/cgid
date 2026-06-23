@@ -308,3 +308,82 @@
   color: var(--gray-400);
   padding: 2px 0;
 }
+
+/* ─── Permissões Individuais ─────────────────────────────────────────────── */
+.perm-individual-wrap {
+  border: 1px solid var(--gray-200);
+  border-radius: var(--r-md);
+  overflow: hidden;
+  margin-top: 4px;
+}
+.perm-individual-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 14px;
+  background: var(--gray-50);
+  border: none;
+  cursor: pointer;
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gray-700);
+  text-align: left;
+  transition: background var(--t-base);
+}
+.perm-individual-toggle:hover { background: var(--gray-100); }
+.perm-individual-toggle i:first-child { font-size: 11px; color: var(--gray-400); }
+.perm-badge {
+  margin-left: auto;
+  padding: 2px 8px;
+  background: var(--brand-100);
+  color: var(--brand-700);
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.perm-individual-body {
+  padding: 12px 14px;
+  background: var(--gray-0);
+  overflow-x: auto;
+}
+.perm-ind-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.perm-ind-table thead tr {
+  background: var(--gray-50);
+  border-bottom: 1px solid var(--gray-200);
+}
+.perm-ind-table th {
+  padding: 6px 8px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--gray-400);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  text-align: center;
+}
+.perm-ind-table th:first-child { text-align: left; }
+.perm-ind-table tbody tr { border-bottom: 1px solid var(--gray-100); }
+.perm-ind-table tbody tr:last-child { border-bottom: none; }
+.perm-ind-table td { padding: 6px 8px; }
+.perm-ind-row-override { background: var(--brand-50); }
+
+.perm-tri {
+  width: 26px; height: 26px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--gray-200);
+  background: var(--gray-0);
+  cursor: pointer;
+  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--t-base);
+}
+.perm-tri-herdado { color: var(--gray-300); }
+.perm-tri-sim     { background: var(--brand-500); border-color: var(--brand-600); color: #fff; }
+.perm-tri-nao     { background: var(--red-50); border-color: var(--red-200); color: var(--red-500); }

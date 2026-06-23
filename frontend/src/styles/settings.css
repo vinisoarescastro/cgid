@@ -202,6 +202,45 @@
 .pbi-secret-toggle:hover { color: var(--gray-700); }
 .pbi-secret-toggle:disabled { opacity: 0.5; cursor: default; }
 
+/* ─── Tabela de permissões ── */
+.perm-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.perm-table thead tr {
+  background: var(--gray-50);
+  border-bottom: 1px solid var(--gray-200);
+}
+.perm-table th {
+  padding: 8px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--gray-400);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  text-align: center;
+}
+.perm-table th:first-child { text-align: left; }
+.perm-table tbody tr {
+  border-bottom: 1px solid var(--gray-100);
+  transition: background var(--t-base);
+}
+.perm-table tbody tr:last-child { border-bottom: none; }
+.perm-table tbody tr:hover { background: var(--gray-50); }
+.perm-table td { padding: 8px 10px; }
+.perm-modulo {
+  font-weight: 500;
+  color: var(--gray-800);
+  white-space: nowrap;
+}
+.perm-check { text-align: center; }
+.perm-action {
+  text-align: right;
+  white-space: nowrap;
+  min-width: 110px;
+}
+
 .cfg-save-bar {
   display: flex;
   align-items: center;

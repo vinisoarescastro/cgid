@@ -5,7 +5,7 @@ import '../styles/users.css'
 import Avatar from '../components/Avatar'
 import Sidebar from '../components/Sidebar'
 import TopbarExpediente from '../components/TopbarExpediente'
-import { apiFetch, logout } from '../utils/api'
+import { apiFetch, logout, temPermissao } from '../utils/api'
 
 const API = 'http://localhost:8000'
 
@@ -39,6 +39,152 @@ function formatDate(iso) {
 const NIVEL_LABELS = {
   total:             'Acesso total',
   apenas_relatorios: 'Relatórios específicos',
+}
+
+const MODULOS_LABEL_U = {
+  usuarios: 'Usuários', permissoes: 'Permissões', relatorios: 'Relatórios',
+  workspaces: 'Workspaces', auditoria: 'Auditoria', seguranca: 'Segurança',
+  configuracoes: 'Configurações', expediente: 'Expediente',
+  grupos_excecao: 'Grupos de Exceção', landbank: 'Land Bank',
+}
+const ACOES_U = ['visualizar', 'criar', 'editar', 'excluir', 'exportar', 'gerenciar']
+const ACOES_LABEL_U = { visualizar: 'Ver', criar: 'Criar', editar: 'Editar', excluir: 'Excluir', exportar: 'Exportar', gerenciar: 'Gerenciar' }
+
+function PainelPermissoesIndividuais({ usuarioId }) {
+  const [aberto, setAberto]     = useState(false)
+  const [dados, setDados]       = useState([])
+  const [loading, setLoading]   = useState(false)
+  const [carregado, setCarregado] = useState(false)
+  const [salvando, setSalvando] = useState(null)
+  const [removendo, setRemo]    = useState(null)
+  const [ok, setOk]             = useState(null)
+  const [erros, setErros]       = useState({})
+
+  function abrir() {
+    setAberto(true)
+    if (carregado) return
+    setLoading(true)
+    apiFetch(`/api/usuarios/${usuarioId}/permissoes`)
+      .then(r => r.json())
+      .then(d => { setDados(d); setCarregado(true) })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }
+
+  function toggleAcao(modulo, campo, valorAtual) {
+    setDados(prev => prev.map(item => {
+      if (item.modulo !== modulo) return item
+      const sob = item.sobrescrita ? { ...item.sobrescrita } : {}
+      sob[campo] = valorAtual === null ? true : valorAtual ? false : null
+      return { ...item, sobrescrita: sob }
+    }))
+  }
+
+  async function salvar(modulo) {
+    const item = dados.find(d => d.modulo === modulo)
+    if (!item) return
+    const body = {}
+    ACOES_U.forEach(a => { body[`pode_${a}`] = item.sobrescrita?.[`pode_${a}`] ?? null })
+    setSalvando(modulo)
+    try {
+      const res = await apiFetch(`/api/usuarios/${usuarioId}/permissoes/${modulo}`, { method: 'PUT', body })
+      if (!res.ok) { const d = await res.json(); throw new Error(d.detail) }
+      setOk(modulo)
+      setErros(prev => ({ ...prev, [modulo]: null }))
+      setTimeout(() => setOk(v => v === modulo ? null : v), 2000)
+    } catch (e) {
+      setErros(prev => ({ ...prev, [modulo]: e.message || 'Erro.' }))
+    } finally {
+      setSalvando(null)
+    }
+  }
+
+  async function remover(modulo) {
+    setRemo(modulo)
+    try {
+      await apiFetch(`/api/usuarios/${usuarioId}/permissoes/${modulo}`, { method: 'DELETE' })
+      setDados(prev => prev.map(item => item.modulo === modulo ? { ...item, sobrescrita: null } : item))
+    } catch {}
+    finally { setRemo(null) }
+  }
+
+  return (
+    <div className="perm-individual-wrap">
+      <button type="button" className="perm-individual-toggle" onClick={aberto ? () => setAberto(false) : abrir}>
+        <i className={`fa-solid fa-chevron-${aberto ? 'up' : 'down'}`} />
+        Permissões individuais
+        {dados.some(d => d.sobrescrita) && (
+          <span className="perm-badge">{dados.filter(d => d.sobrescrita).length} sobrescrita(s)</span>
+        )}
+      </button>
+
+      {aberto && (
+        <div className="perm-individual-body">
+          {loading ? (
+            <div style={{ padding: '20px 0', textAlign: 'center', fontSize: 12, color: 'var(--gray-400)' }}>Carregando…</div>
+          ) : (
+            <table className="perm-ind-table">
+              <thead>
+                <tr>
+                  <th>Módulo</th>
+                  {ACOES_U.map(a => <th key={a}>{ACOES_LABEL_U[a]}</th>)}
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {dados.map(item => {
+                  const temSob = !!item.sobrescrita
+                  return (
+                    <tr key={item.modulo} className={temSob ? 'perm-ind-row-override' : ''}>
+                      <td className="perm-modulo">{MODULOS_LABEL_U[item.modulo] || item.modulo}</td>
+                      {ACOES_U.map(a => {
+                        const campo = `pode_${a}`
+                        const valorSob = item.sobrescrita?.[campo] ?? null
+                        const valorPerfil = item.permissao_perfil?.[campo] ?? false
+                        return (
+                          <td key={a} className="perm-check">
+                            <button
+                              type="button"
+                              className={`perm-tri perm-tri-${valorSob === null ? 'herdado' : valorSob ? 'sim' : 'nao'}`}
+                              title={valorSob === null ? `Herda do perfil: ${valorPerfil ? 'Sim' : 'Não'}` : valorSob ? 'Sobrescrita: Sim' : 'Sobrescrita: Não'}
+                              onClick={() => toggleAcao(item.modulo, campo, valorSob)}
+                            >
+                              {valorSob === null
+                                ? <i className="fa-solid fa-minus" />
+                                : valorSob
+                                  ? <i className="fa-solid fa-check" />
+                                  : <i className="fa-solid fa-xmark" />}
+                            </button>
+                          </td>
+                        )
+                      })}
+                      <td className="perm-action" style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                        {erros[item.modulo] && <span style={{ fontSize: 10, color: 'var(--red-500)' }}>{erros[item.modulo]}</span>}
+                        {ok === item.modulo && <span style={{ fontSize: 11, color: 'var(--green-500)' }}><i className="fa-solid fa-check" /></span>}
+                        <button type="button" className="btn-sm btn-primary" disabled={salvando === item.modulo} onClick={() => salvar(item.modulo)}>
+                          {salvando === item.modulo ? '…' : 'Salvar'}
+                        </button>
+                        {temSob && (
+                          <button type="button" className="btn-sm btn-secondary" disabled={removendo === item.modulo} onClick={() => remover(item.modulo)} title="Remover sobrescrita">
+                            <i className="fa-solid fa-rotate-left" />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          )}
+          <div style={{ fontSize: 11, color: 'var(--gray-400)', marginTop: 8 }}>
+            <i className="fa-solid fa-minus" style={{ marginRight: 4 }} />Herda do perfil &nbsp;
+            <i className="fa-solid fa-check" style={{ marginRight: 4, color: 'var(--green-500)' }} />Forçado ativo &nbsp;
+            <i className="fa-solid fa-xmark" style={{ marginRight: 4, color: 'var(--red-500)' }} />Forçado bloqueado
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
 
 // ─── Modal de Criar/Editar ────────────────────────────────────────────────────
@@ -322,6 +468,8 @@ function ModalUsuario({ usuario, acessosIniciais = [], onClose, onSave }) {
               )}
             </div>
 
+          {editando && <PainelPermissoesIndividuais usuarioId={usuario.id} />}
+
           </div>
           <div className="modal-ft">
             <button type="button" className="btn-secondary" onClick={onClose}>Cancelar</button>
@@ -369,7 +517,10 @@ function ModalConfirmar({ usuario, onClose, onConfirm }) {
 export default function UsersPage() {
   const navigate = useNavigate()
   const currentUser = JSON.parse(sessionStorage.getItem('cgid_user') || '{}')
-  const isAdmin = ['super_administrador', 'administrador'].includes(currentUser.perfil)
+
+  useEffect(() => {
+    if (!temPermissao('usuarios')) navigate('/')
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const [usuarios, setUsuarios]   = useState([])
   const [acessosMap, setAcessosMap] = useState({}) // { userId: [{nome, nivel_acesso}] }

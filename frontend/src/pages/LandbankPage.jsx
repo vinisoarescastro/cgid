@@ -5,11 +5,10 @@ import TopbarExpediente from '../components/TopbarExpediente'
 import Avatar from '../components/Avatar'
 import LandbankMap from '../components/landbank/LandbankMap'
 import LandbankSidebar from '../components/landbank/LandbankSidebar'
-import { apiFetch, logout } from '../utils/api'
+import { apiFetch, logout, temPermissao } from '../utils/api'
 import '../styles/home.css'
 import '../styles/landbank.css'
 
-const PERFIS_ACESSO = ['super_administrador', 'administrador']
 
 const INITIAL_FILTERS = {
   search: '',
@@ -27,7 +26,7 @@ function isLinked(item) {
 export default function LandbankPage() {
   const navigate  = useNavigate()
   const user      = JSON.parse(sessionStorage.getItem('cgid_user') || '{}')
-  const temAcesso = PERFIS_ACESSO.includes(user?.perfil)
+  const temAcesso = temPermissao('landbank')
 
   const [data,           setData]           = useState(null)   // { items, colors, stats, last_updated }
   const [erro,           setErro]           = useState(null)

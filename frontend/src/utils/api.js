@@ -31,12 +31,28 @@ export function apiFetch(path, options = {}) {
   })
 }
 
+export async function carregarPermissoes() {
+  try {
+    const res = await apiFetch('/api/me/permissoes')
+    if (res.ok) {
+      const perms = await res.json()
+      sessionStorage.setItem('cgid_permissoes', JSON.stringify(perms))
+    }
+  } catch (_) {}
+}
+
+export function temPermissao(modulo, acao = 'visualizar') {
+  const perms = JSON.parse(sessionStorage.getItem('cgid_permissoes') || '{}')
+  return perms[modulo]?.[acao] ?? false
+}
+
 export async function logout(navigate) {
   try {
     await apiFetch('/api/logout', { method: 'POST' })
   } catch (_) {}
   sessionStorage.removeItem('cgid_user')
   sessionStorage.removeItem('cgid_session_token')
+  sessionStorage.removeItem('cgid_permissoes')
   if (navigate) navigate('/login')
 }
 

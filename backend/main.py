@@ -13,7 +13,7 @@ import csv, io, json, os, secrets, hashlib
 import requests as http_requests
 
 from database import engine, get_db, Base
-from models import Usuario, LogAuditoria, EspacoTrabalho, Relatorio, AcessoWorkspace, AcessoRelatorio, RegraExpediente, GrupoExcecao, MembroGrupoExcecao, ConfiguracaoSistema, Favorito, HistoricoConfigCritica, SessaoAutenticacao
+from models import Usuario, LogAuditoria, EspacoTrabalho, Relatorio, AcessoWorkspace, AcessoRelatorio, RegraExpediente, GrupoExcecao, MembroGrupoExcecao, ConfiguracaoSistema, Favorito, HistoricoConfigCritica, SessaoAutenticacao, PermissaoPerfil, SobrescritaPermissao
 
 PBI_TENANT_ID     = os.getenv("PBI_TENANT_ID", "")
 PBI_CLIENT_ID     = os.getenv("PBI_CLIENT_ID", "")
@@ -21,7 +21,112 @@ PBI_CLIENT_SECRET = os.getenv("PBI_CLIENT_SECRET", "")
 
 Base.metadata.create_all(bind=engine)
 
+# ─── Seed de permissões padrão ───────────────────────────────────────────────
+_MATRIZ_PERMISSOES_DEFAULT = {
+    # perfil -> modulo -> (visualizar, criar, editar, excluir, exportar, gerenciar)
+    "super_administrador": {
+        m: (True, True, True, True, True, True)
+        for m in ["usuarios", "permissoes", "relatorios", "workspaces", "auditoria",
+                  "seguranca", "configuracoes", "expediente", "grupos_excecao", "landbank"]
+    },
+    "administrador": {
+        "usuarios":       (True, True, True, True,  True,  True),
+        "permissoes":     (True, True, True, False, True,  True),
+        "relatorios":     (True, True, True, True,  True,  True),
+        "workspaces":     (True, True, True, True,  True,  True),
+        "auditoria":      (True, True, True, True,  True,  True),
+        "seguranca":      (True, True, True, True,  True,  True),
+        "configuracoes":  (True, True, True, False, False, False),
+        "expediente":     (True, True, True, True,  True,  True),
+        "grupos_excecao": (True, True, True, True,  True,  True),
+        "landbank":       (True, False, False, False, True, False),
+    },
+    "gerente": {
+        "usuarios":       (True,  False, False, False, False, False),
+        "permissoes":     (False, False, False, False, False, False),
+        "relatorios":     (True,  False, False, False, True,  False),
+        "workspaces":     (True,  False, False, False, False, False),
+        "auditoria":      (True,  False, False, False, False, False),
+        "seguranca":      (False, False, False, False, False, False),
+        "configuracoes":  (False, False, False, False, False, False),
+        "expediente":     (False, False, False, False, False, False),
+        "grupos_excecao": (False, False, False, False, False, False),
+        "landbank":       (False, False, False, False, False, False),
+    },
+    "operador": {
+        m: (False, False, False, False, False, False)
+        for m in ["usuarios", "permissoes", "workspaces", "auditoria",
+                  "seguranca", "configuracoes", "expediente", "grupos_excecao", "landbank"]
+    } | {"relatorios": (True, False, False, False, False, False)},
+    "visitante": {
+        m: (False, False, False, False, False, False)
+        for m in ["usuarios", "permissoes", "workspaces", "auditoria",
+                  "seguranca", "configuracoes", "expediente", "grupos_excecao", "landbank"]
+    } | {"relatorios": (True, False, False, False, False, False)},
+}
+
+
+def _garantir_permissoes_default(db: Session):
+    for perfil, modulos in _MATRIZ_PERMISSOES_DEFAULT.items():
+        for modulo, (vis, cri, edi, exc, exp, ger) in modulos.items():
+            existente = db.query(PermissaoPerfil).filter_by(perfil=perfil, modulo=modulo).first()
+            if existente:
+                continue
+            db.add(PermissaoPerfil(
+                perfil=perfil, modulo=modulo,
+                pode_visualizar=vis, pode_criar=cri, pode_editar=edi,
+                pode_excluir=exc, pode_exportar=exp, pode_gerenciar=ger,
+            ))
+    db.commit()
+
+
+# ─── Helpers de permissão ─────────────────────────────────────────────────────
+_CAMPOS_ACAO = {
+    "visualizar": "pode_visualizar",
+    "criar":      "pode_criar",
+    "editar":     "pode_editar",
+    "excluir":    "pode_excluir",
+    "exportar":   "pode_exportar",
+    "gerenciar":  "pode_gerenciar",
+}
+
+
+def checar_permissao(usuario: "Usuario", modulo: str, acao: str, db: Session) -> bool:
+    if usuario.perfil == "super_administrador":
+        return True
+    campo = _CAMPOS_ACAO.get(acao)
+    if not campo:
+        return False
+    sobrescrita = db.query(SobrescritaPermissao).filter_by(
+        usuario_id=usuario.id, modulo=modulo
+    ).first()
+    if sobrescrita:
+        valor = getattr(sobrescrita, campo)
+        if valor is not None:
+            return valor
+    pp = db.query(PermissaoPerfil).filter_by(perfil=usuario.perfil, modulo=modulo).first()
+    if pp:
+        return bool(getattr(pp, campo))
+    return False
+
+
+def exigir_permissao(usuario: "Usuario", modulo: str, acao: str, db: Session):
+    if not checar_permissao(usuario, modulo, acao, db):
+        raise HTTPException(status_code=403, detail="Permissão insuficiente.")
+
+
 app = FastAPI(title="CGID API", version="1.0.0")
+
+
+@app.on_event("startup")
+def startup_event():
+    from database import SessionLocal
+    db = SessionLocal()
+    try:
+        _garantir_permissoes_default(db)
+    finally:
+        db.close()
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -2104,9 +2209,229 @@ def embed_relatorio(relatorio_id: str, request: Request, db: Session = Depends(g
     )
 
 
-# ─── Land Bank ────────────────────────────────────────────────────────────────
+# ─── Permissões do usuário logado ────────────────────────────────────────────
 
-PERFIS_ACESSO_LANDBANK = {"super_administrador", "administrador"}
+@app.get("/api/me/permissoes")
+def minhas_permissoes(request: Request, db: Session = Depends(get_db)):
+    usuario = get_usuario_requisicao(request, db)
+    if not usuario:
+        raise HTTPException(status_code=401, detail="Não autenticado.")
+    resultado = {}
+    for modulo in _MODULOS_VALIDOS_PERM:
+        resultado[modulo] = {
+            acao: checar_permissao(usuario, modulo, acao, db)
+            for acao in _CAMPOS_ACAO
+        }
+    return resultado
+
+
+# ─── Permissões por Perfil ────────────────────────────────────────────────────
+
+_PERFIS_VALIDOS_PERM  = {"super_administrador", "administrador", "gerente", "operador", "visitante"}
+_MODULOS_VALIDOS_PERM = {"usuarios", "permissoes", "relatorios", "workspaces", "auditoria",
+                         "seguranca", "configuracoes", "expediente", "grupos_excecao", "landbank"}
+
+
+class PermissaoPerfilInput(BaseModel):
+    pode_visualizar: bool
+    pode_criar:      bool
+    pode_editar:     bool
+    pode_excluir:    bool
+    pode_exportar:   bool
+    pode_gerenciar:  bool
+
+
+@app.get("/api/permissoes/perfis")
+def listar_permissoes_perfis(request: Request, db: Session = Depends(get_db)):
+    autor = get_usuario_requisicao(request, db)
+    if not autor or autor.perfil != "super_administrador":
+        raise HTTPException(status_code=403, detail="Acesso restrito a super administradores.")
+    registros = db.query(PermissaoPerfil).all()
+    return [
+        {
+            "perfil":           r.perfil,
+            "modulo":           r.modulo,
+            "pode_visualizar":  r.pode_visualizar,
+            "pode_criar":       r.pode_criar,
+            "pode_editar":      r.pode_editar,
+            "pode_excluir":     r.pode_excluir,
+            "pode_exportar":    r.pode_exportar,
+            "pode_gerenciar":   r.pode_gerenciar,
+        }
+        for r in registros
+    ]
+
+
+@app.put("/api/permissoes/perfis/{perfil}/{modulo}")
+def atualizar_permissao_perfil(
+    perfil: str, modulo: str, dados: PermissaoPerfilInput,
+    request: Request, db: Session = Depends(get_db),
+):
+    autor = get_usuario_requisicao(request, db)
+    if not autor or autor.perfil != "super_administrador":
+        raise HTTPException(status_code=403, detail="Acesso restrito a super administradores.")
+    if perfil not in _PERFIS_VALIDOS_PERM:
+        raise HTTPException(status_code=422, detail="Perfil inválido.")
+    if modulo not in _MODULOS_VALIDOS_PERM:
+        raise HTTPException(status_code=422, detail="Módulo inválido.")
+
+    pp = db.query(PermissaoPerfil).filter_by(perfil=perfil, modulo=modulo).first()
+    anterior = None
+    if pp:
+        anterior = {
+            "pode_visualizar": pp.pode_visualizar, "pode_criar": pp.pode_criar,
+            "pode_editar": pp.pode_editar, "pode_excluir": pp.pode_excluir,
+            "pode_exportar": pp.pode_exportar, "pode_gerenciar": pp.pode_gerenciar,
+        }
+        pp.pode_visualizar = dados.pode_visualizar
+        pp.pode_criar      = dados.pode_criar
+        pp.pode_editar     = dados.pode_editar
+        pp.pode_excluir    = dados.pode_excluir
+        pp.pode_exportar   = dados.pode_exportar
+        pp.pode_gerenciar  = dados.pode_gerenciar
+    else:
+        pp = PermissaoPerfil(
+            perfil=perfil, modulo=modulo,
+            pode_visualizar=dados.pode_visualizar, pode_criar=dados.pode_criar,
+            pode_editar=dados.pode_editar, pode_excluir=dados.pode_excluir,
+            pode_exportar=dados.pode_exportar, pode_gerenciar=dados.pode_gerenciar,
+        )
+        db.add(pp)
+
+    novo = {
+        "pode_visualizar": dados.pode_visualizar, "pode_criar": dados.pode_criar,
+        "pode_editar": dados.pode_editar, "pode_excluir": dados.pode_excluir,
+        "pode_exportar": dados.pode_exportar, "pode_gerenciar": dados.pode_gerenciar,
+    }
+    registrar_log(db, "permissao", "permissoes",
+                  f"Permissão de perfil atualizada: {perfil}/{modulo}",
+                  usuario=autor, request=request,
+                  valor_anterior=json.dumps(anterior) if anterior else None,
+                  valor_novo=json.dumps(novo))
+    db.commit()
+    return {"ok": True}
+
+
+# ─── Sobrescritas de Permissão por Usuário ────────────────────────────────────
+
+class SobrescritaInput(BaseModel):
+    pode_visualizar: Optional[bool] = None
+    pode_criar:      Optional[bool] = None
+    pode_editar:     Optional[bool] = None
+    pode_excluir:    Optional[bool] = None
+    pode_exportar:   Optional[bool] = None
+    pode_gerenciar:  Optional[bool] = None
+
+
+def _permissao_efetiva(perfil: str, modulo: str, sobrescrita: Optional["SobrescritaPermissao"],
+                       pp: Optional["PermissaoPerfil"]) -> dict:
+    efetiva = {}
+    for acao, campo in _CAMPOS_ACAO.items():
+        valor_sobrescrita = getattr(sobrescrita, campo) if sobrescrita else None
+        if valor_sobrescrita is not None:
+            efetiva[acao] = valor_sobrescrita
+        elif pp:
+            efetiva[acao] = bool(getattr(pp, campo))
+        else:
+            efetiva[acao] = False
+    return efetiva
+
+
+@app.get("/api/usuarios/{usuario_id}/permissoes")
+def listar_permissoes_usuario(usuario_id: str, request: Request, db: Session = Depends(get_db)):
+    autor = get_usuario_requisicao(request, db)
+    if not autor or autor.perfil not in {"super_administrador", "administrador"}:
+        raise HTTPException(status_code=403, detail="Acesso negado.")
+
+    alvo = db.query(Usuario).filter_by(id=usuario_id).first()
+    if not alvo:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+
+    resultado = []
+    for modulo in sorted(_MODULOS_VALIDOS_PERM):
+        pp = db.query(PermissaoPerfil).filter_by(perfil=alvo.perfil, modulo=modulo).first()
+        sob = db.query(SobrescritaPermissao).filter_by(usuario_id=usuario_id, modulo=modulo).first()
+        definido_por_nome = None
+        if sob and sob.definido_por_id:
+            definidor = db.query(Usuario).filter_by(id=sob.definido_por_id).first()
+            definido_por_nome = definidor.nome if definidor else None
+
+        resultado.append({
+            "modulo": modulo,
+            "permissao_perfil": {
+                campo: bool(getattr(pp, campo)) for campo in _CAMPOS_ACAO.values()
+            } if pp else {campo: False for campo in _CAMPOS_ACAO.values()},
+            "sobrescrita": {
+                **{campo: getattr(sob, campo) for campo in _CAMPOS_ACAO.values()},
+                "definido_por_nome": definido_por_nome,
+                "definido_em": sob.definido_em.isoformat() if sob.definido_em else None,
+            } if sob else None,
+            "efetiva": _permissao_efetiva(alvo.perfil, modulo, sob, pp),
+        })
+    return resultado
+
+
+@app.put("/api/usuarios/{usuario_id}/permissoes/{modulo}")
+def upsert_sobrescrita_permissao(
+    usuario_id: str, modulo: str, dados: SobrescritaInput,
+    request: Request, db: Session = Depends(get_db),
+):
+    autor = get_usuario_requisicao(request, db)
+    if not autor or autor.perfil not in {"super_administrador", "administrador"}:
+        raise HTTPException(status_code=403, detail="Acesso negado.")
+    if modulo not in _MODULOS_VALIDOS_PERM:
+        raise HTTPException(status_code=422, detail="Módulo inválido.")
+
+    alvo = db.query(Usuario).filter_by(id=usuario_id).first()
+    if not alvo:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+
+    sob = db.query(SobrescritaPermissao).filter_by(usuario_id=usuario_id, modulo=modulo).first()
+    if sob:
+        for campo in _CAMPOS_ACAO.values():
+            setattr(sob, campo, getattr(dados, campo))
+        sob.definido_por_id = autor.id
+        sob.definido_em     = datetime.now(timezone.utc)
+    else:
+        sob = SobrescritaPermissao(
+            usuario_id=usuario_id, modulo=modulo,
+            definido_por_id=autor.id,
+            definido_em=datetime.now(timezone.utc),
+            **{campo: getattr(dados, campo) for campo in _CAMPOS_ACAO.values()},
+        )
+        db.add(sob)
+
+    registrar_log(db, "permissao", "permissoes",
+                  f"Sobrescrita de permissão definida: usuário {alvo.email} / módulo {modulo}",
+                  usuario=autor, request=request)
+    db.commit()
+    return {"ok": True}
+
+
+@app.delete("/api/usuarios/{usuario_id}/permissoes/{modulo}")
+def remover_sobrescrita_permissao(
+    usuario_id: str, modulo: str,
+    request: Request, db: Session = Depends(get_db),
+):
+    autor = get_usuario_requisicao(request, db)
+    if not autor or autor.perfil not in {"super_administrador", "administrador"}:
+        raise HTTPException(status_code=403, detail="Acesso negado.")
+
+    alvo = db.query(Usuario).filter_by(id=usuario_id).first()
+    if not alvo:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+
+    sob = db.query(SobrescritaPermissao).filter_by(usuario_id=usuario_id, modulo=modulo).first()
+    if sob:
+        db.delete(sob)
+        registrar_log(db, "permissao", "permissoes",
+                      f"Sobrescrita removida: usuário {alvo.email} / módulo {modulo}",
+                      usuario=autor, request=request)
+        db.commit()
+    return {"ok": True}
+
+
+# ─── Land Bank ────────────────────────────────────────────────────────────────
 
 _LB_DIR = Path(__file__).parent / "static" / "landbank"
 
@@ -2114,8 +2439,9 @@ _LB_DIR = Path(__file__).parent / "static" / "landbank"
 @app.get("/api/landbank/data")
 def landbank_data(request: Request, db: Session = Depends(get_db)):
     usuario = get_usuario_requisicao(request, db)
-    if not usuario or usuario.perfil not in PERFIS_ACESSO_LANDBANK:
+    if not usuario:
         raise HTTPException(status_code=403, detail="Acesso ao Land Bank não autorizado.")
+    exigir_permissao(usuario, "landbank", "visualizar", db)
     data_path = _LB_DIR / "data.json"
     if not data_path.exists():
         raise HTTPException(status_code=503, detail="data.json não encontrado. Execute gerar_data.py.")

@@ -5,7 +5,7 @@ import '../styles/audit.css'
 import Avatar from '../components/Avatar'
 import Sidebar from '../components/Sidebar'
 import TopbarExpediente from '../components/TopbarExpediente'
-import { logout } from '../utils/api'
+import { logout, temPermissao } from '../utils/api'
 
 const API = 'http://localhost:8000'
 
@@ -46,8 +46,6 @@ function formatarMomento(iso) {
 export default function AuditPage() {
   const navigate   = useNavigate()
   const user       = JSON.parse(sessionStorage.getItem('cgid_user') || '{}')
-  const isAdmin    = ADMIN_PERFIS.includes(user.perfil)
-  const isSuperAdmin = user.perfil === SUPER_ADMIN
 
   // filtros
   const [filtros, setFiltros] = useState({
@@ -66,10 +64,9 @@ export default function AuditPage() {
 
   function handleLogout() { logout(navigate) }
 
-  // Redireciona não-admins
   useEffect(() => {
-    if (!isAdmin) navigate('/')
-  }, [])
+    if (!temPermissao('auditoria')) navigate('/')
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     fetch(`${API}/auditoria/tipos`).then(r => r.json()).then(setTiposDisponiveis).catch(() => {})
@@ -137,8 +134,6 @@ export default function AuditPage() {
     for (let i = inicio; i <= fim; i++) paginas.push(i)
     return paginas
   }
-
-  if (!isAdmin) return null
 
   return (
     <div className="app-shell">

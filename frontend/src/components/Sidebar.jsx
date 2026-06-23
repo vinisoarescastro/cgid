@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import logoSidebarFull from '../assets/logo-sidebar-full.png'
 import logoSidebarIcon from '../assets/logo-sidebar-icon.png'
 import Avatar from './Avatar'
+import { temPermissao } from '../utils/api'
 
 const PERFIL_LABEL = {
   super_administrador: 'Super Administrador',
@@ -56,12 +57,12 @@ export default function Sidebar({ user, active }) {
 
       <nav className="sb-nav">
         {link('home', '/', 'fa-house', 'Home')}
-        {isAdmin && link('usuarios', '/usuarios', 'fa-users', 'Usuários')}
+        {temPermissao('usuarios') && link('usuarios', '/usuarios', 'fa-users', 'Usuários')}
         {link('workspaces', '/workspaces', 'fa-building-columns', 'Workspace')}
         {link('favoritos', '/favoritos', 'fa-star', 'Favoritos')}
-        {isAdmin && link('landbank', '/landbank', 'fa-map-location-dot', 'Land Bank')}
-        {isSuperAdmin && link('auditoria', '/auditoria', 'fa-file-lines', 'Auditoria')}
-        {isAdmin && link('configuracoes', '/configuracoes', 'fa-gear', 'Configurações')}
+        {temPermissao('landbank') && link('landbank', '/landbank', 'fa-map-location-dot', 'Land Bank')}
+        {temPermissao('auditoria') && link('auditoria', '/auditoria', 'fa-file-lines', 'Auditoria')}
+        {temPermissao('configuracoes') && link('configuracoes', '/configuracoes', 'fa-gear', 'Configurações')}
       </nav>
 
       <div className="sb-footer">

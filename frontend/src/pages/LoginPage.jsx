@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import '../styles/login.css'
 import logoBranco from '../assets/logo-bt-branco.png'
 import logoColorido from '../assets/logo-bt-colorido.png'
+import { carregarPermissoes } from '../utils/api'
 
 const API = 'http://localhost:8000'
 
@@ -55,6 +56,7 @@ export default function LoginPage() {
         } else {
           sessionStorage.setItem('cgid_user', JSON.stringify(data.usuario))
           sessionStorage.setItem('cgid_session_token', data.session_token)
+          await carregarPermissoes()
           navigate('/')
         }
       } else {
@@ -99,6 +101,7 @@ export default function LoginPage() {
       const { _session_token, ...dadosUsuario } = usuarioPendente
       sessionStorage.setItem('cgid_user', JSON.stringify(dadosUsuario))
       sessionStorage.setItem('cgid_session_token', _session_token)
+      await carregarPermissoes()
       navigate('/')
     } catch {
       setErroTroca('Não foi possível conectar ao servidor. Tente novamente.')

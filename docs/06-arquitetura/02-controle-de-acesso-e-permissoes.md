@@ -1,9 +1,9 @@
 # Controle de Acesso e Permissões
 
 > **Documento:** 06-arquitetura/02-controle-de-acesso-e-permissoes.md  
-> **Status:** Rascunho  
+> **Status:** Vigente  
 > **Criado em:** Maio/2026  
-> **Atualizado em:** Maio/2026
+> **Atualizado em:** Junho/2026
 
 ---
 
@@ -42,57 +42,38 @@ Visitante     (nível 1) → Acesso read-only temporário, apenas relatórios au
 
 ## 3. Matriz de Permissões por Módulo e Perfil
 
+> **Nota:** Esta matriz representa os **valores padrão** do seed inicial. A partir da versão 1.3, todos os valores são configuráveis em tempo de execução pela interface em **Configurações → Permissões** (restrito ao Super Admin). Sobrescritas por usuário individual também são suportadas via painel em **Usuários → editar usuário → Permissões individuais**.
+
 ### Legenda
 - ✅ Permitido por padrão
-- ❌ Negado
+- ❌ Negado por padrão
 - ⚠️ Parcial (somente próprio registro ou contexto limitado)
-- 🔧 Configurável por Admin
+- 🔧 Configurável pelo Super Admin em tempo de execução
 
-### 3.1 Gestão de Acesso (Módulos Administrativos)
+### 3.1 Módulos Administrativos
 
-| Módulo | Ação | Super Admin | Admin | Gerente | Operador | Visitante |
-|--------|------|:-----------:|:-----:|:-------:|:--------:|:---------:|
-| **Usuários** | Visualizar | ✅ | ✅ | ❌ | ❌ | ❌ |
-| | Criar | ✅ | ✅ | ❌ | ❌ | ❌ |
-| | Editar | ✅ | ✅ | ❌ | ❌ | ❌ |
-| | Bloquear/Desbloquear | ✅ | ✅ | ❌ | ❌ | ❌ |
-| | Excluir | ✅ | ✅ | ❌ | ❌ | ❌ |
-| **Permissões** | Visualizar | ✅ | ✅ | ❌ | ❌ | ❌ |
-| | Editar (por perfil) | ✅ | ✅ | ❌ | ❌ | ❌ |
-| | Editar (Super Admin) | ✅ | ❌ | ❌ | ❌ | ❌ |
-| **Workspaces (admin)** | CRUD | ✅ | ✅ | ❌ | ❌ | ❌ |
-| **Grupos de Exceção** | CRUD | ✅ | ✅ | ❌ | ❌ | ❌ |
-| **Expediente** | Visualizar | ✅ | ✅ | ❌ | ❌ | ❌ |
-| | Editar | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Módulo | Super Admin | Admin | Gerente | Operador | Visitante |
+|--------|:-----------:|:-----:|:-------:|:--------:|:---------:|
+| **Usuários** | ✅ todas as ações | ✅ todas | ❌ | ❌ | ❌ |
+| **Permissões** | ✅ todas | ✅ (sem excluir) | ❌ | ❌ | ❌ |
+| **Workspaces** | ✅ todas | ✅ todas | ❌ | ❌ | ❌ |
+| **Grupos de Exceção** | ✅ todas | ✅ todas | ❌ | ❌ | ❌ |
+| **Expediente** | ✅ todas | ✅ todas | ❌ | ❌ | ❌ |
+| **Configurações** | ✅ todas | ✅ (sem excluir/gerenciar) | ❌ | ❌ | ❌ |
 
 ### 3.2 Auditoria e Segurança
 
-| Módulo | Ação | Super Admin | Admin | Gerente | Operador | Visitante |
-|--------|------|:-----------:|:-----:|:-------:|:--------:|:---------:|
-| **Logs de Auditoria** | Visualizar (todos) | ✅ | ❌ | ❌ | ❌ | ❌ |
-| | Visualizar (próprios) | ✅ | ✅ | ✅ | ✅ | ✅ |
-| | Exportar | ✅ | ❌ | ❌ | ❌ | ❌ |
-| **Segurança** | Visualizar checklist | ✅ | ✅ | ❌ | ❌ | ❌ |
-| | Ver eventos suspeitos | ✅ | ✅ | ❌ | ❌ | ❌ |
-| **Configurações** | Visualizar | ✅ | ✅ | ❌ | ❌ | ❌ |
-| | Editar expediente e grupos de exceção | ✅ | ✅ | ❌ | ❌ | ❌ |
-| | Editar credenciais Power BI | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Módulo | Super Admin | Admin | Gerente | Operador | Visitante |
+|--------|:-----------:|:-----:|:-------:|:--------:|:---------:|
+| **Auditoria** | ✅ todas | ✅ todas | ❌ 🔧 | ❌ | ❌ |
+| **Segurança** | ✅ todas | ✅ todas | ❌ | ❌ | ❌ |
 
-### 3.3 Consumo (Relatórios e Workspaces)
+### 3.3 Consumo
 
-| Módulo | Ação | Super Admin | Admin | Gerente | Operador | Visitante |
-|--------|------|:-----------:|:-----:|:-------:|:--------:|:---------:|
-| **Home/Dashboard** | Visualizar (admin view) | ✅ | ✅ | ❌ | ❌ | ❌ |
-| | Visualizar (user view) | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **Workspaces** | Ver todos | ✅ | ✅ | ⚠️ | ⚠️ | ⚠️ |
-| | Ver apenas autorizados | — | — | ✅ | ✅ | ✅ |
-| **Relatórios** | Ver publicados autorizados | ✅ | ✅ | ✅ | ✅ | ✅ |
-| | Ver rascunhos | ✅ | ✅ | ✅ | ❌ | ❌ |
-| | Criar | ✅ | ✅ | ❌ | ❌ | ❌ |
-| | Editar | ✅ | ✅ | ❌ | ❌ | ❌ |
-| | Excluir | ✅ | ✅ | ❌ | ❌ | ❌ |
-| **Favoritos** | Gerenciar próprios | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **Painel Gerencial** | Visualizar | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Módulo | Super Admin | Admin | Gerente | Operador | Visitante |
+|--------|:-----------:|:-----:|:-------:|:--------:|:---------:|
+| **Relatórios** | ✅ todas | ✅ todas | ✅ visualizar + exportar | ✅ visualizar | ✅ visualizar |
+| **Land Bank** | ✅ todas | ✅ visualizar + exportar | ❌ 🔧 | ❌ | ❌ |
 
 ---
 
@@ -112,27 +93,57 @@ Admins podem alterar a lista de relatórios específicos por `PUT /workspaces/{w
 
 ---
 
-## 5. Implementação das Dependências/Guards no FastAPI
+## 5. Implementação das Dependências/Guards
 
-### obter_usuario_atual
+### Backend (FastAPI)
+
+#### get_usuario_requisicao
 ```python
-# Valida se o token JWT é válido e não expirado
-# Valida se a sessão vinculada ao token ainda está ativa no SQL Server
-# Carrega o usuário do banco e injeta na rota
+# Lê o header X-Usuario-Id da requisição
+# Valida sessão ativa via X-Session-Token
+# Retorna o objeto Usuario ou None
 ```
 
-### exigir_perfil
+#### checar_permissao / exigir_permissao
 ```python
-# Verifica se o perfil do usuário tem permissão para acessar o endpoint
-# Usado como Depends(exigir_perfil("administrador", "super_administrador"))
+# checar_permissao(usuario, modulo, acao, db) -> bool
+#   1. super_administrador → True imediato (bypass)
+#   2. Consulta SobrescritaPermissao (usuario_id, modulo) — se campo != None, usa override
+#   3. Consulta PermissaoPerfil (perfil, modulo) — fallback ao padrão do perfil
+#   4. Sem registro → False (fail-safe)
+#
+# exigir_permissao(usuario, modulo, acao, db)
+#   → eleva HTTPException 403 se checar_permissao retornar False
 ```
 
-### exigir_permissao
+#### _garantir_permissoes_default
 ```python
-# Verifica permissão granular (módulo × ação)
-# Consulta: permissoes_perfil + sobrescritas_permissao
-# Cache pode ser feito em memória/TanStack Query no frontend; a fonte da verdade é o SQL Server
-# Usado como Depends(exigir_permissao("usuarios", "editar"))
+# Chamado no startup do servidor (@app.on_event("startup"))
+# Popula permissoes_perfil com a matriz padrão caso ainda não existam registros
+# Idempotente: só insere o que não existe (não sobrescreve valores editados via UI)
+```
+
+### Frontend
+
+#### temPermissao(modulo, acao) — utils/api.js
+```js
+// Lê cgid_permissoes do sessionStorage (carregado no login)
+// Retorna perms[modulo]?.[acao] ?? false
+// Usado em guards de página (useEffect) e no Sidebar para exibir/ocultar itens
+```
+
+#### carregarPermissoes() — utils/api.js
+```js
+// Chama GET /api/me/permissoes após login bem-sucedido
+// Salva resultado em sessionStorage como cgid_permissoes
+// Também limpo no logout
+```
+
+#### Endpoint GET /api/me/permissoes
+```
+Retorna as permissões efetivas do usuário logado para todos os módulos,
+já aplicando sobrescritas individuais. Formato:
+{ "auditoria": { "visualizar": true, "criar": false, ... }, ... }
 ```
 
 ### validar_expediente
@@ -160,24 +171,34 @@ Admins podem alterar a lista de relatórios específicos por `PUT /workspaces/{w
 ## 6. Algoritmo de Resolução de Permissão
 
 ```python
-def resolver_permissao(usuario_id: str, modulo: str, acao: str) -> bool:
+def checar_permissao(usuario, modulo, acao, db) -> bool:
 
-  # 1. Carregar usuário e seu perfil
-  usuario = repositorio_usuarios.buscar_por_id(usuario_id)
+    # 1. super_administrador tem acesso irrestrito sempre
+    if usuario.perfil == "super_administrador":
+        return True
 
-  # 2. Super Admin e Admin: acesso irrestrito
-  if usuario.perfil in ("super_administrador", "administrador"):
-      return True
+    campo = f"pode_{acao}"  # "visualizar" → "pode_visualizar"
 
-  # 3. Verificar override individual primeiro (precedência)
-  sobrescrita = repositorio_sobrescritas.buscar_por_usuario_modulo(usuario_id, modulo)
-  if sobrescrita and getattr(sobrescrita, acao) is not None:
-      return getattr(sobrescrita, acao)  # True ou False — override definitivo
+    # 2. Verificar override individual (precedência sobre o perfil)
+    sobrescrita = db.query(SobrescritaPermissao).filter_by(
+        usuario_id=usuario.id, modulo=modulo
+    ).first()
+    if sobrescrita:
+        valor = getattr(sobrescrita, campo)
+        if valor is not None:
+            return valor  # True ou False — override definitivo
 
-  # 4. Fallback para permissão do perfil
-  permissao_perfil = repositorio_permissoes.buscar_por_perfil_modulo(usuario.perfil, modulo)
-  return getattr(permissao_perfil, acao, False) if permissao_perfil else False
+    # 3. Fallback para permissão do perfil
+    pp = db.query(PermissaoPerfil).filter_by(
+        perfil=usuario.perfil, modulo=modulo
+    ).first()
+    if pp:
+        return bool(getattr(pp, campo))
+
+    return False  # fail-safe: sem registro = sem acesso
 ```
+
+> **Nota:** Diferente da versão anterior do documento, `administrador` **não** tem bypass automático — suas permissões são controladas pela tabela `permissoes_perfil` como qualquer outro perfil, com os valores padrão do seed concedendo acesso amplo. Isso permite restringir um admin específico via sobrescrita individual.
 
 ---
 
@@ -233,3 +254,4 @@ Ao criar ou reativar um workspace, o sistema executa `_vincular_admins_workspace
 | 1.0 | Maio/2026 | Vinicius Soares | Criação inicial do documento |
 | 1.1 | Junho/2026 | Vinicius Soares | Atualizada matriz: Configurações para Admin/Super Admin, credenciais PBI exclusivas do Super Admin e filtro server-side para relatórios específicos |
 | 1.2 | Junho/2026 | Vinicius Soares | Corrigida matriz de Auditoria: "Visualizar (todos)" e "Exportar" são exclusivos do Super Admin (RN-AUD-05); pseudocódigo `validar_expediente` atualizado com `ativo=false`, `ignora_dia_inativo` e janelas de exceção; adicionada seção 8 sobre auto-vínculo de admins a workspaces |
+| 1.3 | Junho/2026 | Vinicius Soares | Sistema de permissões implementado em produção: seed automático no startup, helpers `checar_permissao`/`exigir_permissao`, endpoints CRUD para permissões por perfil e sobrescritas por usuário, endpoint `/api/me/permissoes`, UI de gestão em Configurações → Permissões e painel de sobrescritas em Usuários. Sidebar e guards de página migrados de checks hardcoded (`isAdmin`) para `temPermissao()`. Algoritmo de resolução atualizado: `administrador` deixa de ter bypass e passa a ser controlado pelo banco. |
