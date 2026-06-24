@@ -512,6 +512,7 @@ def criar_usuario(request: Request, dados: UsuarioCriar, db: Session = Depends(g
     if dados.perfil not in PERFIS_VALIDOS:
         raise HTTPException(status_code=422, detail="Perfil inválido.")
     autor = get_usuario_requisicao(request, db)
+    exigir_permissao(autor, "usuarios", "criar", db)
     senha = dados.senha if dados.senha else SENHA_PADRAO
     usuario = Usuario(
         nome=dados.nome, email=dados.email,
@@ -536,6 +537,7 @@ def atualizar_usuario(usuario_id: str, request: Request, dados: UsuarioAtualizar
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuário não encontrado.")
     autor    = get_usuario_requisicao(request, db)
+    exigir_permissao(autor, "usuarios", "editar", db)
     anterior = _usr_snapshot(usuario)
     if dados.email and dados.email != usuario.email:
         if db.query(Usuario).filter(Usuario.email == dados.email).first():
@@ -573,6 +575,7 @@ def resetar_senha(usuario_id: str, request: Request, db: Session = Depends(get_d
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuário não encontrado.")
     autor = get_usuario_requisicao(request, db)
+    exigir_permissao(autor, "usuarios", "editar", db)
     usuario.hash_senha = pwd.hash(SENHA_PADRAO)
     usuario.senha_provisoria = True
     usuario.tentativas_login = 0
@@ -619,6 +622,7 @@ def excluir_usuario(usuario_id: str, request: Request, db: Session = Depends(get
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuário não encontrado.")
     autor = get_usuario_requisicao(request, db)
+    exigir_permissao(autor, "usuarios", "excluir", db)
     registrar_log(db, "usuario", "usuarios", f"Usuário excluído: {usuario.email}",
                   usuario=autor, request=request, valor_anterior=_usr_snapshot(usuario))
     db.delete(usuario)
@@ -829,6 +833,7 @@ def salvar_acessos_usuario(
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuário não encontrado.")
     autor = get_usuario_requisicao(request, db)
+    exigir_permissao(autor, "usuarios", "editar", db)
 
     if usuario.perfil in PERFIS_ADMIN:
         _vincular_admin_workspaces(usuario_id, db)
@@ -1365,6 +1370,7 @@ class RelatorioItem(BaseModel):
 @app.post("/workspaces", response_model=WorkspaceItem, status_code=201)
 def criar_workspace(request: Request, dados: WorkspaceCreate, db: Session = Depends(get_db)):
     autor = get_usuario_requisicao(request, db)
+    exigir_permissao(autor, "configuracoes", "criar", db)
     ws = EspacoTrabalho(
         nome=dados.nome, icone=dados.icone, cor=dados.cor,
         descricao=dados.descricao, id_workspace_pbi=dados.id_workspace_pbi, status="ativo",
@@ -1387,6 +1393,7 @@ def atualizar_workspace(workspace_id: str, request: Request, dados: WorkspaceCre
     if not ws:
         raise HTTPException(status_code=404, detail="Workspace não encontrado.")
     autor   = get_usuario_requisicao(request, db)
+    exigir_permissao(autor, "configuracoes", "editar", db)
     anterior = json.dumps({"nome": ws.nome, "icone": ws.icone, "cor": ws.cor,
                             "descricao": ws.descricao, "id_workspace_pbi": ws.id_workspace_pbi}, ensure_ascii=False)
     id_pbi_anterior = ws.id_workspace_pbi
@@ -1411,6 +1418,7 @@ def excluir_workspace(workspace_id: str, request: Request, db: Session = Depends
     if not ws:
         raise HTTPException(status_code=404, detail="Workspace não encontrado.")
     autor = get_usuario_requisicao(request, db)
+    exigir_permissao(autor, "configuracoes", "excluir", db)
     nome = ws.nome
     db.delete(ws)
     db.commit()
@@ -1423,6 +1431,7 @@ def arquivar_workspace(workspace_id: str, request: Request, db: Session = Depend
     if not ws:
         raise HTTPException(status_code=404, detail="Workspace não encontrado.")
     autor = get_usuario_requisicao(request, db)
+    exigir_permissao(autor, "configuracoes", "editar", db)
     ws.status = "arquivado"
     db.commit()
     registrar_log(db, "sistema", "espacos_trabalho", f"Workspace arquivado: {ws.nome}", usuario=autor, request=request)
@@ -1435,6 +1444,7 @@ def reativar_workspace(workspace_id: str, request: Request, db: Session = Depend
     if not ws:
         raise HTTPException(status_code=404, detail="Workspace não encontrado.")
     autor = get_usuario_requisicao(request, db)
+    exigir_permissao(autor, "configuracoes", "editar", db)
     ws.status = "ativo"
     _vincular_admins_workspace(ws.id, db)
     db.commit()
@@ -1507,6 +1517,7 @@ def vincular_usuario_workspace(workspace_id: str, request: Request, dados: Vincu
             nivel_acesso=dados.nivel_acesso,
         ))
     autor = get_usuario_requisicao(request, db)
+    exigir_permissao(autor, "configuracoes", "editar", db)
     db.commit()
     registrar_log(db, "acesso", "acessos_workspace",
                   f"Usuário {usuario.email} vinculado ao workspace {ws.nome} ({dados.nivel_acesso})",
@@ -1529,6 +1540,7 @@ def alterar_nivel_usuario_workspace(workspace_id: str, usuario_id: str, request:
     if dados.nivel_acesso not in NIVEIS_VALIDOS:
         raise HTTPException(status_code=422, detail="Nível de acesso inválido.")
     autor          = get_usuario_requisicao(request, db)
+    exigir_permissao(autor, "configuracoes", "editar", db)
     nivel_anterior = acesso.nivel_acesso
     acesso.nivel_acesso = dados.nivel_acesso
     db.commit()
@@ -1553,6 +1565,7 @@ def remover_usuario_workspace(workspace_id: str, usuario_id: str, request: Reque
     if not acesso:
         raise HTTPException(status_code=404, detail="Vínculo não encontrado.")
     autor   = get_usuario_requisicao(request, db)
+    exigir_permissao(autor, "configuracoes", "editar", db)
     usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
     ws      = db.query(EspacoTrabalho).filter(EspacoTrabalho.id == workspace_id).first()
     db.delete(acesso)
@@ -1585,6 +1598,7 @@ def set_relatorios_acesso_usuario(workspace_id: str, usuario_id: str, request: R
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuário não encontrado.")
     autor = get_usuario_requisicao(request, db)
+    exigir_permissao(autor, "configuracoes", "editar", db)
     ids_neste_ws = [
         r.id for r in db.query(Relatorio.id)
         .filter(Relatorio.espaco_trabalho_id == workspace_id).all()
@@ -1677,6 +1691,7 @@ def criar_relatorio(workspace_id: str, request: Request, dados: RelatorioCreate,
     if not ws:
         raise HTTPException(status_code=404, detail="Workspace não encontrado.")
     autor = get_usuario_requisicao(request, db)
+    exigir_permissao(autor, "configuracoes", "criar", db)
     rel = Relatorio(
         nome=dados.nome, espaco_trabalho_id=workspace_id,
         categoria=dados.categoria or None, status=dados.status,
@@ -1703,6 +1718,7 @@ def atualizar_relatorio(workspace_id: str, relatorio_id: str, request: Request, 
     if not rel:
         raise HTTPException(status_code=404, detail="Relatório não encontrado.")
     autor    = get_usuario_requisicao(request, db)
+    exigir_permissao(autor, "configuracoes", "editar", db)
     anterior = _rel_snapshot(rel)
     id_pbi_anterior = rel.id_relatorio_pbi
     rel.nome = dados.nome; rel.categoria = dados.categoria or None
@@ -1734,6 +1750,7 @@ def excluir_relatorio(workspace_id: str, relatorio_id: str, request: Request, db
     if not rel:
         raise HTTPException(status_code=404, detail="Relatório não encontrado.")
     autor = get_usuario_requisicao(request, db)
+    exigir_permissao(autor, "configuracoes", "excluir", db)
     ws    = db.query(EspacoTrabalho).filter(EspacoTrabalho.id == workspace_id).first()
     registrar_log(db, "sistema", "relatorios",
                   f"Relatório excluído: {rel.nome} (workspace: {ws.nome if ws else workspace_id})",
@@ -1777,6 +1794,8 @@ def listar_expediente(db: Session = Depends(get_db)):
 
 @app.put("/configuracoes/expediente/{dia_semana}", response_model=RegraExpedienteItem)
 def salvar_regra_expediente(dia_semana: int, request: Request, dados: RegraExpedienteInput, db: Session = Depends(get_db)):
+    autor = get_usuario_requisicao(request, db)
+    exigir_permissao(autor, "configuracoes", "editar", db)
     if dia_semana not in range(7):
         raise HTTPException(status_code=422, detail="Dia da semana inválido (0=Dom … 6=Sab).")
     hi = dtime.fromisoformat(dados.hora_inicio)
@@ -1796,7 +1815,6 @@ def salvar_regra_expediente(dia_semana: int, request: Request, dados: RegraExped
         )
         db.add(regra)
     db.commit()
-    autor = get_usuario_requisicao(request, db)
     registrar_log(db, "sistema", "expediente",
                   f"Regra do {DIAS_SEMANA[dia_semana]} atualizada: {dados.hora_inicio}–{dados.hora_fim} ativo={dados.ativo}",
                   usuario=autor, request=request)
@@ -1861,6 +1879,7 @@ def _grupo_snapshot(dados):
 @app.post("/configuracoes/grupos-excecao", response_model=GrupoItem, status_code=201)
 def criar_grupo(request: Request, dados: GrupoInput, db: Session = Depends(get_db)):
     autor = get_usuario_requisicao(request, db)
+    exigir_permissao(autor, "configuracoes", "criar", db)
     ji = dtime.fromisoformat(dados.janela_inicio) if dados.janela_inicio else None
     jf = dtime.fromisoformat(dados.janela_fim)    if dados.janela_fim    else None
     g = GrupoExcecao(nome=dados.nome, fora_horario=dados.fora_horario, janela_inicio=ji, janela_fim=jf, ignora_dia_inativo=dados.ignora_dia_inativo)
@@ -1878,6 +1897,7 @@ def atualizar_grupo(grupo_id: str, request: Request, dados: GrupoInput, db: Sess
     if not g:
         raise HTTPException(status_code=404, detail="Grupo não encontrado.")
     autor    = get_usuario_requisicao(request, db)
+    exigir_permissao(autor, "configuracoes", "editar", db)
     anterior = json.dumps({"nome": g.nome, "fora_horario": g.fora_horario,
                             "janela_inicio": g.janela_inicio.strftime("%H:%M") if g.janela_inicio else None,
                             "janela_fim": g.janela_fim.strftime("%H:%M") if g.janela_fim else None}, ensure_ascii=False)
@@ -1898,6 +1918,7 @@ def excluir_grupo(grupo_id: str, request: Request, db: Session = Depends(get_db)
     if not g:
         raise HTTPException(status_code=404, detail="Grupo não encontrado.")
     autor = get_usuario_requisicao(request, db)
+    exigir_permissao(autor, "configuracoes", "excluir", db)
     registrar_log(db, "sistema", "grupos_excecao", f"Grupo de exceção excluído: {g.nome}",
                   usuario=autor, request=request,
                   valor_anterior=json.dumps({"nome": g.nome}, ensure_ascii=False))
@@ -1913,6 +1934,7 @@ def adicionar_membro(grupo_id: str, request: Request, dados: AdicionarMembroInpu
     if not u:
         raise HTTPException(status_code=404, detail="Usuário não encontrado.")
     autor = get_usuario_requisicao(request, db)
+    exigir_permissao(autor, "configuracoes", "editar", db)
     existente = db.query(MembroGrupoExcecao).filter(
         MembroGrupoExcecao.grupo_id == grupo_id,
         MembroGrupoExcecao.usuario_id == dados.usuario_id,
@@ -1934,6 +1956,7 @@ def remover_membro(grupo_id: str, usuario_id: str, request: Request, db: Session
     if not m:
         raise HTTPException(status_code=404, detail="Membro não encontrado.")
     autor = get_usuario_requisicao(request, db)
+    exigir_permissao(autor, "configuracoes", "editar", db)
     g = db.query(GrupoExcecao).filter(GrupoExcecao.id == grupo_id).first()
     u = db.query(Usuario).filter(Usuario.id == usuario_id).first()
     registrar_log(db, "sistema", "grupos_excecao",
@@ -1999,6 +2022,8 @@ def revelar_secret_pbi(request: Request, db: Session = Depends(get_db)):
 
 @app.put("/configuracoes/pbi", response_model=CredenciaisPBIItem)
 def salvar_credenciais_pbi(request: Request, dados: CredenciaisPBIInput, db: Session = Depends(get_db)):
+    _autor_perm = get_usuario_requisicao(request, db)
+    exigir_permissao(_autor_perm, "configuracoes", "editar", db)
     def _get(chave):
         r = db.query(ConfiguracaoSistema).filter(ConfiguracaoSistema.chave == chave).first()
         return r.valor if r else ""

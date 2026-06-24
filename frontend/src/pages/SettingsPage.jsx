@@ -23,7 +23,7 @@ function Toggle({ checked, onChange }) {
 }
 
 // ─── Aba Expediente ───────────────────────────────────────────────────────────
-function AbaExpediente() {
+function AbaExpediente({ podeEditar }) {
   const [regras, setRegras]     = useState([])
   const [loading, setLoading]   = useState(true)
   const [salvando, setSalvando] = useState(null) // dia_semana sendo salvo
@@ -117,7 +117,7 @@ function AbaExpediente() {
             <button
               className="btn btn-ghost btn-sm"
               style={{ whiteSpace: 'nowrap', fontSize: 12 }}
-              disabled={salvando === r.dia_semana}
+              disabled={salvando === r.dia_semana || !podeEditar}
               onClick={() => salvar(r.dia_semana)}
             >
               {salvando === r.dia_semana
@@ -325,7 +325,7 @@ function ModalAdicionarMembro({ grupoId, membrosAtuais, onClose, onAdd }) {
 }
 
 // ─── Aba Grupos de Exceção ────────────────────────────────────────────────────
-function AbaGrupos() {
+function AbaGrupos({ podeCriar, podeEditar, podeExcluir }) {
   const [grupos, setGrupos]       = useState([])
   const [loading, setLoading]     = useState(true)
   const [modalGrupo, setModalGrupo]   = useState(null) // null | 'criar' | grupo_obj
@@ -395,9 +395,11 @@ function AbaGrupos() {
         <div style={{ fontSize: 13, color: 'var(--gray-500)' }}>
           Grupos que permitem acesso fora do expediente padrão, dentro de uma janela específica.
         </div>
-        <button className="btn btn-primary btn-sm" onClick={() => setModalGrupo('criar')}>
-          <i className="fa-solid fa-plus" /> Novo grupo
-        </button>
+        {podeCriar && (
+          <button className="btn btn-primary btn-sm" onClick={() => setModalGrupo('criar')}>
+            <i className="fa-solid fa-plus" /> Novo grupo
+          </button>
+        )}
       </div>
 
       {grupos.length === 0 ? (
@@ -424,12 +426,16 @@ function AbaGrupos() {
               </span>
             )}
             <span className={`badge ${g.status === 'ativo' ? 'badge-green' : 'badge-gray'}`}>{g.status}</span>
-            <button className="btn btn-ghost btn-sm" onClick={() => setModalGrupo(g)}>
-              <i className="fa-solid fa-pen" />
-            </button>
-            <button className="btn btn-ghost btn-sm" style={{ color: 'var(--red-500)' }} onClick={() => excluirGrupo(g)}>
-              <i className="fa-solid fa-trash" />
-            </button>
+            {podeEditar && (
+              <button className="btn btn-ghost btn-sm" onClick={() => setModalGrupo(g)}>
+                <i className="fa-solid fa-pen" />
+              </button>
+            )}
+            {podeExcluir && (
+              <button className="btn btn-ghost btn-sm" style={{ color: 'var(--red-500)' }} onClick={() => excluirGrupo(g)}>
+                <i className="fa-solid fa-trash" />
+              </button>
+            )}
           </div>
           <div className="grupo-membros">
             {g.membros.length === 0 ? (
@@ -437,14 +443,18 @@ function AbaGrupos() {
             ) : g.membros.map(m => (
               <div className="grupo-membro-chip" key={m.usuario_id}>
                 {m.nome || m.email}
-                <button onClick={() => removerMembro(g.id, m.usuario_id)} title="Remover">
-                  <i className="fa-solid fa-xmark" />
-                </button>
+                {podeEditar && (
+                  <button onClick={() => removerMembro(g.id, m.usuario_id)} title="Remover">
+                    <i className="fa-solid fa-xmark" />
+                  </button>
+                )}
               </div>
             ))}
-            <button className="btn btn-ghost btn-sm" style={{ marginLeft: 'auto' }} onClick={() => setModalMembro(g)}>
-              <i className="fa-solid fa-user-plus" /> Adicionar membro
-            </button>
+            {podeEditar && (
+              <button className="btn btn-ghost btn-sm" style={{ marginLeft: 'auto' }} onClick={() => setModalMembro(g)}>
+                <i className="fa-solid fa-user-plus" /> Adicionar membro
+              </button>
+            )}
           </div>
         </div>
       ))}
@@ -875,6 +885,9 @@ export default function SettingsPage() {
   const navigate  = useNavigate()
   const user    = JSON.parse(sessionStorage.getItem('cgid_user') || '{}')
   const isSuperAdmin = user.perfil === SUPER_ADMIN
+  const podeEditar  = temPermissao('configuracoes', 'editar')
+  const podeCriar   = temPermissao('configuracoes', 'criar')
+  const podeExcluir = temPermissao('configuracoes', 'excluir')
 
   const [aba, setAba] = useState('expediente')
 
@@ -934,8 +947,8 @@ export default function SettingsPage() {
                   ))}
                 </div>
 
-                {aba === 'expediente'  && <AbaExpediente />}
-                {aba === 'grupos'      && <AbaGrupos />}
+                {aba === 'expediente'  && <AbaExpediente podeEditar={podeEditar} />}
+                {aba === 'grupos'      && <AbaGrupos podeCriar={podeCriar} podeEditar={podeEditar} podeExcluir={podeExcluir} />}
                 {aba === 'pbi'         && isSuperAdmin && <AbaCredenciaisPBI />}
                 {aba === 'permissoes'  && isSuperAdmin && <AbaPermissoes />}
               </div>

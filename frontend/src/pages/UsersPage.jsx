@@ -517,6 +517,9 @@ function ModalConfirmar({ usuario, onClose, onConfirm }) {
 export default function UsersPage() {
   const navigate = useNavigate()
   const currentUser = JSON.parse(sessionStorage.getItem('cgid_user') || '{}')
+  const podeCriar   = temPermissao('usuarios', 'criar')
+  const podeEditar  = temPermissao('usuarios', 'editar')
+  const podeExcluir = temPermissao('usuarios', 'excluir')
 
   useEffect(() => {
     if (!temPermissao('usuarios')) navigate('/')
@@ -627,9 +630,11 @@ export default function UsersPage() {
                 <div className="ph-title">Usuários</div>
                 <div className="ph-sub">Cadastro e controle de acesso por usuário</div>
               </div>
-              <button className="btn-primary" onClick={() => setModalNovo(true)}>
-                <i className="fa-solid fa-plus" /> Novo Usuário
-              </button>
+              {podeCriar && (
+                <button className="btn-primary" onClick={() => setModalNovo(true)}>
+                  <i className="fa-solid fa-plus" /> Novo Usuário
+                </button>
+              )}
             </div>
 
             <div className="card">
@@ -734,13 +739,17 @@ export default function UsersPage() {
                           </td>
                           <td>
                             <div className="tbl-actions">
-                              <button className="btn-action" title="Editar" onClick={() => setModalEditar(u)}>
-                                <i className="fa-solid fa-pen" />
-                              </button>
-                              <button className="btn-action" title="Resetar senha para Mudar@123" onClick={() => setModalResetSenha(u)}>
-                                <i className="fa-solid fa-key" />
-                              </button>
-                              {u.status === 'bloqueado' ? (
+                              {podeEditar && (
+                                <button className="btn-action" title="Editar" onClick={() => setModalEditar(u)}>
+                                  <i className="fa-solid fa-pen" />
+                                </button>
+                              )}
+                              {podeEditar && (
+                                <button className="btn-action" title="Resetar senha para Mudar@123" onClick={() => setModalResetSenha(u)}>
+                                  <i className="fa-solid fa-key" />
+                                </button>
+                              )}
+                              {podeEditar && (u.status === 'bloqueado' ? (
                                 <button className="btn-action success" title="Desbloquear" onClick={() => alterarStatus(u, 'ativo')}>
                                   <i className="fa-solid fa-lock-open" />
                                 </button>
@@ -752,10 +761,12 @@ export default function UsersPage() {
                                 <button className="btn-action success" title="Ativar" onClick={() => alterarStatus(u, 'ativo')}>
                                   <i className="fa-solid fa-circle-check" />
                                 </button>
+                              ))}
+                              {podeExcluir && (
+                                <button className="btn-action danger" title="Excluir" onClick={() => setModalExcluir(u)}>
+                                  <i className="fa-solid fa-trash" />
+                                </button>
                               )}
-                              <button className="btn-action danger" title="Excluir" onClick={() => setModalExcluir(u)}>
-                                <i className="fa-solid fa-trash" />
-                              </button>
                             </div>
                           </td>
                         </tr>
