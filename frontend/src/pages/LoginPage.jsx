@@ -130,23 +130,9 @@ export default function LoginPage() {
               Plataforma centralizada para gestão de indicadores, monitoramento de
               performance e tomada de decisão baseada em dados.
             </div>
-            <div className="login-left-pills">
-              {[
-                { icon: 'fa-chart-line', label: 'Dashboards' },
-                { icon: 'fa-shield-halved', label: 'Governança' },
-                { icon: 'fa-brain-circuit', label: 'IA & Analytics' },
-                { icon: 'fa-bell', label: 'Alertas' },
-              ].map(({ icon, label }) => (
-                <span key={label} className="login-left-pill">
-                  <i className={`fa-solid ${icon}`} />
-                  {label}
-                </span>
-              ))}
+            <div className="login-footer-left">
+              © {new Date().getFullYear()} Brasil Terrenos · CGID v1.0
             </div>
-          </div>
-
-          <div className="login-footer-left">
-            © {new Date().getFullYear()} Brasil Terrenos · CGID v1.0
           </div>
         </div>
 
