@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import {
   ResponsiveContainer,
   AreaChart, Area,
-  PieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  BarChart, Bar,
+  XAxis, YAxis, CartesianGrid, Tooltip, Cell, Legend,
 } from 'recharts'
 import '../styles/home.css'
 import '../styles/workspace.css'
@@ -338,70 +338,55 @@ const user = JSON.parse(sessionStorage.getItem('cgid_user') || '{}')
               </div>
 
               {/* Distribuição por Workspace */}
-              <div className="card">
+              <div className="card" style={{ display: 'flex', flexDirection: 'column' }}>
                 <div className="card-hd">
                   <div>
                     <div className="card-title">Distribuição por Workspace</div>
                     <div className="card-sub">Relatórios publicados por workspace</div>
                   </div>
                 </div>
-                <div className="card-bd" style={{ paddingTop: 4 }}>
+                <div className="card-bd" style={{ paddingTop: 4, flex: 1, minHeight: 0 }}>
                   {(() => {
-                    const dados = workspaces.filter(w => w.publicados > 0)
-                    const total = dados.reduce((s, w) => s + w.publicados, 0)
+                    const dados = workspaces
+                      .filter(w => w.publicados > 0)
+                      .sort((a, b) => b.publicados - a.publicados)
 
-                    const renderLabel = ({ cx, cy, midAngle, outerRadius, name, value, fill }) => {
-                      const RADIAN = Math.PI / 180
-                      const r1 = outerRadius + 10
-                      const r2 = outerRadius + 22
-                      const x1 = cx + r1 * Math.cos(-midAngle * RADIAN)
-                      const y1 = cy + r1 * Math.sin(-midAngle * RADIAN)
-                      const x2 = cx + r2 * Math.cos(-midAngle * RADIAN)
-                      const y2 = cy + r2 * Math.sin(-midAngle * RADIAN)
-                      const x3 = x2 + (x2 > cx ? 14 : -14)
-                      const anchor = x2 > cx ? 'start' : 'end'
-                      const pct = total > 0 ? Math.round((value / total) * 100) : 0
-                      if (pct < 5) return null
-                      return (
-                        <g>
-                          <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={fill} strokeWidth={1.5} />
-                          <line x1={x2} y1={y2} x2={x3} y2={y2} stroke={fill} strokeWidth={1.5} />
-                          <text x={x3 + (x2 > cx ? 3 : -3)} y={y2 - 5} textAnchor={anchor} fontSize={11} fill="var(--gray-600)" fontWeight={500}>
-                            {name.length > 14 ? name.slice(0, 13) + '…' : name}
-                          </text>
-                          <text x={x3 + (x2 > cx ? 3 : -3)} y={y2 + 7} textAnchor={anchor} fontSize={11} fill={fill} fontWeight={700}>
-                            {pct}%
-                          </text>
-                        </g>
-                      )
-                    }
-
+                    if (dados.length === 0) return null
                     return (
-                      <ResponsiveContainer width="100%" height={260}>
-                        <PieChart>
-                          <Pie
-                            data={dados}
-                            dataKey="publicados"
-                            nameKey="nome"
-                            cx="50%"
-                            cy="50%"
-                            innerRadius="38%"
-                            outerRadius="56%"
-                            paddingAngle={2}
-                            strokeWidth={0}
-                            label={renderLabel}
-                            labelLine={false}
-                            isAnimationActive={false}
-                          >
-                            {dados.map((ws, i) => (
-                              <Cell key={ws.nome} fill={ws.cor || `hsl(${i * 60}, 60%, 50%)`} />
-                            ))}
-                          </Pie>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                          data={dados}
+                          layout="vertical"
+                          margin={{ top: 4, right: 24, left: 8, bottom: 4 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--gray-100)" />
+                          <XAxis
+                            type="number"
+                            allowDecimals={false}
+                            tick={{ fontSize: 11, fill: 'var(--gray-500)' }}
+                            tickLine={false}
+                            axisLine={false}
+                          />
+                          <YAxis
+                            type="category"
+                            dataKey="nome"
+                            width={120}
+                            tick={{ fontSize: 12, fill: 'var(--gray-700)' }}
+                            tickLine={false}
+                            axisLine={false}
+                            tickFormatter={name => name.length > 16 ? name.slice(0, 15) + '…' : name}
+                          />
                           <Tooltip
                             contentStyle={{ borderRadius: 8, border: '1px solid var(--gray-100)', fontSize: 12, padding: '6px 10px' }}
                             formatter={(val, name) => [`${val} relatório${val !== 1 ? 's' : ''}`, name]}
+                            cursor={{ fill: 'var(--gray-50)' }}
                           />
-                        </PieChart>
+                          <Bar dataKey="publicados" radius={[0, 4, 4, 0]} isAnimationActive={false}>
+                            {dados.map((ws, i) => (
+                              <Cell key={ws.nome} fill={ws.cor || `hsl(${i * 47}, 60%, 50%)`} />
+                            ))}
+                          </Bar>
+                        </BarChart>
                       </ResponsiveContainer>
                     )
                   })()}
