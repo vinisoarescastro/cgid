@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+﻿import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import '../styles/home.css'
 import '../styles/users.css'
@@ -41,155 +41,10 @@ const NIVEL_LABELS = {
   apenas_relatorios: 'Relatórios específicos',
 }
 
-const MODULOS_LABEL_U = {
-  usuarios: 'Usuários', permissoes: 'Permissões', relatorios: 'Relatórios',
-  workspaces: 'Workspaces', auditoria: 'Auditoria', seguranca: 'Segurança',
-  configuracoes: 'Configurações', expediente: 'Expediente',
-  grupos_excecao: 'Grupos de Exceção', landbank: 'Land Bank',
-}
-const ACOES_U = ['visualizar', 'criar', 'editar', 'excluir', 'exportar', 'gerenciar']
-const ACOES_LABEL_U = { visualizar: 'Ver', criar: 'Criar', editar: 'Editar', excluir: 'Excluir', exportar: 'Exportar', gerenciar: 'Gerenciar' }
-
-function PainelPermissoesIndividuais({ usuarioId }) {
-  const [aberto, setAberto]     = useState(false)
-  const [dados, setDados]       = useState([])
-  const [loading, setLoading]   = useState(false)
-  const [carregado, setCarregado] = useState(false)
-  const [salvando, setSalvando] = useState(null)
-  const [removendo, setRemo]    = useState(null)
-  const [ok, setOk]             = useState(null)
-  const [erros, setErros]       = useState({})
-
-  function abrir() {
-    setAberto(true)
-    if (carregado) return
-    setLoading(true)
-    apiFetch(`/api/usuarios/${usuarioId}/permissoes`)
-      .then(r => r.json())
-      .then(d => { setDados(d); setCarregado(true) })
-      .catch(() => {})
-      .finally(() => setLoading(false))
-  }
-
-  function toggleAcao(modulo, campo, valorAtual) {
-    setDados(prev => prev.map(item => {
-      if (item.modulo !== modulo) return item
-      const sob = item.sobrescrita ? { ...item.sobrescrita } : {}
-      sob[campo] = valorAtual === null ? true : valorAtual ? false : null
-      return { ...item, sobrescrita: sob }
-    }))
-  }
-
-  async function salvar(modulo) {
-    const item = dados.find(d => d.modulo === modulo)
-    if (!item) return
-    const body = {}
-    ACOES_U.forEach(a => { body[`pode_${a}`] = item.sobrescrita?.[`pode_${a}`] ?? null })
-    setSalvando(modulo)
-    try {
-      const res = await apiFetch(`/api/usuarios/${usuarioId}/permissoes/${modulo}`, { method: 'PUT', body })
-      if (!res.ok) { const d = await res.json(); throw new Error(d.detail) }
-      setOk(modulo)
-      setErros(prev => ({ ...prev, [modulo]: null }))
-      setTimeout(() => setOk(v => v === modulo ? null : v), 2000)
-    } catch (e) {
-      setErros(prev => ({ ...prev, [modulo]: e.message || 'Erro.' }))
-    } finally {
-      setSalvando(null)
-    }
-  }
-
-  async function remover(modulo) {
-    setRemo(modulo)
-    try {
-      await apiFetch(`/api/usuarios/${usuarioId}/permissoes/${modulo}`, { method: 'DELETE' })
-      setDados(prev => prev.map(item => item.modulo === modulo ? { ...item, sobrescrita: null } : item))
-    } catch {}
-    finally { setRemo(null) }
-  }
-
-  return (
-    <div className="perm-individual-wrap">
-      <button type="button" className="perm-individual-toggle" onClick={aberto ? () => setAberto(false) : abrir}>
-        <i className={`fa-solid fa-chevron-${aberto ? 'up' : 'down'}`} />
-        Permissões individuais
-        {dados.some(d => d.sobrescrita) && (
-          <span className="perm-badge">{dados.filter(d => d.sobrescrita).length} sobrescrita(s)</span>
-        )}
-      </button>
-
-      {aberto && (
-        <div className="perm-individual-body">
-          {loading ? (
-            <div style={{ padding: '20px 0', textAlign: 'center', fontSize: 12, color: 'var(--gray-400)' }}>Carregando…</div>
-          ) : (
-            <table className="perm-ind-table">
-              <thead>
-                <tr>
-                  <th>Módulo</th>
-                  {ACOES_U.map(a => <th key={a}>{ACOES_LABEL_U[a]}</th>)}
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {dados.map(item => {
-                  const temSob = !!item.sobrescrita
-                  return (
-                    <tr key={item.modulo} className={temSob ? 'perm-ind-row-override' : ''}>
-                      <td className="perm-modulo">{MODULOS_LABEL_U[item.modulo] || item.modulo}</td>
-                      {ACOES_U.map(a => {
-                        const campo = `pode_${a}`
-                        const valorSob = item.sobrescrita?.[campo] ?? null
-                        const valorPerfil = item.permissao_perfil?.[campo] ?? false
-                        return (
-                          <td key={a} className="perm-check">
-                            <button
-                              type="button"
-                              className={`perm-tri perm-tri-${valorSob === null ? 'herdado' : valorSob ? 'sim' : 'nao'}`}
-                              title={valorSob === null ? `Herda do perfil: ${valorPerfil ? 'Sim' : 'Não'}` : valorSob ? 'Sobrescrita: Sim' : 'Sobrescrita: Não'}
-                              onClick={() => toggleAcao(item.modulo, campo, valorSob)}
-                            >
-                              {valorSob === null
-                                ? <i className="fa-solid fa-minus" />
-                                : valorSob
-                                  ? <i className="fa-solid fa-check" />
-                                  : <i className="fa-solid fa-xmark" />}
-                            </button>
-                          </td>
-                        )
-                      })}
-                      <td className="perm-action" style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                        {erros[item.modulo] && <span style={{ fontSize: 10, color: 'var(--red-500)' }}>{erros[item.modulo]}</span>}
-                        {ok === item.modulo && <span style={{ fontSize: 11, color: 'var(--green-500)' }}><i className="fa-solid fa-check" /></span>}
-                        <button type="button" className="btn-sm btn-primary" disabled={salvando === item.modulo} onClick={() => salvar(item.modulo)}>
-                          {salvando === item.modulo ? '…' : 'Salvar'}
-                        </button>
-                        {temSob && (
-                          <button type="button" className="btn-sm btn-secondary" disabled={removendo === item.modulo} onClick={() => remover(item.modulo)} title="Remover sobrescrita">
-                            <i className="fa-solid fa-rotate-left" />
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          )}
-          <div style={{ fontSize: 11, color: 'var(--gray-400)', marginTop: 8 }}>
-            <i className="fa-solid fa-minus" style={{ marginRight: 4 }} />Herda do perfil &nbsp;
-            <i className="fa-solid fa-check" style={{ marginRight: 4, color: 'var(--green-500)' }} />Forçado ativo &nbsp;
-            <i className="fa-solid fa-xmark" style={{ marginRight: 4, color: 'var(--red-500)' }} />Forçado bloqueado
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
 // ─── Modal de Criar/Editar ────────────────────────────────────────────────────
 function ModalUsuario({ usuario, acessosIniciais = [], onClose, onSave }) {
   const editando = !!usuario
+  const [abaAtiva, setAbaAtiva] = useState('dados')
   const [form, setForm] = useState({
     nome:   usuario?.nome   ?? '',
     email:  usuario?.email  ?? '',
@@ -203,12 +58,9 @@ function ModalUsuario({ usuario, acessosIniciais = [], onClose, onSave }) {
   const [acessos, setAcessos]   = useState(
     acessosIniciais.map(a => ({ espaco_trabalho_id: a.espaco_trabalho_id, nivel_acesso: a.nivel_acesso }))
   )
-  // { wsId: [{ id, nome }] } — relatórios disponíveis por workspace
-  const [relatoriosWs, setRelatoriosWs] = useState({})
-  // { wsId: Set<relatorioId> } — relatórios selecionados por workspace
+  const [relatoriosWs, setRelatoriosWs]   = useState({})
   const [relatoriosSel, setRelatoriosSel] = useState({})
 
-  // carrega workspaces e — se não vieram acessos do pai — busca do backend
   useEffect(() => {
     const fetchWs = fetch(`${API}/workspaces`).then(r => r.json())
     const fetchAcessos = (editando && acessosIniciais.length === 0)
@@ -222,16 +74,13 @@ function ModalUsuario({ usuario, acessosIniciais = [], onClose, onSave }) {
           ? acessosData.map(a => ({ espaco_trabalho_id: a.espaco_trabalho_id, nivel_acesso: a.nivel_acesso }))
           : acessosIniciais.map(a => ({ espaco_trabalho_id: a.espaco_trabalho_id, nivel_acesso: a.nivel_acesso }))
         if (acessosData !== null) setAcessos(acessosFinais)
-
-        // para cada workspace com acesso "apenas_relatorios", carrega relatórios já selecionados
         const parciais = acessosFinais.filter(a => a.nivel_acesso === 'apenas_relatorios')
         parciais.forEach(a => carregarRelatoriosWs(a.espaco_trabalho_id, true))
       })
       .catch(() => {})
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function carregarRelatoriosWs(wsId, carregarSelecionados = false) {
-    // busca lista de relatórios do workspace (só uma vez)
     setRelatoriosWs(prev => {
       if (prev[wsId]) return prev
       fetch(`${API}/workspaces/${wsId}/relatorios`)
@@ -288,7 +137,11 @@ function ModalUsuario({ usuario, acessosIniciais = [], onClose, onSave }) {
   async function handleSubmit(e) {
     e.preventDefault()
     const e2 = validar()
-    if (Object.keys(e2).length) { setErros(e2); return }
+    if (Object.keys(e2).length) {
+      setErros(e2)
+      if (editando) setAbaAtiva('dados')
+      return
+    }
     setLoading(true)
     try {
       const body = { nome: form.nome, email: form.email, perfil: form.perfil }
@@ -297,20 +150,14 @@ function ModalUsuario({ usuario, acessosIniciais = [], onClose, onSave }) {
         body.status = form.status
         if (form.senha) body.senha = form.senha
       }
-
-      // 1. salva o usuário
       const res = await apiFetch(
         editando ? `/usuarios/${usuario.id}` : `/usuarios`,
         { method: editando ? 'PUT' : 'POST', body }
       )
-      if (res.status === 409) { setErros({ email: 'E-mail já cadastrado.' }); return }
+      if (res.status === 409) { setErros({ email: 'E-mail já cadastrado.' }); if (editando) setAbaAtiva('dados'); return }
       if (!res.ok) throw new Error()
       const data = await res.json()
-
-      // 2. salva os acessos
       await apiFetch(`/usuarios/${data.id}/acessos`, { method: 'PUT', body: acessos })
-
-      // 3. salva relatórios específicos para cada workspace com acesso parcial
       const parciais = acessos.filter(a => a.nivel_acesso === 'apenas_relatorios')
       await Promise.all(parciais.map(a =>
         apiFetch(`/workspaces/${a.espaco_trabalho_id}/usuarios/${data.id}/relatorios`, {
@@ -318,7 +165,6 @@ function ModalUsuario({ usuario, acessosIniciais = [], onClose, onSave }) {
           body: { relatorio_ids: [...(relatoriosSel[a.espaco_trabalho_id] ?? [])] },
         })
       ))
-
       onSave(data)
     } catch {
       setErros({ geral: 'Erro ao salvar. Tente novamente.' })
@@ -327,13 +173,104 @@ function ModalUsuario({ usuario, acessosIniciais = [], onClose, onSave }) {
     }
   }
 
+  // conteúdo da seção de workspaces (reutilizado em tab e em criação)
+  const conteudoWorkspaces = (
+    <div className="form-group">
+      {!editando && <label className="form-label">Acesso a Workspaces</label>}
+      {['master', 'administrador'].includes(form.perfil) ? (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 10,
+          padding: '10px 14px', borderRadius: 'var(--r-md)',
+          background: 'var(--brand-50)', border: '1px solid var(--brand-200)',
+          color: 'var(--brand-700)', fontSize: 13,
+        }}>
+          <i className="fa-solid fa-shield-halved" />
+          <span>
+            <strong>Acesso total</strong> — Master e Admin têm acesso a todos os workspaces e relatórios automaticamente.
+          </span>
+        </div>
+      ) : workspaces.length === 0 ? (
+        <div style={{ fontSize: 13, color: 'var(--gray-400)', padding: '8px 0' }}>Nenhum workspace disponível.</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {workspaces.map(ws => {
+            const acesso = acessos.find(a => a.espaco_trabalho_id === ws.id)
+            const ativo  = !!acesso
+            return (
+              <div key={ws.id} className={`ws-acesso-row${ativo ? ' ws-acesso-ativo' : ''}`}>
+                <div className="ws-acesso-row-top">
+                  <label className="ws-acesso-check">
+                    <input type="checkbox" checked={ativo} onChange={() => toggleWorkspace(ws.id)} />
+                    <span className="ws-acesso-icon" style={{ background: ws.cor ? ws.cor + '22' : 'var(--gray-100)', color: ws.cor ?? 'var(--gray-500)' }}>
+                      <i className={ws.icone ? `fa-solid ${ws.icone}` : 'fa-solid fa-building'} />
+                    </span>
+                    <span className="ws-acesso-nome">{ws.nome}</span>
+                  </label>
+                  {ativo && (
+                    <select className="ws-acesso-nivel" value={acesso.nivel_acesso} onChange={e => setNivel(ws.id, e.target.value)}>
+                      <option value="total">Acesso total</option>
+                      <option value="apenas_relatorios">Relatórios específicos</option>
+                    </select>
+                  )}
+                </div>
+                {ativo && acesso.nivel_acesso === 'apenas_relatorios' && (
+                  <div className="ws-relatorios">
+                    <div className="ws-relatorios-header">
+                      <i className="fa-solid fa-chart-bar" style={{ marginRight: 5 }} />
+                      Relatórios permitidos
+                    </div>
+                    {relatoriosWs[ws.id] === undefined || (relatoriosWs[ws.id] ?? []).length === 0 ? (
+                      <span className="ws-relatorios-empty">
+                        {relatoriosWs[ws.id] === undefined ? 'Carregando…' : 'Nenhum relatório publicado neste workspace.'}
+                      </span>
+                    ) : (relatoriosWs[ws.id]).map(rel => {
+                      const marcado = (relatoriosSel[ws.id] ?? new Set()).has(rel.id)
+                      return (
+                        <label key={rel.id} className={`ws-relatorio-item${marcado ? ' checked' : ''}`}>
+                          <input type="checkbox" checked={marcado} onChange={() => toggleRelatorio(ws.id, rel.id)} />
+                          {rel.nome}
+                        </label>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+
+  const showFooter = true
+
   return (
     <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="modal" style={{ maxWidth: 580 }}>
+      <div className={`modal${editando ? ' modal-lg' : ''}`} style={!editando ? { maxWidth: 580 } : undefined}>
         <div className="modal-hd">
           <span className="modal-title">{editando ? 'Editar usuário' : 'Novo usuário'}</span>
           <button className="modal-close" onClick={onClose}><i className="fa-solid fa-xmark" /></button>
         </div>
+
+        {editando && (
+          <div className="modal-tabs">
+            {[
+              { id: 'dados',       label: 'Dados',       icon: 'fa-user' },
+              { id: 'workspaces',  label: 'Workspaces',  icon: 'fa-building' },
+            ].map(tab => (
+              <button
+                key={tab.id}
+                type="button"
+                className={`modal-tab${abaAtiva === tab.id ? ' active' : ''}`}
+                onClick={() => setAbaAtiva(tab.id)}
+              >
+                <i className={`fa-solid ${tab.icon}`} />
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        )}
+
         <form onSubmit={handleSubmit}>
           <div className="modal-bd">
             {erros.geral && (
@@ -342,141 +279,74 @@ function ModalUsuario({ usuario, acessosIniciais = [], onClose, onSave }) {
               </div>
             )}
 
-            <div className="form-grid-2">
-              <div className="form-group">
-                <label className="form-label">Nome completo</label>
-                <input className={`form-input${erros.nome ? ' error' : ''}`} value={form.nome} onChange={e => set('nome', e.target.value)} placeholder="João Silva" />
-                {erros.nome && <span className="form-error">{erros.nome}</span>}
-              </div>
-              <div className="form-group">
-                <label className="form-label">E-mail</label>
-                <input className={`form-input${erros.email ? ' error' : ''}`} type="email" value={form.email} onChange={e => set('email', e.target.value)} placeholder="email@empresa.com" />
-                {erros.email && <span className="form-error">{erros.email}</span>}
-              </div>
-            </div>
+            {/* ── Tab Dados (ou bloco único em criação) ── */}
+            {(!editando || abaAtiva === 'dados') && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div className="form-grid-2">
+                  <div className="form-group">
+                    <label className="form-label">Nome completo</label>
+                    <input className={`form-input${erros.nome ? ' error' : ''}`} value={form.nome} onChange={e => set('nome', e.target.value)} placeholder="João Silva" />
+                    {erros.nome && <span className="form-error">{erros.nome}</span>}
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">E-mail</label>
+                    <input className={`form-input${erros.email ? ' error' : ''}`} type="email" value={form.email} onChange={e => set('email', e.target.value)} placeholder="email@empresa.com" />
+                    {erros.email && <span className="form-error">{erros.email}</span>}
+                  </div>
+                </div>
 
-            <div className="form-grid-2">
-              <div className="form-group">
-                <label className="form-label">Perfil</label>
-                <select className="form-select" value={form.perfil} onChange={e => set('perfil', e.target.value)}>
-                  {PERFIS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
-                </select>
-              </div>
-              {editando && (
+                <div className="form-grid-2">
+                  <div className="form-group">
+                    <label className="form-label">Perfil</label>
+                    <select className="form-select" value={form.perfil} onChange={e => set('perfil', e.target.value)}>
+                      {PERFIS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+                    </select>
+                  </div>
+                  {editando && (
+                    <div className="form-group">
+                      <label className="form-label">Status</label>
+                      <select className="form-select" value={form.status} onChange={e => set('status', e.target.value)}>
+                        {STATUS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                      </select>
+                    </div>
+                  )}
+                </div>
+
                 <div className="form-group">
-                  <label className="form-label">Status</label>
-                  <select className="form-select" value={form.status} onChange={e => set('status', e.target.value)}>
-                    {STATUS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-                  </select>
+                  <label className="form-label">{editando ? 'Nova senha (deixe vazio para manter)' : 'Senha'}</label>
+                  <input
+                    className={`form-input${erros.senha ? ' error' : ''}`}
+                    type="password"
+                    value={form.senha}
+                    onChange={e => set('senha', e.target.value)}
+                    placeholder={editando ? '••••••••' : 'Mudar@123 (padrão)'}
+                  />
+                  {!editando && (
+                    <span style={{ fontSize: 11.5, color: 'var(--gray-400)', marginTop: 3 }}>
+                      Deixe vazio para usar a senha padrão <strong>Mudar@123</strong>.
+                    </span>
+                  )}
+                  {erros.senha && <span className="form-error">{erros.senha}</span>}
                 </div>
-              )}
-            </div>
 
-            <div className="form-group">
-              <label className="form-label">{editando ? 'Nova senha (deixe vazio para manter)' : 'Senha'}</label>
-              <input
-                className={`form-input${erros.senha ? ' error' : ''}`}
-                type="password"
-                value={form.senha}
-                onChange={e => set('senha', e.target.value)}
-                placeholder={editando ? '••••••••' : 'Mudar@123 (padrão)'}
-              />
-              {!editando && (
-                <span style={{ fontSize: 11.5, color: 'var(--gray-400)', marginTop: 3 }}>
-                  Deixe vazio para usar a senha padrão <strong>Mudar@123</strong>.
-                </span>
-              )}
-              {erros.senha && <span className="form-error">{erros.senha}</span>}
-            </div>
+                {/* Workspaces aparece junto com dados apenas na criação */}
+                {!editando && conteudoWorkspaces}
+              </div>
+            )}
 
-            {/* ── Acesso a Workspaces ── */}
-            <div className="form-group">
-              <label className="form-label">Acesso a Workspaces</label>
-              {['master', 'administrador'].includes(form.perfil) ? (
-                <div style={{
-                  display: 'flex', alignItems: 'center', gap: 10,
-                  padding: '10px 14px', borderRadius: 'var(--r-md)',
-                  background: 'var(--brand-50)', border: '1px solid var(--brand-200)',
-                  color: 'var(--brand-700)', fontSize: 13,
-                }}>
-                  <i className="fa-solid fa-shield-halved" />
-                  <span>
-                    <strong>Acesso total</strong> — Master e Admin têm acesso a todos os workspaces e relatórios automaticamente.
-                  </span>
-                </div>
-              ) : workspaces.length === 0 ? (
-                <div style={{ fontSize: 13, color: 'var(--gray-400)', padding: '8px 0' }}>Nenhum workspace disponível.</div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {workspaces.map(ws => {
-                    const acesso = acessos.find(a => a.espaco_trabalho_id === ws.id)
-                    const ativo  = !!acesso
-                    return (
-                      <div key={ws.id} className={`ws-acesso-row${ativo ? ' ws-acesso-ativo' : ''}`}>
-                        <div className="ws-acesso-row-top">
-                          <label className="ws-acesso-check">
-                            <input
-                              type="checkbox"
-                              checked={ativo}
-                              onChange={() => toggleWorkspace(ws.id)}
-                            />
-                            <span className="ws-acesso-icon" style={{ background: ws.cor ? ws.cor + '22' : 'var(--gray-100)', color: ws.cor ?? 'var(--gray-500)' }}>
-                              <i className={ws.icone ? `fa-solid ${ws.icone}` : 'fa-solid fa-building'} />
-                            </span>
-                            <span className="ws-acesso-nome">{ws.nome}</span>
-                          </label>
-                          {ativo && (
-                            <select
-                              className="ws-acesso-nivel"
-                              value={acesso.nivel_acesso}
-                              onChange={e => setNivel(ws.id, e.target.value)}
-                            >
-                              <option value="total">Acesso total</option>
-                              <option value="apenas_relatorios">Relatórios específicos</option>
-                            </select>
-                          )}
-                        </div>
-                        {ativo && acesso.nivel_acesso === 'apenas_relatorios' && (
-                          <div className="ws-relatorios">
-                            <div className="ws-relatorios-header">
-                              <i className="fa-solid fa-chart-bar" style={{ marginRight: 5 }} />
-                              Relatórios permitidos
-                            </div>
-                            {relatoriosWs[ws.id] === undefined || (relatoriosWs[ws.id] ?? []).length === 0 ? (
-                              <span className="ws-relatorios-empty">
-                                {relatoriosWs[ws.id] === undefined ? 'Carregando…' : 'Nenhum relatório publicado neste workspace.'}
-                              </span>
-                            ) : (relatoriosWs[ws.id]).map(rel => {
-                              const marcado = (relatoriosSel[ws.id] ?? new Set()).has(rel.id)
-                              return (
-                                <label key={rel.id} className={`ws-relatorio-item${marcado ? ' checked' : ''}`}>
-                                  <input
-                                    type="checkbox"
-                                    checked={marcado}
-                                    onChange={() => toggleRelatorio(ws.id, rel.id)}
-                                  />
-                                  {rel.nome}
-                                </label>
-                              )
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-
-          {editando && <PainelPermissoesIndividuais usuarioId={usuario.id} />}
+            {/* ── Tab Workspaces (só quando editando) ── */}
+            {editando && abaAtiva === 'workspaces' && conteudoWorkspaces}
 
           </div>
-          <div className="modal-ft">
-            <button type="button" className="btn-secondary" onClick={onClose}>Cancelar</button>
-            <button type="submit" className="btn-primary" disabled={loading}>
-              {loading ? <><i className="fa-solid fa-circle-notch fa-spin" /> Salvando…</> : <><i className="fa-solid fa-floppy-disk" /> Salvar</>}
-            </button>
-          </div>
+
+          {showFooter && (
+            <div className="modal-ft">
+              <button type="button" className="btn-secondary" onClick={onClose}>Cancelar</button>
+              <button type="submit" className="btn-primary" disabled={loading}>
+                {loading ? <><i className="fa-solid fa-circle-notch fa-spin" /> Salvando…</> : <><i className="fa-solid fa-floppy-disk" /> Salvar</>}
+              </button>
+            </div>
+          )}
         </form>
       </div>
     </div>

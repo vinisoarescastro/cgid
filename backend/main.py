@@ -13,7 +13,7 @@ import csv, io, json, os, secrets, hashlib
 import requests as http_requests
 
 from database import engine, get_db, Base
-from models import Usuario, LogAuditoria, EspacoTrabalho, Relatorio, AcessoWorkspace, AcessoRelatorio, RegraExpediente, GrupoExcecao, MembroGrupoExcecao, ConfiguracaoSistema, Favorito, HistoricoConfigCritica, SessaoAutenticacao, PermissaoPerfil, SobrescritaPermissao
+from models import Usuario, LogAuditoria, EspacoTrabalho, Relatorio, AcessoWorkspace, AcessoRelatorio, RegraExpediente, GrupoExcecao, MembroGrupoExcecao, ConfiguracaoSistema, Favorito, HistoricoConfigCritica, SessaoAutenticacao, PermissaoPerfil, SobrescritaPermissao, PacotePermissao, PacotePermissaoItem, UsuarioPacote
 
 Base.metadata.create_all(bind=engine)
 
@@ -93,16 +93,25 @@ def checar_permissao(usuario: "Usuario", modulo: str, acao: str, db: Session) ->
     campo = _CAMPOS_ACAO.get(acao)
     if not campo:
         return False
-    sobrescrita = db.query(SobrescritaPermissao).filter_by(
-        usuario_id=usuario.id, modulo=modulo
-    ).first()
+    # 1. Permissão do perfil base
+    pp = db.query(PermissaoPerfil).filter_by(perfil=usuario.perfil, modulo=modulo).first()
+    if pp and getattr(pp, campo):
+        return True
+    # 2. Pacotes de permissão aditivos
+    pacote_ids = [up.pacote_id for up in db.query(UsuarioPacote).filter_by(usuario_id=usuario.id).all()]
+    if pacote_ids:
+        itens = db.query(PacotePermissaoItem).filter(
+            PacotePermissaoItem.pacote_id.in_(pacote_ids),
+            PacotePermissaoItem.modulo == modulo,
+        ).all()
+        if any(getattr(item, campo) for item in itens):
+            return True
+    # 3. Legado: sobrescritas individuais
+    sobrescrita = db.query(SobrescritaPermissao).filter_by(usuario_id=usuario.id, modulo=modulo).first()
     if sobrescrita:
         valor = getattr(sobrescrita, campo)
         if valor is not None:
             return valor
-    pp = db.query(PermissaoPerfil).filter_by(perfil=usuario.perfil, modulo=modulo).first()
-    if pp:
-        return bool(getattr(pp, campo))
     return False
 
 
@@ -2444,6 +2453,204 @@ def remover_sobrescrita_permissao(
         registrar_log(db, "permissao", "permissoes",
                       f"Sobrescrita removida: usuário {alvo.email} / módulo {modulo}",
                       usuario=autor, request=request)
+        db.commit()
+    return {"ok": True}
+
+
+# ─── Controle de Acesso: Pacotes e Atribuições ───────────────────────────────
+
+class PacoteItemInput(BaseModel):
+    modulo:          str
+    pode_visualizar: bool = False
+    pode_criar:      bool = False
+    pode_editar:     bool = False
+    pode_excluir:    bool = False
+    pode_exportar:   bool = False
+    pode_gerenciar:  bool = False
+
+
+class PacoteInput(BaseModel):
+    nome:     str
+    descricao: Optional[str] = None
+    itens:    List[PacoteItemInput] = []
+
+
+class PapelInput(BaseModel):
+    perfil: str
+
+
+@app.get("/api/controle-acesso/pacotes")
+def listar_pacotes(request: Request, db: Session = Depends(get_db)):
+    autor = get_usuario_requisicao(request, db)
+    if not autor:
+        raise HTTPException(status_code=401, detail="Não autenticado.")
+    exigir_permissao(autor, "permissoes", "visualizar", db)
+    pacotes = db.query(PacotePermissao).order_by(PacotePermissao.nome).all()
+    resultado = []
+    for p in pacotes:
+        n_usuarios = db.query(UsuarioPacote).filter_by(pacote_id=p.id).count()
+        resultado.append({
+            "id": p.id, "nome": p.nome, "descricao": p.descricao,
+            "criado_em": p.criado_em.isoformat() if p.criado_em else None,
+            "n_usuarios": n_usuarios,
+            "itens": [
+                {
+                    "modulo": i.modulo,
+                    "pode_visualizar": i.pode_visualizar,
+                    "pode_criar": i.pode_criar,
+                    "pode_editar": i.pode_editar,
+                    "pode_excluir": i.pode_excluir,
+                    "pode_exportar": i.pode_exportar,
+                    "pode_gerenciar": i.pode_gerenciar,
+                }
+                for i in p.itens
+            ],
+        })
+    return resultado
+
+
+@app.post("/api/controle-acesso/pacotes", status_code=201)
+def criar_pacote(dados: PacoteInput, request: Request, db: Session = Depends(get_db)):
+    autor = get_usuario_requisicao(request, db)
+    if not autor:
+        raise HTTPException(status_code=401, detail="Não autenticado.")
+    exigir_permissao(autor, "permissoes", "criar", db)
+    if db.query(PacotePermissao).filter_by(nome=dados.nome).first():
+        raise HTTPException(status_code=409, detail="Já existe um pacote com esse nome.")
+    pacote = PacotePermissao(nome=dados.nome, descricao=dados.descricao, criado_por_id=autor.id)
+    db.add(pacote)
+    db.flush()
+    for item_d in dados.itens:
+        if item_d.modulo not in _MODULOS_VALIDOS_PERM:
+            continue
+        db.add(PacotePermissaoItem(
+            pacote_id=pacote.id, modulo=item_d.modulo,
+            pode_visualizar=item_d.pode_visualizar, pode_criar=item_d.pode_criar,
+            pode_editar=item_d.pode_editar, pode_excluir=item_d.pode_excluir,
+            pode_exportar=item_d.pode_exportar, pode_gerenciar=item_d.pode_gerenciar,
+        ))
+    registrar_log(db, "permissao", "permissoes", f"Pacote criado: {pacote.nome}", usuario=autor, request=request)
+    db.commit()
+    db.refresh(pacote)
+    return {"id": pacote.id, "nome": pacote.nome, "descricao": pacote.descricao}
+
+
+@app.put("/api/controle-acesso/pacotes/{pacote_id}")
+def atualizar_pacote(pacote_id: str, dados: PacoteInput, request: Request, db: Session = Depends(get_db)):
+    autor = get_usuario_requisicao(request, db)
+    if not autor:
+        raise HTTPException(status_code=401, detail="Não autenticado.")
+    exigir_permissao(autor, "permissoes", "editar", db)
+    pacote = db.query(PacotePermissao).filter_by(id=pacote_id).first()
+    if not pacote:
+        raise HTTPException(status_code=404, detail="Pacote não encontrado.")
+    if db.query(PacotePermissao).filter(PacotePermissao.nome == dados.nome, PacotePermissao.id != pacote_id).first():
+        raise HTTPException(status_code=409, detail="Já existe um pacote com esse nome.")
+    pacote.nome = dados.nome
+    pacote.descricao = dados.descricao
+    db.query(PacotePermissaoItem).filter_by(pacote_id=pacote_id).delete()
+    for item_d in dados.itens:
+        if item_d.modulo not in _MODULOS_VALIDOS_PERM:
+            continue
+        db.add(PacotePermissaoItem(
+            pacote_id=pacote_id, modulo=item_d.modulo,
+            pode_visualizar=item_d.pode_visualizar, pode_criar=item_d.pode_criar,
+            pode_editar=item_d.pode_editar, pode_excluir=item_d.pode_excluir,
+            pode_exportar=item_d.pode_exportar, pode_gerenciar=item_d.pode_gerenciar,
+        ))
+    registrar_log(db, "permissao", "permissoes", f"Pacote atualizado: {pacote.nome}", usuario=autor, request=request)
+    db.commit()
+    return {"ok": True}
+
+
+@app.delete("/api/controle-acesso/pacotes/{pacote_id}")
+def excluir_pacote(pacote_id: str, request: Request, db: Session = Depends(get_db)):
+    autor = get_usuario_requisicao(request, db)
+    if not autor:
+        raise HTTPException(status_code=401, detail="Não autenticado.")
+    exigir_permissao(autor, "permissoes", "excluir", db)
+    pacote = db.query(PacotePermissao).filter_by(id=pacote_id).first()
+    if not pacote:
+        raise HTTPException(status_code=404, detail="Pacote não encontrado.")
+    nome = pacote.nome
+    db.delete(pacote)
+    registrar_log(db, "permissao", "permissoes", f"Pacote excluído: {nome}", usuario=autor, request=request)
+    db.commit()
+    return {"ok": True}
+
+
+@app.get("/api/controle-acesso/usuarios")
+def listar_usuarios_controle_acesso(request: Request, db: Session = Depends(get_db)):
+    autor = get_usuario_requisicao(request, db)
+    if not autor:
+        raise HTTPException(status_code=401, detail="Não autenticado.")
+    exigir_permissao(autor, "permissoes", "visualizar", db)
+    usuarios = db.query(Usuario).order_by(Usuario.nome).all()
+    resultado = []
+    for u in usuarios:
+        up_list = db.query(UsuarioPacote).filter_by(usuario_id=u.id).all()
+        pacotes_info = []
+        for up in up_list:
+            p = db.query(PacotePermissao).filter_by(id=up.pacote_id).first()
+            if p:
+                pacotes_info.append({"id": p.id, "nome": p.nome})
+        resultado.append({
+            "id": u.id, "nome": u.nome, "email": u.email,
+            "perfil": u.perfil, "status": u.status,
+            "foto_url": u.foto_url,
+            "pacotes": pacotes_info,
+        })
+    return resultado
+
+
+@app.patch("/api/controle-acesso/usuarios/{usuario_id}/papel")
+def alterar_papel_usuario(usuario_id: str, dados: PapelInput, request: Request, db: Session = Depends(get_db)):
+    autor = get_usuario_requisicao(request, db)
+    if not autor:
+        raise HTTPException(status_code=401, detail="Não autenticado.")
+    exigir_permissao(autor, "permissoes", "editar", db)
+    alvo = db.query(Usuario).filter_by(id=usuario_id).first()
+    if not alvo:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+    if dados.perfil not in _PERFIS_VALIDOS_PERM:
+        raise HTTPException(status_code=422, detail="Perfil inválido.")
+    if alvo.perfil == "master" and autor.perfil != "master":
+        raise HTTPException(status_code=403, detail="Apenas masters podem alterar outros masters.")
+    anterior = alvo.perfil
+    alvo.perfil = dados.perfil
+    registrar_log(db, "usuario", "usuarios",
+                  f"Perfil alterado: {alvo.email} de {anterior} para {dados.perfil}",
+                  usuario=autor, request=request,
+                  valor_anterior=anterior, valor_novo=dados.perfil)
+    db.commit()
+    return {"ok": True}
+
+
+@app.post("/api/controle-acesso/usuarios/{usuario_id}/pacotes/{pacote_id}", status_code=201)
+def atribuir_pacote_usuario(usuario_id: str, pacote_id: str, request: Request, db: Session = Depends(get_db)):
+    autor = get_usuario_requisicao(request, db)
+    if not autor:
+        raise HTTPException(status_code=401, detail="Não autenticado.")
+    exigir_permissao(autor, "permissoes", "editar", db)
+    if not db.query(Usuario).filter_by(id=usuario_id).first():
+        raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+    if not db.query(PacotePermissao).filter_by(id=pacote_id).first():
+        raise HTTPException(status_code=404, detail="Pacote não encontrado.")
+    if not db.query(UsuarioPacote).filter_by(usuario_id=usuario_id, pacote_id=pacote_id).first():
+        db.add(UsuarioPacote(usuario_id=usuario_id, pacote_id=pacote_id, atribuido_por_id=autor.id))
+        db.commit()
+    return {"ok": True}
+
+
+@app.delete("/api/controle-acesso/usuarios/{usuario_id}/pacotes/{pacote_id}")
+def remover_pacote_usuario(usuario_id: str, pacote_id: str, request: Request, db: Session = Depends(get_db)):
+    autor = get_usuario_requisicao(request, db)
+    if not autor:
+        raise HTTPException(status_code=401, detail="Não autenticado.")
+    exigir_permissao(autor, "permissoes", "editar", db)
+    up = db.query(UsuarioPacote).filter_by(usuario_id=usuario_id, pacote_id=pacote_id).first()
+    if up:
+        db.delete(up)
         db.commit()
     return {"ok": True}
 

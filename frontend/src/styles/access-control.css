@@ -1,0 +1,338 @@
+/* ─── Controle de Acesso ──────────────────────────────────────────────── */
+
+/* ── Aliases / extensões para classes de settings.css ── */
+
+/* ícone dentro do perm-search-wrap quando usado como className direto */
+.perm-search-icon {
+  position: absolute;
+  left: 10px; top: 50%; transform: translateY(-50%);
+  font-size: 12px; color: var(--gray-300); pointer-events: none;
+}
+
+/* cabeçalho de colunas de ações (alinha com os chips) */
+.perm-header-acoes {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  flex-shrink: 0;
+}
+.perm-header-acao {
+  font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .05em;
+  color: var(--gray-400);
+  min-width: 56px; text-align: center;
+}
+
+/* alias: perm-group-title → perm-group-label */
+.perm-group-title { flex: 1; }
+
+/* layout de linha horizontal (módulo + chips em linha) */
+.perm-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  border: 1px solid var(--gray-100);
+  border-radius: var(--r-md);
+  margin-top: 4px;
+  background: var(--gray-0);
+  gap: 12px;
+  transition: border-color var(--t-fast), background var(--t-fast);
+}
+.perm-row:hover { border-color: var(--gray-200); }
+.perm-row-alterado { border-color: #fde68a !important; background: #fffbeb; }
+
+.perm-row-nome {
+  font-size: 13px; font-weight: 500; color: var(--gray-800);
+  display: flex; align-items: center; gap: 6px;
+  flex: 1;
+}
+
+/* alias: perm-chips → perm-chips-row */
+.perm-chips { display: flex; gap: 5px; flex-wrap: wrap; flex-shrink: 0; }
+
+/* alias: perm-chip-on → perm-chip-ativo */
+.perm-chip-on {
+  background: var(--brand-50) !important;
+  border-color: var(--brand-300) !important;
+  color: var(--brand-700) !important;
+  font-weight: 600 !important;
+}
+.perm-chip-on:hover { background: var(--brand-100) !important; border-color: var(--brand-400) !important; }
+
+/* off = estado padrão do perm-chip (sem override necessário) */
+.perm-chip-off { /* herda do .perm-chip base */ }
+
+/* alias: perm-chip-diff → perm-chip-difere */
+.perm-chip-diff {
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
+}
+
+/* alias: perm-tag-pendente → perm-tag-alterado */
+.perm-tag-pendente {
+  font-size: 10px; color: #b45309;
+  background: #fef3c7; border: 1px solid #fde68a;
+  border-radius: 20px; padding: 1px 6px; font-weight: 600;
+}
+
+.ac-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--brand-50);
+  border: 1px solid var(--brand-200);
+  border-radius: var(--r-md);
+  color: var(--brand-700);
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+.ac-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.ac-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 60px 0;
+  color: var(--gray-400);
+  font-size: 13px;
+}
+.ac-empty i { font-size: 32px; color: var(--gray-300); }
+
+/* ─── Pacote cards ── */
+.ac-pacotes-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 12px;
+}
+
+.ac-pacote-card {
+  border: 1px solid var(--gray-200);
+  border-radius: var(--r-lg);
+  padding: 16px;
+  background: var(--white);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: box-shadow 0.15s;
+}
+.ac-pacote-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,.06); }
+
+.ac-pacote-header { display: flex; align-items: flex-start; gap: 10px; }
+.ac-pacote-icon {
+  width: 36px; height: 36px;
+  border-radius: var(--r-md);
+  background: var(--brand-100);
+  color: var(--brand-600);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; flex-shrink: 0;
+}
+.ac-pacote-nome { font-weight: 600; font-size: 14px; color: var(--gray-900); }
+.ac-pacote-desc { font-size: 12px; color: var(--gray-500); margin-top: 2px; }
+.ac-pacote-actions { display: flex; gap: 4px; }
+
+.ac-pacote-stats { display: flex; gap: 12px; font-size: 12px; color: var(--gray-500); }
+.ac-pacote-stats span { display: flex; align-items: center; gap: 4px; }
+.ac-pacote-stats i { color: var(--brand-400); }
+
+.ac-pacote-modulos { display: flex; flex-wrap: wrap; gap: 4px; }
+.ac-modulo-chip {
+  font-size: 11px; padding: 2px 8px;
+  border-radius: 100px;
+  background: var(--gray-100); color: var(--gray-600);
+  border: 1px solid var(--gray-200);
+}
+
+/* ─── Icon buttons ── */
+.icon-btn {
+  width: 30px; height: 30px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--gray-200);
+  background: none; color: var(--gray-500);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px;
+  transition: background 0.1s, color 0.1s;
+}
+.icon-btn:hover { background: var(--gray-100); color: var(--gray-700); }
+.icon-btn-danger:hover { background: #fef2f2; border-color: #fecaca; color: #dc2626; }
+
+/* ─── Users table ── */
+.ac-users-table {
+  border: 1px solid var(--gray-200);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+.ac-users-header {
+  display: grid;
+  grid-template-columns: 1fr 160px 1fr 110px;
+  padding: 10px 16px;
+  background: var(--gray-50);
+  border-bottom: 1px solid var(--gray-200);
+  font-size: 11px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .05em;
+  color: var(--gray-500);
+  gap: 12px;
+}
+.ac-user-row {
+  display: grid;
+  grid-template-columns: 1fr 160px 1fr 110px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--gray-100);
+  align-items: center;
+  gap: 12px;
+  transition: background 0.1s;
+}
+.ac-user-row:last-child { border-bottom: none; }
+.ac-user-row:hover { background: var(--gray-50); }
+
+.ac-col-user { display: flex; align-items: center; gap: 10px; }
+.ac-user-avatar {
+  width: 32px; height: 32px;
+  border-radius: 8px;
+  background: var(--brand-100); color: var(--brand-600);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 600; flex-shrink: 0;
+  overflow: hidden;
+}
+
+/* Role select/badge */
+.ac-papel-select {
+  font-size: 12px; padding: 4px 8px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--gray-200);
+  background: var(--white); cursor: pointer;
+  font-weight: 500;
+}
+.ac-papel-badge {
+  display: inline-block;
+  font-size: 12px; padding: 3px 10px;
+  border-radius: 100px; font-weight: 500;
+}
+.ac-papel-master,        .ac-papel-select.ac-papel-master        { color: #7c3aed; background: #f5f3ff; border-color: #ddd6fe; }
+.ac-papel-administrador, .ac-papel-select.ac-papel-administrador { color: #dc2626; background: #fef2f2; border-color: #fecaca; }
+.ac-papel-coordenador,   .ac-papel-select.ac-papel-coordenador   { color: #d97706; background: #fffbeb; border-color: #fde68a; }
+.ac-papel-colaborador,   .ac-papel-select.ac-papel-colaborador   { color: #2563eb; background: #eff6ff; border-color: #bfdbfe; }
+.ac-papel-convidado,     .ac-papel-select.ac-papel-convidado     { color: #6b7280; background: var(--gray-100); border-color: var(--gray-200); }
+
+/* Package chips on user rows */
+.ac-pacote-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px; padding: 3px 8px;
+  border-radius: 100px;
+  background: var(--brand-50); color: var(--brand-700);
+  border: 1px solid var(--brand-200); font-weight: 500;
+}
+.ac-chip-remove {
+  background: none; border: none; cursor: pointer;
+  color: var(--brand-400); padding: 0; line-height: 1;
+  display: flex; align-items: center;
+}
+.ac-chip-remove:hover { color: #dc2626; }
+.ac-chip-remove:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.ac-add-pacote-btn {
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  border: 1.5px dashed var(--gray-300);
+  background: none; color: var(--gray-400);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; transition: all 0.15s;
+}
+.ac-add-pacote-btn:hover { border-color: var(--brand-400); color: var(--brand-500); }
+
+.ac-pacote-popover {
+  position: absolute; top: 28px; left: 0; z-index: 200;
+  background: var(--white);
+  border: 1px solid var(--gray-200); border-radius: var(--r-lg);
+  box-shadow: 0 4px 16px rgba(0,0,0,.12);
+  min-width: 210px; padding: 6px 0;
+}
+.ac-popover-title {
+  font-size: 11px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .05em;
+  color: var(--gray-500); padding: 6px 12px 4px;
+}
+.ac-popover-item {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%; padding: 8px 12px;
+  background: none; border: none; cursor: pointer;
+  font-size: 13px; color: var(--gray-700); text-align: left;
+  transition: background 0.1s;
+}
+.ac-popover-item:hover { background: var(--gray-50); }
+.ac-popover-item i { color: var(--brand-400); font-size: 12px; }
+
+/* Status badge */
+.ac-status-badge {
+  display: inline-block; font-size: 12px;
+  padding: 3px 10px; border-radius: 100px; font-weight: 500;
+}
+.ac-status-ativo     { color: #16a34a; background: #f0fdf4; border: 1px solid #bbf7d0; }
+.ac-status-inativo   { color: #6b7280; background: var(--gray-100); border: 1px solid var(--gray-200); }
+.ac-status-bloqueado { color: #dc2626; background: #fef2f2; border: 1px solid #fecaca; }
+
+/* ─── Linha alterada ── */
+.ac-row-alterado { background: #fffbeb !important; }
+
+/* ─── Badges inline (não salvo / erro) ── */
+.ac-badge-alterado {
+  font-size: 10px; font-weight: 600;
+  padding: 1px 6px; border-radius: 100px;
+  background: #fef3c7; color: #b45309; border: 1px solid #fde68a;
+}
+.ac-badge-erro {
+  font-size: 10px; font-weight: 600;
+  padding: 1px 6px; border-radius: 100px;
+  background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca;
+}
+
+/* ─── Popover com checkboxes ── */
+.ac-popover-list { display: flex; flex-direction: column; padding: 4px 0; }
+.ac-popover-check {
+  display: flex; align-items: flex-start; gap: 8px;
+  padding: 8px 12px; cursor: pointer;
+  transition: background 0.1s;
+}
+.ac-popover-check:hover { background: var(--gray-50); }
+.ac-popover-check.on { background: var(--brand-50); }
+.ac-popover-check input[type="checkbox"] { margin-top: 2px; accent-color: var(--brand-500); flex-shrink: 0; }
+.ac-popover-check-info { display: flex; flex-direction: column; gap: 1px; }
+.ac-popover-check-nome { font-size: 13px; color: var(--gray-800); font-weight: 500; }
+.ac-popover-check-desc { font-size: 11px; color: var(--gray-500); }
+
+/* ─── Rodapé da tabela ── */
+.ac-table-footer {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-top: 12px; padding: 0 4px;
+}
+
+/* ─── Paginação ── */
+.ac-paginacao {
+  display: flex; align-items: center; gap: 4px;
+}
+.ac-pag-btn {
+  height: 30px; min-width: 30px; padding: 0 8px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--gray-200);
+  background: var(--white); color: var(--gray-600);
+  cursor: pointer; font-size: 13px;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.1s, border-color 0.1s;
+}
+.ac-pag-btn:hover:not(:disabled) { background: var(--gray-100); }
+.ac-pag-btn.active { background: var(--brand-600); border-color: var(--brand-600); color: var(--white); font-weight: 600; }
+.ac-pag-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.ac-pag-ellipsis { font-size: 13px; color: var(--gray-400); padding: 0 4px; }

@@ -38,6 +38,7 @@ class Usuario(Base):
     sobrescritas      = relationship("SobrescritaPermissao", back_populates="usuario", cascade="all, delete-orphan", foreign_keys="SobrescritaPermissao.usuario_id")
     favoritos         = relationship("Favorito",           back_populates="usuario", cascade="all, delete-orphan", foreign_keys="Favorito.usuario_id")
     membros_grupo     = relationship("MembroGrupoExcecao", back_populates="usuario", foreign_keys="MembroGrupoExcecao.usuario_id")
+    pacotes           = relationship("UsuarioPacote", back_populates="usuario", cascade="all, delete-orphan", foreign_keys="UsuarioPacote.usuario_id")
 
 
 # ─── 2. Sessões de Autenticação ───────────────────────────────────────────────
@@ -265,3 +266,50 @@ class HistoricoConfigCritica(Base):
     alterado_por_id     = Column(String(36),  nullable=True)
     alterado_por_nome   = Column(String(255), nullable=True)
     alterado_por_email  = Column(String(255), nullable=True)
+
+
+# ─── 16. Pacotes de Permissão ─────────────────────────────────────────────────
+class PacotePermissao(Base):
+    __tablename__ = "pacotes_permissao"
+
+    id            = Column(String(36), primary_key=True, default=new_uuid)
+    nome          = Column(String(255), nullable=False, unique=True)
+    descricao     = Column(Text, nullable=True)
+    criado_em     = Column(DateTime, nullable=False, server_default=func.now())
+    criado_por_id = Column(String(36), ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True)
+
+    itens    = relationship("PacotePermissaoItem", back_populates="pacote", cascade="all, delete-orphan")
+    usuarios = relationship("UsuarioPacote", back_populates="pacote", cascade="all, delete-orphan")
+
+
+# ─── 17. Itens de Pacote de Permissão ────────────────────────────────────────
+class PacotePermissaoItem(Base):
+    __tablename__ = "pacotes_permissao_itens"
+    __table_args__ = (UniqueConstraint("pacote_id", "modulo", name="uq_ppi_pacote_modulo"),)
+
+    id              = Column(String(36), primary_key=True, default=new_uuid)
+    pacote_id       = Column(String(36), ForeignKey("pacotes_permissao.id", ondelete="CASCADE"), nullable=False)
+    modulo          = Column(String(100), nullable=False)
+    pode_visualizar = Column(Boolean, nullable=False, default=False)
+    pode_criar      = Column(Boolean, nullable=False, default=False)
+    pode_editar     = Column(Boolean, nullable=False, default=False)
+    pode_excluir    = Column(Boolean, nullable=False, default=False)
+    pode_exportar   = Column(Boolean, nullable=False, default=False)
+    pode_gerenciar  = Column(Boolean, nullable=False, default=False)
+
+    pacote = relationship("PacotePermissao", back_populates="itens")
+
+
+# ─── 18. Atribuição de Pacotes a Usuários ────────────────────────────────────
+class UsuarioPacote(Base):
+    __tablename__ = "usuarios_pacotes"
+    __table_args__ = (UniqueConstraint("usuario_id", "pacote_id", name="uq_up_usuario_pacote"),)
+
+    id               = Column(String(36), primary_key=True, default=new_uuid)
+    usuario_id       = Column(String(36), ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False)
+    pacote_id        = Column(String(36), ForeignKey("pacotes_permissao.id", ondelete="CASCADE"), nullable=False)
+    atribuido_por_id = Column(String(36), ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True)
+    atribuido_em     = Column(DateTime, nullable=False, server_default=func.now())
+
+    usuario = relationship("Usuario", back_populates="pacotes", foreign_keys=[usuario_id])
+    pacote  = relationship("PacotePermissao", back_populates="usuarios")

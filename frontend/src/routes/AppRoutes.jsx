@@ -6,7 +6,8 @@ import WorkspacePage from '../pages/WorkspacePage'
 import SettingsPage  from '../pages/SettingsPage'
 import AuditPage      from '../pages/AuditPage'
 import FavoritosPage  from '../pages/FavoritosPage'
-import LandbankPage   from '../pages/LandbankPage'
+import LandbankPage        from '../pages/LandbankPage'
+import AccessControlPage  from '../pages/AccessControlPage'
 
 function PrivateRoute({ children }) {
   const user = sessionStorage.getItem('cgid_user')
@@ -23,7 +24,8 @@ export default function AppRoutes() {
       <Route path="/configuracoes" element={<PrivateRoute><SettingsPage /></PrivateRoute>} />
       <Route path="/auditoria"     element={<PrivateRoute><AuditPage /></PrivateRoute>} />
       <Route path="/favoritos"     element={<PrivateRoute><FavoritosPage /></PrivateRoute>} />
-      <Route path="/landbank"      element={<PrivateRoute><LandbankPage /></PrivateRoute>} />
+      <Route path="/landbank"       element={<PrivateRoute><LandbankPage /></PrivateRoute>} />
+      <Route path="/controle-acesso" element={<PrivateRoute><AccessControlPage /></PrivateRoute>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )

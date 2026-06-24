@@ -96,8 +96,13 @@
   border-radius: var(--r-xl);
   box-shadow: 0 20px 60px rgba(0,0,0,.18);
   width: 100%; max-width: 520px;
-  max-height: 90vh; overflow-y: auto;
+  max-height: 90vh;
+  display: flex; flex-direction: column;
   animation: slideUp .2s var(--ease);
+}
+.modal-bd {
+  overflow-y: auto;
+  flex: 1;
 }
 @keyframes slideUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
 
@@ -387,3 +392,132 @@
 .perm-tri-herdado { color: var(--gray-300); }
 .perm-tri-sim     { background: var(--brand-500); border-color: var(--brand-600); color: #fff; }
 .perm-tri-nao     { background: var(--red-50); border-color: var(--red-200); color: var(--red-500); }
+
+/* ─── Modal com tabs ─────────────────────────────────────────────────────────── */
+.modal-lg { max-width: 680px !important; }
+
+.modal-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--gray-100);
+  padding: 0 24px;
+  background: var(--gray-0);
+}
+.modal-tab {
+  display: flex; align-items: center; gap: 6px;
+  padding: 10px 14px;
+  background: none; border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  font-family: var(--font); font-size: 13px; font-weight: 500;
+  color: var(--gray-500); cursor: pointer;
+  transition: all var(--t-base);
+}
+.modal-tab i { font-size: 12px; }
+.modal-tab:hover { color: var(--gray-800); }
+.modal-tab.active { color: var(--brand-600); border-bottom-color: var(--brand-500); font-weight: 600; }
+
+/* ─── Permissões individuais redesenhadas ────────────────────────────────────── */
+.perm-ind-wrap { position: relative; }
+
+.perm-ind-empty {
+  padding: 32px 0; text-align: center;
+  color: var(--gray-400); font-size: 13px;
+}
+.perm-ind-empty i {
+  font-size: 28px; margin-bottom: 10px;
+  display: block; color: var(--brand-300);
+}
+
+.perm-ind-link {
+  background: none; border: none;
+  color: var(--brand-600); font-size: 12px;
+  cursor: pointer; font-family: var(--font);
+  text-decoration: underline;
+}
+.perm-ind-link:hover { color: var(--brand-800); }
+
+.perm-ind-grupos { display: flex; flex-direction: column; gap: 14px; }
+
+.perm-ind-grupo-label {
+  font-size: 10px; font-weight: 700;
+  color: var(--gray-400); text-transform: uppercase;
+  letter-spacing: .06em; margin-bottom: 6px;
+  padding-bottom: 4px; border-bottom: 1px solid var(--gray-100);
+}
+
+.perm-ind-card {
+  padding: 9px 12px;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--r-md);
+  background: var(--gray-0);
+  margin-bottom: 5px;
+  transition: border-color var(--t-fast), background var(--t-fast);
+}
+.perm-ind-card:hover { border-color: var(--gray-300); }
+.perm-ind-card-sob  { border-color: var(--brand-200) !important; background: var(--brand-50); }
+.perm-ind-card-pendente { border-color: #fde68a !important; background: #fffbeb; }
+
+.perm-ind-card-top {
+  display: flex; align-items: center;
+  justify-content: space-between; margin-bottom: 6px;
+}
+.perm-ind-modulo-nome { font-size: 12.5px; font-weight: 600; color: var(--gray-800); }
+
+.perm-ind-remover {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: none; border: none; cursor: pointer;
+  font-size: 11px; color: var(--gray-400);
+  font-family: var(--font); padding: 2px 6px;
+  border-radius: var(--r-sm); transition: all var(--t-fast);
+}
+.perm-ind-remover:hover { background: var(--gray-100); color: var(--gray-700); }
+.perm-ind-remover:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ─── Chips tri-state ── */
+.perm-ind-chips-row { display: flex; gap: 4px; flex-wrap: wrap; }
+
+.perm-ind-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 8px; border-radius: 20px;
+  border: 1px solid var(--gray-200); background: var(--gray-50);
+  color: var(--gray-400); font-family: var(--font);
+  font-size: 11px; font-weight: 500;
+  cursor: pointer; transition: all var(--t-fast); user-select: none;
+}
+.perm-ind-chip i { font-size: 8.5px; }
+.perm-ind-chip:hover { border-color: var(--gray-400); color: var(--gray-700); background: var(--gray-100); }
+
+.perm-ind-chip-herdado { border-style: dashed; color: var(--gray-400); }
+.perm-ind-chip-sim {
+  background: var(--brand-50); border-color: var(--brand-300);
+  color: var(--brand-700); font-weight: 600; border-style: solid;
+}
+.perm-ind-chip-sim:hover { background: var(--brand-100); }
+.perm-ind-chip-nao {
+  background: #fef2f2; border-color: #fecaca;
+  color: #b91c1c; font-weight: 600; border-style: solid;
+}
+.perm-ind-chip-nao:hover { background: #fee2e2; }
+
+.perm-ind-ref-row {
+  display: flex; align-items: center; gap: 5px;
+  margin-top: 5px; padding-top: 5px;
+  border-top: 1px dashed var(--gray-100); flex-wrap: wrap;
+}
+
+.perm-ind-legenda {
+  display: flex; gap: 14px; align-items: center;
+  margin-top: 12px; font-size: 11px; color: var(--gray-400); flex-wrap: wrap;
+}
+.perm-ind-legenda > span { display: flex; align-items: center; gap: 5px; }
+
+.perm-ind-save-bar {
+  position: sticky; bottom: 0;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px; background: var(--gray-0);
+  border: 1px solid var(--gray-200); border-radius: var(--r-md);
+  box-shadow: 0 -4px 16px rgba(0,0,0,.08);
+  margin-top: 12px;
+  animation: slideUp .2s ease;
+  z-index: 10;
+}

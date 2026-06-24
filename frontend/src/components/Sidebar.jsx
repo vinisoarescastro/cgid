@@ -62,6 +62,7 @@ export default function Sidebar({ user, active }) {
         {link('favoritos', '/favoritos', 'fa-star', 'Favoritos')}
         {temPermissao('landbank') && link('landbank', '/landbank', 'fa-map-location-dot', 'Land Bank')}
         {temPermissao('auditoria') && link('auditoria', '/auditoria', 'fa-file-lines', 'Auditoria')}
+        {temPermissao('permissoes') && link('controle-acesso', '/controle-acesso', 'fa-shield-halved', 'Controle de Acesso')}
         {temPermissao('configuracoes') && link('configuracoes', '/configuracoes', 'fa-gear', 'Configurações')}
       </nav>
 
