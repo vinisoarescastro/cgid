@@ -36,10 +36,10 @@ export default function Avatar({ user = {}, size = 34, radius = 10, className = 
     ...style,
   }
 
-  if (user.photo && !imgError) {
+  if (user.foto_url && !imgError) {
     return (
       <img
-        src={user.photo}
+        src={user.foto_url}
         alt={initials}
         className={className}
         style={{ ...base, objectFit: 'cover' }}
