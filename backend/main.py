@@ -6,7 +6,7 @@ from sqlalchemy import func, or_
 from passlib.context import CryptContext
 from pydantic import BaseModel
 from typing import Optional, List
-from datetime import datetime, timezone, timedelta, date as date_type, time as time_type
+from datetime import datetime, timezone, timedelta, date as date_type, time as dtime
 from zoneinfo import ZoneInfo
 from pathlib import Path
 import csv, io, json, os, secrets, hashlib
@@ -14,10 +14,6 @@ import requests as http_requests
 
 from database import engine, get_db, Base
 from models import Usuario, LogAuditoria, EspacoTrabalho, Relatorio, AcessoWorkspace, AcessoRelatorio, RegraExpediente, GrupoExcecao, MembroGrupoExcecao, ConfiguracaoSistema, Favorito, HistoricoConfigCritica, SessaoAutenticacao, PermissaoPerfil, SobrescritaPermissao
-
-PBI_TENANT_ID     = os.getenv("PBI_TENANT_ID", "")
-PBI_CLIENT_ID     = os.getenv("PBI_CLIENT_ID", "")
-PBI_CLIENT_SECRET = os.getenv("PBI_CLIENT_SECRET", "")
 
 Base.metadata.create_all(bind=engine)
 
@@ -1081,7 +1077,6 @@ def dashboard_kpis(db: Session = Depends(get_db)):
         LogAuditoria.tipo_evento == "seguranca",
         func.date(LogAuditoria.momento) == hoje,
     ).count()
-    from datetime import timedelta
     total_semana = db.query(LogAuditoria).filter(
         LogAuditoria.tipo_evento == "seguranca",
         func.date(LogAuditoria.momento) >= hoje - timedelta(days=7),
@@ -1784,7 +1779,6 @@ def listar_expediente(db: Session = Depends(get_db)):
 def salvar_regra_expediente(dia_semana: int, request: Request, dados: RegraExpedienteInput, db: Session = Depends(get_db)):
     if dia_semana not in range(7):
         raise HTTPException(status_code=422, detail="Dia da semana inválido (0=Dom … 6=Sab).")
-    from datetime import time as dtime
     hi = dtime.fromisoformat(dados.hora_inicio)
     hf = dtime.fromisoformat(dados.hora_fim)
     if hi >= hf:
@@ -1866,7 +1860,6 @@ def _grupo_snapshot(dados):
 
 @app.post("/configuracoes/grupos-excecao", response_model=GrupoItem, status_code=201)
 def criar_grupo(request: Request, dados: GrupoInput, db: Session = Depends(get_db)):
-    from datetime import time as dtime
     autor = get_usuario_requisicao(request, db)
     ji = dtime.fromisoformat(dados.janela_inicio) if dados.janela_inicio else None
     jf = dtime.fromisoformat(dados.janela_fim)    if dados.janela_fim    else None
@@ -1884,7 +1877,6 @@ def atualizar_grupo(grupo_id: str, request: Request, dados: GrupoInput, db: Sess
     g = db.query(GrupoExcecao).filter(GrupoExcecao.id == grupo_id).first()
     if not g:
         raise HTTPException(status_code=404, detail="Grupo não encontrado.")
-    from datetime import time as dtime
     autor    = get_usuario_requisicao(request, db)
     anterior = json.dumps({"nome": g.nome, "fora_horario": g.fora_horario,
                             "janela_inicio": g.janela_inicio.strftime("%H:%M") if g.janela_inicio else None,
