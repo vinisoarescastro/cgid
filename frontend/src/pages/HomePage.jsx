@@ -284,6 +284,15 @@ const user = JSON.parse(sessionStorage.getItem('cgid_user') || '{}')
                     </div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {periodo === 'diario' && (
+                      <input
+                        type="date"
+                        value={dataDiario}
+                        max={new Date().toISOString().slice(0, 10)}
+                        onChange={e => setDataDiario(e.target.value)}
+                        style={{ fontSize: 12, padding: '3px 8px', borderRadius: 6, border: '1px solid var(--gray-200)', color: 'var(--gray-600)', outline: 'none' }}
+                      />
+                    )}
                     {['diario', 'semanal', 'mensal'].map(p => (
                       <button
                         key={p}
@@ -298,15 +307,6 @@ const user = JSON.parse(sessionStorage.getItem('cgid_user') || '{}')
                         {p === 'diario' ? 'Diário' : p === 'semanal' ? 'Semanal' : 'Mensal'}
                       </button>
                     ))}
-                    {periodo === 'diario' && (
-                      <input
-                        type="date"
-                        value={dataDiario}
-                        max={new Date().toISOString().slice(0, 10)}
-                        onChange={e => setDataDiario(e.target.value)}
-                        style={{ fontSize: 12, padding: '3px 8px', borderRadius: 6, border: '1px solid var(--gray-200)', color: 'var(--gray-600)', outline: 'none' }}
-                      />
-                    )}
                   </div>
                 </div>
                 <div className="card-bd" style={{ paddingTop: 4 }}>
@@ -436,6 +436,12 @@ const user = JSON.parse(sessionStorage.getItem('cgid_user') || '{}')
                     </div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {periodoTop === 'diario' && (
+                      <input type="date" value={dataTop} max={new Date().toISOString().slice(0, 10)}
+                        onChange={e => setDataTop(e.target.value)}
+                        style={{ fontSize: 12, padding: '3px 8px', borderRadius: 6, border: '1px solid var(--gray-200)', color: 'var(--gray-600)', outline: 'none' }}
+                      />
+                    )}
                     {['diario', 'semanal', 'mensal'].map(p => (
                       <button key={p} onClick={() => setPeriodoTop(p)} style={{
                         padding: '4px 10px', borderRadius: 6, fontSize: 12, fontWeight: 500, cursor: 'pointer', border: '1px solid',
@@ -446,12 +452,6 @@ const user = JSON.parse(sessionStorage.getItem('cgid_user') || '{}')
                         {p === 'diario' ? 'Diário' : p === 'semanal' ? 'Semanal' : 'Mensal'}
                       </button>
                     ))}
-                    {periodoTop === 'diario' && (
-                      <input type="date" value={dataTop} max={new Date().toISOString().slice(0, 10)}
-                        onChange={e => setDataTop(e.target.value)}
-                        style={{ fontSize: 12, padding: '3px 8px', borderRadius: 6, border: '1px solid var(--gray-200)', color: 'var(--gray-600)', outline: 'none' }}
-                      />
-                    )}
                   </div>
                 </div>
                 <div className="card-bd" style={{ padding: '4px 0' }}>
