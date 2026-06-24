@@ -95,10 +95,10 @@ def upsert_relatorio(nome, workspace_id, categoria, status, criado_por_id):
 
 # ─── 1. Usuários ────────────────────────────────────────────────────────────
 print("Inserindo usuários...")
-admin      = upsert_usuario({"nome": "Admin CGID",       "email": "admin@cgid.com",      "senha": "Admin@2025",    "perfil": "super_administrador"})
-carlos     = upsert_usuario({"nome": "Carlos Gerente",   "email": "carlos@cgid.com",     "senha": "Carlos@123",    "perfil": "gerente"})
-mariana    = upsert_usuario({"nome": "Mariana Operador", "email": "mariana@cgid.com",    "senha": "Mariana@123",   "perfil": "operador"})
-visitante  = upsert_usuario({"nome": "Visitante Demo",   "email": "visitante@cgid.com",  "senha": "Visitante@123", "perfil": "visitante"})
+admin      = upsert_usuario({"nome": "Admin CGID",          "email": "admin@cgid.com",      "senha": "Admin@2025",    "perfil": "master"})
+carlos     = upsert_usuario({"nome": "Carlos Coordenador", "email": "carlos@cgid.com",     "senha": "Carlos@123",    "perfil": "coordenador"})
+mariana    = upsert_usuario({"nome": "Mariana Colaborador","email": "mariana@cgid.com",    "senha": "Mariana@123",   "perfil": "colaborador"})
+convidado  = upsert_usuario({"nome": "Convidado Demo",      "email": "visitante@cgid.com",  "senha": "Visitante@123", "perfil": "convidado"})
 db.flush()
 
 
@@ -107,7 +107,7 @@ print("Inserindo permissões por perfil...")
 MODULOS = ["usuarios", "permissoes", "relatorios", "workspaces", "auditoria", "seguranca", "configuracoes", "expediente", "grupos_excecao", "landbank"]
 
 for modulo in MODULOS:
-    upsert_permissao("super_administrador", modulo,
+    upsert_permissao("master", modulo,
         pode_visualizar=True, pode_criar=True, pode_editar=True,
         pode_excluir=True, pode_exportar=True, pode_gerenciar=True)
 
@@ -117,19 +117,19 @@ for modulo in MODULOS:
         pode_exportar=True,
         pode_gerenciar=modulo not in ("configuracoes",))
 
-    upsert_permissao("gerente", modulo,
+    upsert_permissao("coordenador", modulo,
         pode_visualizar=modulo in ("relatorios", "workspaces", "auditoria"),
         pode_criar=False, pode_editar=False,
         pode_excluir=False, pode_exportar=modulo == "relatorios",
         pode_gerenciar=False)
 
-    upsert_permissao("operador", modulo,
+    upsert_permissao("colaborador", modulo,
         pode_visualizar=modulo in ("relatorios",),
         pode_criar=False, pode_editar=False,
         pode_excluir=False, pode_exportar=False, pode_gerenciar=False)
 
-    # landbank: acesso negado por padrão a visitante (liberado individualmente pelo admin)
-    upsert_permissao("visitante", modulo,
+    # landbank: acesso negado por padrão a convidado (liberado individualmente pelo admin)
+    upsert_permissao("convidado", modulo,
         pode_visualizar=modulo in ("relatorios",),
         pode_criar=False, pode_editar=False,
         pode_excluir=False, pode_exportar=False, pode_gerenciar=False)

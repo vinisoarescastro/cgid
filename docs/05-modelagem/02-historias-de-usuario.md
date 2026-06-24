@@ -49,7 +49,7 @@ PARA proteger o sistema contra ataques de força bruta e acesso não autorizado.
 - [ ] Na 5ª tentativa inválida, conta é bloqueada automaticamente
 - [ ] Mensagem de bloqueio diferente da mensagem de credenciais inválidas
 - [ ] Evento de bloqueio registrado no log com IP e timestamp
-- [ ] Desbloqueio disponível apenas para Super Admin na interface
+- [ ] Desbloqueio disponível apenas para Master ou Administrador na interface
 
 ---
 
@@ -87,7 +87,7 @@ PARA encontrar facilmente os relatórios do meu departamento sem navegar por dad
 
 **US-06: Visualizar relatório Power BI inline no portal**
 
-COMO gerente de Marketing,  
+COMO coordenador de Marketing,  
 QUERO visualizar o relatório de Pipeline de Vendas diretamente no portal,  
 PARA acessar os dados analíticos sem precisar navegar para o Power BI Service.
 
@@ -116,7 +116,7 @@ PARA acessá-los rapidamente na tela de favoritos sem navegar pelo workspace tod
 
 **US-08: Mensagem clara ao tentar acessar fora do horário**
 
-COMO operador de plantão,  
+COMO colaborador de plantão,  
 QUERO receber uma mensagem clara quando tentar acessar o portal fora do horário de expediente,  
 PARA entender o motivo do bloqueio e saber o que fazer.
 
@@ -250,7 +250,7 @@ PARA ter visibilidade do estado do sistema sem precisar navegar por cada módulo
 
 **US-17: Configurar integração com Power BI Embedded**
 
-COMO Super Admin,  
+COMO Master,  
 QUERO configurar as credenciais do Power BI Embedded (Client ID, Tenant ID) diretamente pelo portal,  
 PARA ativar ou reconfigurar a integração sem precisar acessar o servidor ou o código-fonte.
 
@@ -259,7 +259,7 @@ PARA ativar ou reconfigurar a integração sem precisar acessar o servidor ou o 
 - [ ] Botão "Testar Conexão" valida as credenciais antes de salvar
 - [ ] Client Secret não é exibido em texto puro após salvar
 - [ ] Configurações salvas de forma criptografada
-- [ ] Somente Super Admin tem acesso a esta seção
+- [ ] Somente Master tem acesso a esta seção
 
 ---
 
@@ -289,8 +289,8 @@ QUERO visualizar apenas os relatórios do workspace ao acessá-lo,
 PARA que informações sobre outros usuários vinculados não fiquem expostas.
 
 *Critérios de aceite:*
-- [x] Aba "Usuários vinculados" visível apenas para Admin e Super Admin
-- [x] Usuários com perfil Operador ou Gerente veem somente a aba "Relatórios"
+- [x] Aba "Usuários vinculados" visível apenas para Administrador e Master
+- [x] Usuários com perfil Colaborador ou Coordenador veem somente a aba "Relatórios"
 
 ---
 

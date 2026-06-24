@@ -10,7 +10,7 @@ import { logout } from '../utils/api'
 
 const API = 'http://localhost:8000'
 
-const ADMIN_PERFIS = ['super_administrador', 'administrador']
+const ADMIN_PERFIS = ['master', 'administrador']
 
 function WsIcone({ icone, cor, size = 14 }) {
   const c = cor || '#2563eb'

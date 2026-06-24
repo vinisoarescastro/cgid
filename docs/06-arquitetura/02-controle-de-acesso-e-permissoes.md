@@ -25,16 +25,24 @@ Perfil (role)
 ## 2. Hierarquia de Perfis
 
 ```
-Super Admin   (nível 5) → Acesso irrestrito, incluindo configurações do sistema
+Master        (nível 5) → Acesso irrestrito, incluindo configurações do sistema
     ↓
-Admin         (nível 4) → Gestão de usuários, permissões, workspaces (não pode alterar Super Admin)
+Administrador (nível 4) → Gestão de usuários, permissões, workspaces (não pode alterar Master)
     ↓
-Gerente       (nível 3) → Visualização de relatórios do(s) seu(s) workspace(s) + KPIs da equipe
+Coordenador   (nível 3) → Visualização de relatórios do(s) seu(s) workspace(s) + KPIs da equipe
     ↓
-Operador      (nível 2) → Visualização dos relatórios explicitamente liberados para ele
+Colaborador   (nível 2) → Visualização dos relatórios explicitamente liberados para ele
     ↓
-Visitante     (nível 1) → Acesso read-only temporário, apenas relatórios autorizados
+Convidado     (nível 1) → Acesso read-only temporário, apenas relatórios autorizados
 ```
+
+| Perfil | Slug no banco |
+|--------|---------------|
+| Master | `master` |
+| Administrador | `administrador` |
+| Coordenador | `coordenador` |
+| Colaborador | `colaborador` |
+| Convidado | `convidado` |
 
 **Regra:** Um perfil não pode alterar permissões de outro perfil de nível igual ou superior.
 
@@ -42,18 +50,18 @@ Visitante     (nível 1) → Acesso read-only temporário, apenas relatórios au
 
 ## 3. Matriz de Permissões por Módulo e Perfil
 
-> **Nota:** Esta matriz representa os **valores padrão** do seed inicial. A partir da versão 1.3, todos os valores são configuráveis em tempo de execução pela interface em **Configurações → Permissões** (restrito ao Super Admin). Sobrescritas por usuário individual também são suportadas via painel em **Usuários → editar usuário → Permissões individuais**.
+> **Nota:** Esta matriz representa os **valores padrão** do seed inicial. A partir da versão 1.3, todos os valores são configuráveis em tempo de execução pela interface em **Configurações → Permissões** (restrito ao Master). Sobrescritas por usuário individual também são suportadas via painel em **Usuários → editar usuário → Permissões individuais**.
 
 ### Legenda
 - ✅ Permitido por padrão
 - ❌ Negado por padrão
 - ⚠️ Parcial (somente próprio registro ou contexto limitado)
-- 🔧 Configurável pelo Super Admin em tempo de execução
+- 🔧 Configurável pelo Master em tempo de execução
 
 ### 3.1 Módulos Administrativos
 
-| Módulo | Super Admin | Admin | Gerente | Operador | Visitante |
-|--------|:-----------:|:-----:|:-------:|:--------:|:---------:|
+| Módulo | Master | Administrador | Coordenador | Colaborador | Convidado |
+|--------|:------:|:-------------:|:-----------:|:-----------:|:---------:|
 | **Usuários** | ✅ todas as ações | ✅ todas | ❌ | ❌ | ❌ |
 | **Permissões** | ✅ todas | ✅ (sem excluir) | ❌ | ❌ | ❌ |
 | **Workspaces** | ✅ todas | ✅ todas | ❌ | ❌ | ❌ |
@@ -63,15 +71,15 @@ Visitante     (nível 1) → Acesso read-only temporário, apenas relatórios au
 
 ### 3.2 Auditoria e Segurança
 
-| Módulo | Super Admin | Admin | Gerente | Operador | Visitante |
-|--------|:-----------:|:-----:|:-------:|:--------:|:---------:|
+| Módulo | Master | Administrador | Coordenador | Colaborador | Convidado |
+|--------|:------:|:-------------:|:-----------:|:-----------:|:---------:|
 | **Auditoria** | ✅ todas | ✅ todas | ❌ 🔧 | ❌ | ❌ |
 | **Segurança** | ✅ todas | ✅ todas | ❌ | ❌ | ❌ |
 
 ### 3.3 Consumo
 
-| Módulo | Super Admin | Admin | Gerente | Operador | Visitante |
-|--------|:-----------:|:-----:|:-------:|:--------:|:---------:|
+| Módulo | Master | Administrador | Coordenador | Colaborador | Convidado |
+|--------|:------:|:-------------:|:-----------:|:-----------:|:---------:|
 | **Relatórios** | ✅ todas | ✅ todas | ✅ visualizar + exportar | ✅ visualizar | ✅ visualizar |
 | **Land Bank** | ✅ todas | ✅ visualizar + exportar | ❌ 🔧 | ❌ | ❌ |
 
@@ -107,7 +115,7 @@ Admins podem alterar a lista de relatórios específicos por `PUT /workspaces/{w
 #### checar_permissao / exigir_permissao
 ```python
 # checar_permissao(usuario, modulo, acao, db) -> bool
-#   1. super_administrador → True imediato (bypass)
+#   1. master → True imediato (bypass)
 #   2. Consulta SobrescritaPermissao (usuario_id, modulo) — se campo != None, usa override
 #   3. Consulta PermissaoPerfil (perfil, modulo) — fallback ao padrão do perfil
 #   4. Sem registro → False (fail-safe)
@@ -150,7 +158,7 @@ já aplicando sobrescritas individuais. Formato:
 ```python
 # Verifica se o usuário pode acessar com base no horário de expediente
 # Consultado a cada requisição autenticada
-# Admins e super_admins: acesso irrestrito (retorna imediatamente sem checar expediente)
+# Master e Administrador: acesso irrestrito (retorna imediatamente sem checar expediente)
 # Fluxo para demais perfis:
 #   1. Busca regra do dia atual (sem filtro ativo=True — busca sempre)
 #   2. Se não existe regra → configurado=False (acesso liberado)
@@ -173,8 +181,8 @@ já aplicando sobrescritas individuais. Formato:
 ```python
 def checar_permissao(usuario, modulo, acao, db) -> bool:
 
-    # 1. super_administrador tem acesso irrestrito sempre
-    if usuario.perfil == "super_administrador":
+    # 1. master tem acesso irrestrito sempre
+    if usuario.perfil == "master":
         return True
 
     campo = f"pode_{acao}"  # "visualizar" → "pode_visualizar"
@@ -209,14 +217,14 @@ def pode_acessar_relatorio(usuario_id: str, relatorio_id: str) -> bool:
 
   usuario = repositorio_usuarios.buscar_por_id(usuario_id)
 
-  # Admins têm acesso irrestrito
-  if usuario.perfil in ("super_administrador", "administrador"):
+  # Master e Administrador têm acesso irrestrito
+  if usuario.perfil in ("master", "administrador"):
       return True
 
   relatorio = repositorio_relatorios.buscar_por_id(relatorio_id)
 
-  # Relatórios rascunho: apenas gerente+
-  if relatorio.status == "rascunho" and usuario.perfil in ("operador", "visitante"):
+  # Relatórios rascunho: apenas coordenador+
+  if relatorio.status == "rascunho" and usuario.perfil in ("colaborador", "convidado"):
       return False
 
   # Verificar acesso ao workspace
@@ -239,10 +247,10 @@ def pode_acessar_relatorio(usuario_id: str, relatorio_id: str) -> bool:
 
 ## 8. Vinculação Automática de Admins a Workspaces
 
-Ao criar ou reativar um workspace, o sistema executa `_vincular_admins_workspace(workspace_id, db)`, que itera todos os usuários com perfil `administrador` ou `super_administrador` com status `ativo` e cria registros em `acessos_workspace` com `nivel_acesso = "total"` para os que ainda não possuem vínculo.
+Ao criar ou reativar um workspace, o sistema executa `_vincular_admins_workspace(workspace_id, db)`, que itera todos os usuários com perfil `master` ou `administrador` com status `ativo` e cria registros em `acessos_workspace` com `nivel_acesso = "total"` para os que ainda não possuem vínculo.
 
 - Admins nunca precisam ser vinculados manualmente a workspaces novos ou reativados.
-- Apesar de terem registros em `acessos_workspace`, eles **não aparecem na listagem de usuários do workspace** — a query filtra `perfil NOT IN ('administrador', 'super_administrador')`.
+- Apesar de terem registros em `acessos_workspace`, eles **não aparecem na listagem de usuários do workspace** — a query filtra `perfil NOT IN ('master', 'administrador')`.
 - O contador de usuários no card do workspace também exclui admins.
 
 ---
@@ -255,3 +263,4 @@ Ao criar ou reativar um workspace, o sistema executa `_vincular_admins_workspace
 | 1.1 | Junho/2026 | Vinicius Soares | Atualizada matriz: Configurações para Admin/Super Admin, credenciais PBI exclusivas do Super Admin e filtro server-side para relatórios específicos |
 | 1.2 | Junho/2026 | Vinicius Soares | Corrigida matriz de Auditoria: "Visualizar (todos)" e "Exportar" são exclusivos do Super Admin (RN-AUD-05); pseudocódigo `validar_expediente` atualizado com `ativo=false`, `ignora_dia_inativo` e janelas de exceção; adicionada seção 8 sobre auto-vínculo de admins a workspaces |
 | 1.3 | Junho/2026 | Vinicius Soares | Sistema de permissões implementado em produção: seed automático no startup, helpers `checar_permissao`/`exigir_permissao`, endpoints CRUD para permissões por perfil e sobrescritas por usuário, endpoint `/api/me/permissoes`, UI de gestão em Configurações → Permissões e painel de sobrescritas em Usuários. Sidebar e guards de página migrados de checks hardcoded (`isAdmin`) para `temPermissao()`. Algoritmo de resolução atualizado: `administrador` deixa de ter bypass e passa a ser controlado pelo banco. |
+| 1.4 | Junho/2026 | Vinicius Soares | Renomeação dos perfis de usuário: `super_administrador` → `master`, `gerente` → `coordenador`, `operador` → `colaborador`, `visitante` → `convidado`. Labels atualizados: Master, Administrador, Coordenador, Colaborador, Convidado. Toda a documentação, código e banco de dados migrados para a nova nomenclatura. |

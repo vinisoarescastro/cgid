@@ -72,7 +72,7 @@
 | RNF-UX-01 | Interface responsiva: funcional em desktop (≥1280px), tablet (≥768px) e mobile (≥375px) | Nenhum elemento sobreposto ou inacessível nas 3 resoluções |
 | RNF-UX-02 | Compatibilidade com navegadores modernos | Chrome ≥ 120, Edge ≥ 120, Firefox ≥ 120, Safari ≥ 17 (últimas 2 versões major) |
 | RNF-UX-03 | Mensagens de erro claras e orientadas à ação | Toda mensagem de erro indica o problema e o que o usuário pode fazer |
-| RNF-UX-04 | Tempo máximo de treinamento para perfil Operador | ≤ 30 minutos |
+| RNF-UX-04 | Tempo máximo de treinamento para perfil Colaborador | ≤ 30 minutos |
 | RNF-UX-05 | Feedback visual imediato para ações do usuário | Loading states, toasts de confirmação e indicadores de progresso presentes |
 | RNF-UX-06 | Confirmação antes de ações destrutivas | Modal de confirmação obrigatório antes de excluir usuário, revogar acesso ou alterar permissão |
 | RNF-UX-07 | Acessibilidade mínima | WCAG 2.1 nível AA para elementos interativos principais |

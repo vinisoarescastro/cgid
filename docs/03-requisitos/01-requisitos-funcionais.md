@@ -53,7 +53,7 @@
 
 | ID | Descrição | Critério de Aceite | Versão | Prioridade |
 |----|-----------|-------------------|--------|-----------|
-| RF-PERM-01 | O sistema deve controlar permissões por perfil (Super Admin, Admin, Gerente, Operador, Visitante) | Cada perfil tem conjunto de permissões padrão; usuário com o perfil herda as permissões | v1.0 | 🔴 |
+| RF-PERM-01 | O sistema deve controlar permissões por perfil (Master, Administrador, Coordenador, Colaborador, Convidado) | Cada perfil tem conjunto de permissões padrão; usuário com o perfil herda as permissões | v1.0 | 🔴 |
 | RF-PERM-02 | Permissões devem cobrir as ações: Visualizar, Criar, Editar, Excluir, Exportar, Gerenciar | Cada módulo tem as 6 ações configuráveis por perfil | v1.0 | 🔴 |
 | RF-PERM-03 | O sistema deve suportar override de permissão por usuário individual | Permissão individual sobrepõe a permissão do perfil para aquele usuário específico | v1.0 | 🔴 |
 | RF-PERM-04 | Permissões Power BI devem ser configuráveis por workspace (acesso total ou apenas relatórios específicos) | Configuração "relatórios específicos" permite selecionar quais relatórios o perfil/usuário pode ver | v1.0 | 🔴 |
@@ -119,8 +119,8 @@
 | RF-AUD-01 | Todos os eventos relevantes devem ser registrados automaticamente | Log gerado sem ação do usuário para: login, logout, CRUD de usuários, alterações de permissão, bloqueios, acessos negados | v1.0 | 🔴 |
 | RF-AUD-02 | Cada registro de log deve conter: timestamp, usuário, IP, módulo, tipo, detalhe; nome exibido deve refletir o nome atual do usuário | Todos os campos presentes; IP capturado via `X-Forwarded-For` com fallback para `request.client.host`; nome/e-mail resolvidos do banco em tempo de leitura (fallback para snapshot quando usuário foi excluído) | v1.0 | 🔴 |
 | RF-AUD-03 | Logs não podem ser editados ou excluídos por nenhum perfil | Nenhum endpoint de DELETE/PUT exposto para logs; tabela append-only | v1.0 | 🔴 |
-| RF-AUD-04 | Super Admin pode filtrar logs por: período, usuário (nome/e-mail), módulo, tipo de evento e IP | Filtros combinados retornam resultado correto via `GET /auditoria`; filtros aplicados também na exportação CSV | v1.0 | 🔴 |
-| RF-AUD-05 | Super Admin pode exportar logs filtrados em CSV | Arquivo CSV gerado via `GET /auditoria/export-csv`; encoding UTF-8 com BOM; nome com timestamp | v1.0 | 🔴 |
+| RF-AUD-04 | Master pode filtrar logs por: período, usuário (nome/e-mail), módulo, tipo de evento e IP | Filtros combinados retornam resultado correto via `GET /auditoria`; filtros aplicados também na exportação CSV | v1.0 | 🔴 |
+| RF-AUD-05 | Master pode exportar logs filtrados em CSV | Arquivo CSV gerado via `GET /auditoria/export-csv`; encoding UTF-8 com BOM; nome com timestamp | v1.0 | 🔴 |
 | RF-AUD-06 | Eventos críticos (bloqueio de conta, acesso negado repetido) devem gerar alerta no dashboard | Badge de alertas no topbar incrementa; lista de eventos críticos no painel admin atualizada | v1.0 | 🔴 |
 | RF-AUD-07 | A página de Auditoria deve paginar os resultados (50 por página) com navegação por páginas | Paginação exibida abaixo da tabela com botões primeira/anterior/páginas/próxima/última; contador "X–Y de Z registros" | v1.0 | 🔴 |
 | RF-AUD-08 | Registros com `valor_anterior` ou `valor_novo` devem permitir expandir o detalhe da alteração | Clique na linha expande painel com "ANTES" e "DEPOIS" lado a lado | v1.0 | 🔴 |
@@ -156,8 +156,8 @@
 
 | ID | Descrição | Critério de Aceite | Versão | Prioridade |
 |----|-----------|-------------------|--------|-----------|
-| RF-CONF-01 | Super Admin deve configurar as credenciais Power BI (Client ID, Tenant ID, Client Secret) | Credenciais salvas no banco (`configuracoes_sistema`); Client Secret exibido mascarado após salvar com botão de olho que revela o valor real via `GET /configuracoes/pbi/secret` (restrito a Admin/Super Admin); integração PBI usa as credenciais configuradas | v1.0 | 🔴 |
-| RF-CONF-02 | Somente Admin e Super Admin podem acessar o módulo de configurações; aba de Credenciais PBI é exclusiva do Super Admin | Perfis sem permissão são redirecionados para Home; aba PBI não aparece para Admins comuns | v1.0 | 🔴 |
+| RF-CONF-01 | Master deve configurar as credenciais Power BI (Client ID, Tenant ID, Client Secret) | Credenciais salvas no banco (`configuracoes_sistema`); Client Secret exibido mascarado após salvar com botão de olho que revela o valor real via `GET /configuracoes/pbi/secret` (restrito a Administrador/Master); integração PBI usa as credenciais configuradas | v1.0 | 🔴 |
+| RF-CONF-02 | Somente Administrador e Master podem acessar o módulo de configurações; aba de Credenciais PBI é exclusiva do Master | Perfis sem permissão são redirecionados para Home; aba PBI não aparece para Administradores comuns | v1.0 | 🔴 |
 | RF-CONF-03 | O sistema deve exibir o ambiente atual (produção/homologação) no header | Badge de ambiente visível para todos os admins | v1.0 | 🟡 |
 | RF-CONF-04 | A página de Configurações deve ter abas: Expediente, Grupos de Exceção e Credenciais Power BI | Cada aba carrega e salva dados de forma independente; alterações refletem imediatamente no comportamento do sistema. A grade de Expediente é exibida em formato de tabela compacta (cabeçalho + uma linha por dia da semana) | v1.0 | 🔴 |
 | RF-CONF-05 | Campos críticos (`id_workspace_pbi`, `id_relatorio_pbi`, credenciais PBI) devem ser exibidos somente-leitura por padrão, com botão "Editar" para entrar no modo de edição | Campo crítico em modo visualização: valor mascarado ou exibido, sem inputs editáveis. Botão "Editar" ativa o formulário | v1.0 | 🔴 |
@@ -175,8 +175,8 @@
 | RF-UX-02 | O painel administrativo deve exibir KPIs dinâmicos com subtextos contextuais | Card "Acessos negados hoje" compara o valor do dia com a média dos últimos 7 dias; card "Workspaces ativos" exibe percentual; card "Usuários bloqueados" exibe quantos hoje; card "Usuários ativos" exibe logins do dia | v1.0 | 🟡 |
 | RF-UX-03 | O footer da sidebar deve exibir nome completo, e-mail e perfil do usuário logado em todas as páginas | Footer exibe: nome em destaque (bold), e-mail abaixo, perfil em verde; avatar com iniciais do primeiro e segundo nome | v1.0 | 🔴 |
 | RF-UX-04 | A página Home de usuários não-admin deve exibir card de boas-vindas, status de expediente e lista de workspaces acessíveis com seus relatórios | Card de boas-vindas com nome e perfil; indicador de expediente no topbar; workspaces expansíveis com relatórios e botão "Abrir" (desabilitado quando sem ID PBI) | v1.0 | 🔴 |
-| RF-UX-05 | Admins e Super Admins não devem aparecer na lista de usuários vinculados a um workspace | Lista de usuários do workspace exclui perfis `administrador` e `super_administrador`; contador de usuários no card do workspace também os exclui | v1.0 | 🔴 |
-| RF-UX-06 | Na tela de usuários, a coluna Workspaces de admins/super_admins deve exibir "Todos os workspaces" em vez de listar individualmente | Badge com ícone de escudo exibido para perfis admin; usuários comuns continuam listando workspaces individuais | v1.0 | 🔴 |
+| RF-UX-05 | Master e Administrador não devem aparecer na lista de usuários vinculados a um workspace | Lista de usuários do workspace exclui perfis `master` e `administrador`; contador de usuários no card do workspace também os exclui | v1.0 | 🔴 |
+| RF-UX-06 | Na tela de usuários, a coluna Workspaces de Master/Administrador deve exibir "Todos os workspaces" em vez de listar individualmente | Badge com ícone de escudo exibido para perfis admin; usuários comuns continuam listando workspaces individuais | v1.0 | 🔴 |
 
 ---
 

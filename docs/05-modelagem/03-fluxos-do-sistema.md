@@ -195,7 +195,7 @@ PUT /api/v1/permissoes
 ┌──────────────────────────────────────────┐
 │ Quem solicita tem permissão para alterar │──── NÃO ──→ 403
 │ permissões do alvo selecionado?          │
-│ (Admin não pode alterar Super Admin)     │
+│ (Admin não pode alterar Master)          │
 └──────────┬───────────────────────────────┘
            │ SIM
            ▼

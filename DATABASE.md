@@ -41,7 +41,7 @@ O CGID é um portal de acesso controlado a relatórios do **Power BI**. O banco 
 
 **Total:** 15 tabelas.
 
-> ² `permissoes_perfil` e `sobrescritas_permissao` estão definidas no schema e populadas pelo `seed.py`, mas **não são consultadas pelo `main.py`** na versão atual. O controle de acesso é feito por verificação direta de perfil (`PERFIS_ADMIN = {"super_administrador", "administrador"}`). Estas tabelas são reservadas para implementação futura do RBAC granular via API.
+> ² `permissoes_perfil` e `sobrescritas_permissao` são consultadas pelo `main.py` via `checar_permissao()` / `exigir_permissao()` para RBAC granular. O controle administrativo é feito por verificação direta de perfil (`PERFIS_ADMIN = {"master", "administrador"}`).
 
 O schema é definido inteiramente via modelos SQLAlchemy em `backend/models.py`. A criação física das tabelas ocorre automaticamente na inicialização do servidor (`Base.metadata.create_all(bind=engine)` em `backend/main.py`) ou ao executar `backend/seed.py`.
 
@@ -138,7 +138,7 @@ Tabelas independentes (sem FK de entrada):
 | `nome` | TEXT(255) | NVARCHAR(255) | NÃO | — | NOT NULL | Nome completo |
 | `email` | TEXT(255) | NVARCHAR(255) | NÃO | — | NOT NULL, UNIQUE, INDEX | E-mail corporativo (login) |
 | `hash_senha` | TEXT(255) | NVARCHAR(255) | NÃO | — | NOT NULL | Hash bcrypt da senha |
-| `perfil` | TEXT(30) | NVARCHAR(30) | NÃO | — | NOT NULL | `super_administrador` \| `administrador` \| `gerente` \| `operador` \| `visitante` |
+| `perfil` | TEXT(30) | NVARCHAR(30) | NÃO | — | NOT NULL | `master` \| `administrador` \| `coordenador` \| `colaborador` \| `convidado` |
 | `status` | TEXT(20) | NVARCHAR(20) | NÃO | `ativo` | NOT NULL | `ativo` \| `inativo` \| `bloqueado` |
 | `tentativas_login` | INTEGER | SMALLINT | NÃO | `0` | NOT NULL | Contador de falhas (bloqueia ao atingir 5) |
 | `senha_provisoria` | INTEGER(bool) | BIT | NÃO | `0` | NOT NULL | Se `1`, força troca de senha no próximo login |
@@ -781,28 +781,28 @@ O script é **idempotente** (usa upsert — pode ser executado múltiplas vezes 
 
 | Nome | E-mail | Senha | Perfil |
 |------|--------|-------|--------|
-| Admin CGID | admin@cgid.com | Admin@2025 | super_administrador |
-| Carlos Gerente | carlos@cgid.com | Carlos@123 | gerente |
-| Mariana Operador | mariana@cgid.com | Mariana@123 | operador |
-| Visitante Demo | visitante@cgid.com | Visitante@123 | visitante |
+| Admin CGID | admin@cgid.com | Admin@2025 | master |
+| Carlos Coordenador | carlos@cgid.com | Carlos@123 | coordenador |
+| Mariana Colaborador | mariana@cgid.com | Mariana@123 | colaborador |
+| Convidado Demo | visitante@cgid.com | Visitante@123 | convidado |
 
 > **Atenção:** Altere as senhas imediatamente após o primeiro deploy em produção.
 
 ### 8.2 Matriz de permissões por perfil (45 linhas)
 
-> **Atenção:** Esta matriz é inserida pelo `seed.py` e existe no banco, mas **não é consultada pelo `main.py`** na versão atual. O controle de acesso é feito por verificação direta de perfil nos endpoints. Estas 45 linhas estão reservadas para o RBAC granular futuro.
+> Esta matriz é inserida pelo `seed.py` e consultada pelo `main.py` via `checar_permissao()`. Gerenciável em tempo de execução em **Configurações → Permissões** (restrito ao Master).
 
 | Perfil | Módulos | visualizar | criar | editar | excluir | exportar | gerenciar |
 |--------|---------|:---:|:---:|:---:|:---:|:---:|:---:|
-| super_administrador | todos | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| master | todos | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | administrador | todos exceto `configuracoes` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | administrador | `configuracoes` | ✓ | ✓ | ✓ | ✗ | ✓ | ✗ |
-| gerente | `relatorios`, `workspaces`, `auditoria` | ✓ | ✗ | ✗ | ✗ | relatorios=✓ | ✗ |
-| gerente | demais módulos | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
-| operador | `relatorios` | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ |
-| operador | demais módulos | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
-| visitante | `relatorios` | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ |
-| visitante | demais módulos | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| coordenador | `relatorios`, `workspaces`, `auditoria` | ✓ | ✗ | ✗ | ✗ | relatorios=✓ | ✗ |
+| coordenador | demais módulos | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| colaborador | `relatorios` | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| colaborador | demais módulos | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| convidado | `relatorios` | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| convidado | demais módulos | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
 
 ### 8.3 Regras de expediente (7 linhas)
 

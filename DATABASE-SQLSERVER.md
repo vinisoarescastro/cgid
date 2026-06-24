@@ -101,7 +101,7 @@ BEGIN
         email            NVARCHAR(255) NOT NULL,
         hash_senha       NVARCHAR(255) NOT NULL,
         perfil           NVARCHAR(30)  NOT NULL,
-        -- Valores validos: super_administrador | administrador | gerente | operador | visitante
+        -- Valores validos: master | administrador | coordenador | colaborador | convidado
         status           NVARCHAR(20)  NOT NULL CONSTRAINT df_usuarios_status   DEFAULT N'ativo',
         -- Valores validos: ativo | inativo | bloqueado
         tentativas_login SMALLINT      NOT NULL CONSTRAINT df_usuarios_tent     DEFAULT 0,
@@ -1095,7 +1095,7 @@ As colunas `atualizado_em` em `usuarios`, `relatorios` e `regras_expediente` pos
 DECLARE @id_admin     NVARCHAR(36) = N'00000000-0000-0000-0000-000000000001';
 DECLARE @id_carlos    NVARCHAR(36) = N'00000000-0000-0000-0000-000000000002';
 DECLARE @id_mariana   NVARCHAR(36) = N'00000000-0000-0000-0000-000000000003';
-DECLARE @id_visitante NVARCHAR(36) = N'00000000-0000-0000-0000-000000000004';
+DECLARE @id_convidado NVARCHAR(36) = N'00000000-0000-0000-0000-000000000004';
 
 DECLARE @id_ws_admin  NVARCHAR(36) = N'00000000-0000-0000-0001-000000000001';
 DECLARE @id_ws_ctrl   NVARCHAR(36) = N'00000000-0000-0000-0001-000000000002';
@@ -1109,7 +1109,7 @@ DECLARE @hash_carlos    NVARCHAR(255) = N'$2b$12$SUBSTITUA_PELO_HASH_BCRYPT_DE_C
 -- Hash bcrypt de 'Mariana@123'
 DECLARE @hash_mariana   NVARCHAR(255) = N'$2b$12$SUBSTITUA_PELO_HASH_BCRYPT_DE_Mariana@123_______';
 -- Hash bcrypt de 'Visitante@123'
-DECLARE @hash_visitante NVARCHAR(255) = N'$2b$12$SUBSTITUA_PELO_HASH_BCRYPT_DE_Visitante@123_____';
+DECLARE @hash_convidado NVARCHAR(255) = N'$2b$12$SUBSTITUA_PELO_HASH_BCRYPT_DE_Visitante@123_____';
 ```
 
 ---
@@ -1120,27 +1120,27 @@ DECLARE @hash_visitante NVARCHAR(255) = N'$2b$12$SUBSTITUA_PELO_HASH_BCRYPT_DE_V
 DECLARE @id_admin     NVARCHAR(36) = N'00000000-0000-0000-0000-000000000001';
 DECLARE @id_carlos    NVARCHAR(36) = N'00000000-0000-0000-0000-000000000002';
 DECLARE @id_mariana   NVARCHAR(36) = N'00000000-0000-0000-0000-000000000003';
-DECLARE @id_visitante NVARCHAR(36) = N'00000000-0000-0000-0000-000000000004';
+DECLARE @id_convidado NVARCHAR(36) = N'00000000-0000-0000-0000-000000000004';
 DECLARE @hash_admin     NVARCHAR(255) = N'$2b$12$SUBSTITUA_PELO_HASH_BCRYPT_DE_Admin@2025_________';
 DECLARE @hash_carlos    NVARCHAR(255) = N'$2b$12$SUBSTITUA_PELO_HASH_BCRYPT_DE_Carlos@123________';
 DECLARE @hash_mariana   NVARCHAR(255) = N'$2b$12$SUBSTITUA_PELO_HASH_BCRYPT_DE_Mariana@123_______';
-DECLARE @hash_visitante NVARCHAR(255) = N'$2b$12$SUBSTITUA_PELO_HASH_BCRYPT_DE_Visitante@123_____';
+DECLARE @hash_convidado NVARCHAR(255) = N'$2b$12$SUBSTITUA_PELO_HASH_BCRYPT_DE_Visitante@123_____';
 
 IF NOT EXISTS (SELECT 1 FROM dbo.usuarios WHERE email = N'admin@cgid.com')
     INSERT INTO dbo.usuarios (id, nome, email, hash_senha, perfil, status)
-    VALUES (@id_admin, N'Admin CGID', N'admin@cgid.com', @hash_admin, N'super_administrador', N'ativo');
+    VALUES (@id_admin, N'Admin CGID', N'admin@cgid.com', @hash_admin, N'master', N'ativo');
 
 IF NOT EXISTS (SELECT 1 FROM dbo.usuarios WHERE email = N'carlos@cgid.com')
     INSERT INTO dbo.usuarios (id, nome, email, hash_senha, perfil, status)
-    VALUES (@id_carlos, N'Carlos Gerente', N'carlos@cgid.com', @hash_carlos, N'gerente', N'ativo');
+    VALUES (@id_carlos, N'Carlos Coordenador', N'carlos@cgid.com', @hash_carlos, N'coordenador', N'ativo');
 
 IF NOT EXISTS (SELECT 1 FROM dbo.usuarios WHERE email = N'mariana@cgid.com')
     INSERT INTO dbo.usuarios (id, nome, email, hash_senha, perfil, status)
-    VALUES (@id_mariana, N'Mariana Operador', N'mariana@cgid.com', @hash_mariana, N'operador', N'ativo');
+    VALUES (@id_mariana, N'Mariana Colaborador', N'mariana@cgid.com', @hash_mariana, N'colaborador', N'ativo');
 
 IF NOT EXISTS (SELECT 1 FROM dbo.usuarios WHERE email = N'visitante@cgid.com')
     INSERT INTO dbo.usuarios (id, nome, email, hash_senha, perfil, status)
-    VALUES (@id_visitante, N'Visitante Demo', N'visitante@cgid.com', @hash_visitante, N'visitante', N'ativo');
+    VALUES (@id_convidado, N'Convidado Demo', N'visitante@cgid.com', @hash_convidado, N'convidado', N'ativo');
 
 PRINT 'Seed [usuarios] inserido.';
 GO
@@ -1157,10 +1157,10 @@ INSERT INTO @modulos VALUES
     (N'usuarios'), (N'permissoes'), (N'relatorios'), (N'workspaces'),
     (N'auditoria'), (N'seguranca'), (N'configuracoes'), (N'expediente'), (N'grupos_excecao');
 
--- super_administrador: tudo True
+-- master: tudo True
 MERGE dbo.permissoes_perfil AS tgt
 USING (
-    SELECT N'super_administrador' AS perfil, modulo FROM @modulos
+    SELECT N'master' AS perfil, modulo FROM @modulos
 ) AS src ON tgt.perfil = src.perfil AND tgt.modulo = src.modulo
 WHEN MATCHED THEN
     UPDATE SET pode_visualizar=1, pode_criar=1, pode_editar=1,
@@ -1194,10 +1194,10 @@ WHEN NOT MATCHED THEN
         CASE WHEN src.modulo = N'configuracoes' THEN 0 ELSE 1 END
     );
 
--- gerente: visualizar em relatorios/workspaces/auditoria; exportar em relatorios; resto False
+-- coordenador: visualizar em relatorios/workspaces/auditoria; exportar em relatorios; resto False
 MERGE dbo.permissoes_perfil AS tgt
 USING (
-    SELECT N'gerente' AS perfil, modulo FROM @modulos
+    SELECT N'coordenador' AS perfil, modulo FROM @modulos
 ) AS src ON tgt.perfil = src.perfil AND tgt.modulo = src.modulo
 WHEN MATCHED THEN
     UPDATE SET
@@ -1218,10 +1218,10 @@ WHEN NOT MATCHED THEN
         0
     );
 
--- operador: apenas visualizar relatorios
+-- colaborador: apenas visualizar relatorios
 MERGE dbo.permissoes_perfil AS tgt
 USING (
-    SELECT N'operador' AS perfil, modulo FROM @modulos
+    SELECT N'colaborador' AS perfil, modulo FROM @modulos
 ) AS src ON tgt.perfil = src.perfil AND tgt.modulo = src.modulo
 WHEN MATCHED THEN
     UPDATE SET
@@ -1236,10 +1236,10 @@ WHEN NOT MATCHED THEN
         0, 0, 0, 0, 0
     );
 
--- visitante: apenas visualizar relatorios
+-- convidado: apenas visualizar relatorios
 MERGE dbo.permissoes_perfil AS tgt
 USING (
-    SELECT N'visitante' AS perfil, modulo FROM @modulos
+    SELECT N'convidado' AS perfil, modulo FROM @modulos
 ) AS src ON tgt.perfil = src.perfil AND tgt.modulo = src.modulo
 WHEN MATCHED THEN
     UPDATE SET

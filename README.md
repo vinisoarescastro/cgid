@@ -133,10 +133,10 @@ npm run dev
 
 | E-mail | Senha | Perfil |
 |---|---|---|
-| admin@cgid.com | Admin@2025 | Super Administrador |
-| carlos@cgid.com | Carlos@123 | Gerente |
-| mariana@cgid.com | Mariana@123 | Operador |
-| visitante@cgid.com | Visitante@123 | Visitante |
+| admin@cgid.com | Admin@2025 | Master |
+| carlos@cgid.com | Carlos@123 | Coordenador |
+| mariana@cgid.com | Mariana@123 | Colaborador |
+| visitante@cgid.com | Visitante@123 | Convidado |
 
 ---
 
@@ -147,8 +147,8 @@ npm run dev
 | Senha padrão | Novos usuários recebem `Mudar@123` se nenhuma senha for informada |
 | Reset de senha | Admin pode redefinir a senha de qualquer usuário para `Mudar@123` |
 | Bloqueio automático | Conta bloqueada após 5 tentativas de login incorretas |
-| Acesso admin | Super Admin e Admin têm acesso automático a todos os workspaces com nível total |
-| Acesso por perfil | Gerente, Operador e Visitante precisam ter workspaces vinculados manualmente |
+| Acesso admin | Master e Administrador têm acesso automático a todos os workspaces com nível total |
+| Acesso por perfil | Coordenador, Colaborador e Convidado precisam ter workspaces vinculados manualmente |
 | Último acesso | Registrado automaticamente a cada login bem-sucedido |
 
 ---
@@ -285,7 +285,7 @@ $env:PBI_TENANT_ID="..."; $env:PBI_CLIENT_ID="..."; $env:PBI_CLIENT_SECRET="..."
 
 Na página de **Workspace**, ao criar ou editar um workspace, informe o **ID Workspace Power BI** (UUID visível na URL do Power BI Service). Ao cadastrar um relatório, informe o **ID Relatório Power BI**. O botão **Abrir** na lista de relatórios abrirá o relatório incorporado diretamente no portal.
 
-As credenciais também podem ser cadastradas em **Configurações → Credenciais Power BI** por um Super Admin. O `client_secret` é retornado ao frontend apenas mascarado.
+As credenciais também podem ser cadastradas em **Configurações → Credenciais Power BI** por um Master. O `client_secret` é retornado ao frontend apenas mascarado.
 
 ---
 

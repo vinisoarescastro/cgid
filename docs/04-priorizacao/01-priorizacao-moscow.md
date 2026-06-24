@@ -43,7 +43,7 @@ A priorização segue o framework **MoSCoW**:
 
 ### Permissões (RBAC)
 
-- [ ] Controle por perfil (Super Admin, Admin, Gerente, Operador, Visitante)
+- [ ] Controle por perfil (Master, Administrador, Coordenador, Colaborador, Convidado)
 - [ ] Matriz de permissões (Visualizar, Criar, Editar, Excluir, Exportar, Gerenciar)
 - [ ] Override por usuário individual
 - [ ] Controle PBI por workspace (total vs. relatórios específicos)
@@ -61,7 +61,7 @@ A priorização segue o framework **MoSCoW**:
 - [ ] CRUD de workspaces e relatórios
 - [ ] Listagem filtrada por workspace, categoria e status
 - [ ] Detalhes do workspace com tiles e estatísticas
-- [ ] Relatórios `rascunho` invisíveis para Operadores
+- [ ] Relatórios `rascunho` invisíveis para Colaboradores e Convidados
 
 ### Controle de Expediente
 
@@ -79,7 +79,7 @@ A priorização segue o framework **MoSCoW**:
 
 ### Dashboard e UX
 
-- [ ] Home adaptada por perfil (admin vs. operador)
+- [ ] Home adaptada por perfil (admin vs. colaborador)
 - [ ] KPIs globais para admins
 - [ ] Tela de boas-vindas personalizada
 - [ ] Favoritos por usuário
@@ -88,7 +88,7 @@ A priorização segue o framework **MoSCoW**:
 
 ### Configurações
 
-- [ ] Configuração de credenciais Power BI (exclusivo Super Admin)
+- [ ] Configuração de credenciais Power BI (exclusivo Master)
 - [ ] Indicador de ambiente (produção/homologação)
 
 ### Infraestrutura

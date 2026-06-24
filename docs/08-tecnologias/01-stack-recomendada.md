@@ -226,11 +226,11 @@ backend/
 
 | Perfil | Valor no banco | Nível de acesso |
 |---|---|---|
-| Super Administrador | `super_administrador` | Acesso total, incluindo configurações |
+| Master | `master` | Acesso total, incluindo configurações |
 | Administrador | `administrador` | Gerencia usuários, workspaces e permissões |
-| Gerente | `gerente` | Visualiza relatórios e KPIs do seu workspace |
-| Operador | `operador` | Acessa relatórios explicitamente liberados |
-| Visitante | `visitante` | Acesso mínimo e temporário |
+| Coordenador | `coordenador` | Visualiza relatórios e KPIs do seu workspace |
+| Colaborador | `colaborador` | Acessa relatórios explicitamente liberados |
+| Convidado | `convidado` | Acesso mínimo e temporário |
 
 ### 5.5 Mapeamento de Tipos Python → SQL
 
@@ -280,10 +280,10 @@ npm run dev
 
 | E-mail | Senha | Perfil |
 |---|---|---|
-| admin@cgid.com | Admin@2025 | Super Administrador |
-| carlos@cgid.com | Carlos@123 | Gerente |
-| mariana@cgid.com | Mariana@123 | Operador |
-| visitante@cgid.com | Visitante@123 | Visitante |
+| admin@cgid.com | Admin@2025 | Master |
+| carlos@cgid.com | Carlos@123 | Coordenador |
+| mariana@cgid.com | Mariana@123 | Colaborador |
+| convidado@cgid.com | Convidado@123 | Convidado |
 
 ---
 

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 
 const API = 'http://localhost:8000'
-const ADMIN_PERFIS = ['super_administrador', 'administrador']
+const ADMIN_PERFIS = ['master', 'administrador']
 
 export default function TopbarExpediente() {
   const user    = JSON.parse(sessionStorage.getItem('cgid_user') || '{}')

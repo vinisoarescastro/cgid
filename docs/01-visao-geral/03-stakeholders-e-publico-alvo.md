@@ -11,7 +11,7 @@
 
 O sistema atende dois grupos distintos de usuários com necessidades e contextos de uso completamente diferentes:
 
-### Grupo A — Usuários Consumidores (Operadores e Gerentes)
+### Grupo A — Usuários Consumidores (Colaboradores e Coordenadores)
 
 São os colaboradores da BrasilTerrenos que utilizam o portal para **visualizar relatórios analíticos** do seu departamento. Possuem pouca familiaridade com ferramentas de BI e esperam uma experiência simples, focada e sem ruído. Para eles, o portal deve funcionar como um "painel de vidro" transparente para os dados do seu trabalho.
 
@@ -22,7 +22,7 @@ São os colaboradores da BrasilTerrenos que utilizam o portal para **visualizar 
 - Está habituado ao ecossistema Microsoft (Outlook, Teams)
 - Tempo de treinamento esperado: **menos de 30 minutos**
 
-### Grupo B — Usuários Administrativos (Admins e Super Admin)
+### Grupo B — Usuários Administrativos (Administradores e Master)
 
 São os profissionais de TI, compliance e gestão que **administram o portal**: provisionam e revogam acessos, configuram permissões, monitoram eventos de segurança e extraem logs de auditoria. Para eles, o portal deve oferecer ferramentas poderosas, rápidas e auditáveis.
 
@@ -39,11 +39,11 @@ São os profissionais de TI, compliance e gestão que **administram o portal**: 
 
 | Perfil | Descrição | Quantidade estimada |
 |--------|-----------|:-------------------:|
-| **Super Admin** | Responsável pela configuração global do portal: integração PBI, políticas de segurança, gestão da aplicação | 1–2 |
-| **Admin** | Gestor de TI ou compliance: gerencia usuários, permissões e workspaces | 3–10 |
-| **Gerente** | Líder departamental: visualiza relatórios do seu workspace, acompanha KPIs da equipe | 10–30 |
-| **Operador** | Colaborador operacional: consome relatórios autorizados do seu workspace | 50–500 |
-| **Visitante** | Acesso temporário (ex: auditores externos, consultores): visualização restrita com prazo definido | Variável |
+| **Master** | Responsável pela configuração global do portal: integração PBI, políticas de segurança, gestão da aplicação | 1–2 |
+| **Administrador** | Gestor de TI ou compliance: gerencia usuários, permissões e workspaces | 3–10 |
+| **Coordenador** | Líder departamental: visualiza relatórios do seu workspace, acompanha KPIs da equipe | 10–30 |
+| **Colaborador** | Colaborador operacional: consome relatórios autorizados do seu workspace | 50–500 |
+| **Convidado** | Acesso temporário (ex: auditores externos, consultores): visualização restrita com prazo definido | Variável |
 
 ---
 

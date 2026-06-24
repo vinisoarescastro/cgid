@@ -78,7 +78,7 @@ Infra    Permissões     Workspaces  Exceções     Dashboard   Ajustes    MVP v
 | 13 | Hash bcrypt nas senhas | Auth |
 
 ### Critério de conclusão
-> Usuário consegue fazer login; token expira em 1h; refresh funciona via cookie httpOnly e sessão no SQL Server; 5 tentativas bloqueiam a conta; RBAC impede acesso de Operador a módulos Admin.
+> Usuário consegue fazer login; token expira em 1h; refresh funciona via cookie httpOnly e sessão no SQL Server; 5 tentativas bloqueiam a conta; RBAC impede acesso de Colaborador a módulos Admin.
 
 ---
 
@@ -99,12 +99,12 @@ Infra    Permissões     Workspaces  Exceções     Dashboard   Ajustes    MVP v
 | 7 | Listagem de workspaces filtrada por perfil | Workspaces |
 | 8 | Detalhes do workspace com tiles e relatórios | Workspaces |
 | 9 | Filtros de relatórios (workspace, categoria, status) | Reports |
-| 10 | Relatórios `rascunho` invisíveis para Operador | Reports |
+| 10 | Relatórios `rascunho` invisíveis para Colaborador | Reports |
 | 11 | Favoritos (marcar/desmarcar/listar) | Favorites |
 | 12 | Associação usuário → workspace → relatórios (Admin) | Permissions |
 
 ### Critério de conclusão
-> Usuário abre relatório e vê embed do PBI sem erros; token PBI gerado apenas no backend; relatório rascunho invisível para Operador.
+> Usuário abre relatório e vê embed do PBI sem erros; token PBI gerado apenas no backend; relatório rascunho invisível para Colaborador.
 
 ---
 
@@ -144,7 +144,7 @@ Infra    Permissões     Workspaces  Exceções     Dashboard   Ajustes    MVP v
 | 5 | Alertas de eventos críticos no dashboard | Dashboard / Audit |
 | 6 | Painel gerencial com KPIs globais | Dashboard |
 | 7 | Status dos serviços integrados | Dashboard |
-| 8 | Home adaptada por perfil (admin vs. operador) | Dashboard |
+| 8 | Home adaptada por perfil (admin vs. colaborador) | Dashboard |
 | 9 | Gráfico de área "Acessos ao longo do tempo" com filtros por período (diário/semanal/mensal) | Dashboard |
 | 10 | Gráfico de rosca "Distribuição por Workspace" com labels e cores do workspace | Dashboard |
 | 11 | Ranking "Top Relatórios Acessados" com filtros por período e cores do workspace | Dashboard |
@@ -164,7 +164,7 @@ Infra    Permissões     Workspaces  Exceções     Dashboard   Ajustes    MVP v
 
 | # | Feature | Módulo |
 |---|---------|--------|
-| 1 | Configurações do sistema (Super Admin) | Settings |
+| 1 | Configurações do sistema (Master) | Settings |
 | 2 | Configuração de credenciais PBI com botão "Testar" | Settings |
 | 3 | Indicador de ambiente (produção/homologação) | Global |
 | 4 | Busca global de relatórios | Reports |
@@ -174,7 +174,7 @@ Infra    Permissões     Workspaces  Exceções     Dashboard   Ajustes    MVP v
 | 8 | Variáveis de ambiente validadas no startup (Pydantic Settings) | Backend |
 
 ### Critério de conclusão
-> Super Admin configura PBI e testa conexão; todos os endpoints documentados no Swagger; busca de relatório funciona.
+> Master configura PBI e testa conexão; todos os endpoints documentados no Swagger; busca de relatório funciona.
 
 ---
 
@@ -198,7 +198,7 @@ Infra    Permissões     Workspaces  Exceções     Dashboard   Ajustes    MVP v
 | 10 | Go-live em produção com acompanhamento |
 
 ### Critério de conclusão do MVP
-> Portal em produção; Super Admin cadastrado; primeiros usuários onboardados; monitoramento ativo.
+> Portal em produção; Master cadastrado; primeiros usuários onboardados; monitoramento ativo.
 
 ---
 
@@ -209,7 +209,7 @@ Infra    Permissões     Workspaces  Exceções     Dashboard   Ajustes    MVP v
 | Feature | Justificativa |
 |---------|--------------|
 | Recuperação de senha por e-mail | Eliminar dependência do TI para reset de senha |
-| MFA (TOTP) para Admin e Super Admin | Segurança adicional para perfis privilegiados |
+| MFA (TOTP) para Administrador e Master | Segurança adicional para perfis privilegiados |
 | Exportação de logs em CSV | Relatórios de compliance para auditorias |
 | Sincronização automática de workspaces/relatórios do PBI | Reduzir esforço de manutenção do catálogo |
 | Notificações por e-mail em eventos críticos | Resposta rápida a incidentes |

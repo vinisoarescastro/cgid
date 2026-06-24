@@ -12,7 +12,7 @@
 O sistema é composto por **10 módulos funcionais** organizados em duas camadas:
 
 - **Camada de Consumo**: módulos usados por todos os perfis para consumir relatórios
-- **Camada Administrativa**: módulos exclusivos de Admin e Super Admin para governar o sistema
+- **Camada Administrativa**: módulos exclusivos de Administrador e Master para governar o sistema
 
 ```
 ┌─────────────────────────────────────────────────────┐
@@ -53,7 +53,7 @@ O sistema é composto por **10 módulos funcionais** organizados em duas camadas
 
 ### MOD-02 — Home / Dashboard
 
-**Descrição:** Tela inicial após autenticação, adaptada ao perfil do usuário. Admins e Super Admins veem KPIs globais do portal; demais perfis veem seus workspaces acessíveis, relatórios e status de expediente.
+**Descrição:** Tela inicial após autenticação, adaptada ao perfil do usuário. Administradores e Masters veem KPIs globais do portal; demais perfis veem seus workspaces acessíveis, relatórios e status de expediente.
 
 **Funcionalidades:**
 
@@ -215,9 +215,9 @@ O sistema é composto por **10 módulos funcionais** organizados em duas camadas
 
 ---
 
-### MOD-10 — Configurações do Sistema (Admin / Super Admin)
+### MOD-10 — Configurações do Sistema (Administrador / Master)
 
-**Descrição:** Configurações globais do portal incluindo expediente, grupos de exceção e integração com Power BI Embedded. Admin e Super Admin acessam a página; credenciais Power BI são exclusivas do Super Admin.
+**Descrição:** Configurações globais do portal incluindo expediente, grupos de exceção e integração com Power BI Embedded. Administrador e Master acessam a página; credenciais Power BI são exclusivas do Master.
 
 **Funcionalidades:**
 

@@ -20,7 +20,7 @@ Base.metadata.create_all(bind=engine)
 # ─── Seed de permissões padrão ───────────────────────────────────────────────
 _MATRIZ_PERMISSOES_DEFAULT = {
     # perfil -> modulo -> (visualizar, criar, editar, excluir, exportar, gerenciar)
-    "super_administrador": {
+    "master": {
         m: (True, True, True, True, True, True)
         for m in ["usuarios", "permissoes", "relatorios", "workspaces", "auditoria",
                   "seguranca", "configuracoes", "expediente", "grupos_excecao", "landbank"]
@@ -37,7 +37,7 @@ _MATRIZ_PERMISSOES_DEFAULT = {
         "grupos_excecao": (True, True, True, True,  True,  True),
         "landbank":       (True, False, False, False, True, False),
     },
-    "gerente": {
+    "coordenador": {
         "usuarios":       (True,  False, False, False, False, False),
         "permissoes":     (False, False, False, False, False, False),
         "relatorios":     (True,  False, False, False, True,  False),
@@ -49,12 +49,12 @@ _MATRIZ_PERMISSOES_DEFAULT = {
         "grupos_excecao": (False, False, False, False, False, False),
         "landbank":       (False, False, False, False, False, False),
     },
-    "operador": {
+    "colaborador": {
         m: (False, False, False, False, False, False)
         for m in ["usuarios", "permissoes", "workspaces", "auditoria",
                   "seguranca", "configuracoes", "expediente", "grupos_excecao", "landbank"]
     } | {"relatorios": (True, False, False, False, False, False)},
-    "visitante": {
+    "convidado": {
         m: (False, False, False, False, False, False)
         for m in ["usuarios", "permissoes", "workspaces", "auditoria",
                   "seguranca", "configuracoes", "expediente", "grupos_excecao", "landbank"]
@@ -88,7 +88,7 @@ _CAMPOS_ACAO = {
 
 
 def checar_permissao(usuario: "Usuario", modulo: str, acao: str, db: Session) -> bool:
-    if usuario.perfil == "super_administrador":
+    if usuario.perfil == "master":
         return True
     campo = _CAMPOS_ACAO.get(acao)
     if not campo:
@@ -261,9 +261,9 @@ def _usuario_tem_excecao_horario(usuario_id: str, db: Session) -> bool:
 
 
 def _vincular_admins_workspace(workspace_id: str, db: Session):
-    """Garante que todos os admins/super_admins ativos tenham AcessoWorkspace total neste workspace."""
+    """Garante que todos os admins/masters ativos tenham AcessoWorkspace total neste workspace."""
     admins = db.query(Usuario).filter(
-        Usuario.perfil.in_(["super_administrador", "administrador"]),
+        Usuario.perfil.in_(["master", "administrador"]),
         Usuario.status == "ativo",
     ).all()
     for admin in admins:
@@ -466,9 +466,9 @@ class UsuarioAtualizar(BaseModel):
 
 # ─── Gestão de Usuários ───────────────────────────────────────────────────────
 
-PERFIS_VALIDOS  = {"super_administrador", "administrador", "gerente", "operador", "visitante"}
+PERFIS_VALIDOS  = {"master", "administrador", "coordenador", "colaborador", "convidado"}
 STATUS_VALIDOS  = {"ativo", "inativo", "bloqueado"}
-PERFIS_ADMIN    = {"super_administrador", "administrador"}
+PERFIS_ADMIN    = {"master", "administrador"}
 
 @app.get("/usuarios", response_model=List[UsuarioListItem])
 def listar_usuarios(
@@ -1175,7 +1175,7 @@ def dashboard_workspaces(db: Session = Depends(get_db)):
             .filter(
                 AcessoWorkspace.espaco_trabalho_id == ws.id,
                 AcessoWorkspace.nivel_acesso == "total",
-                Usuario.perfil.notin_(["super_administrador", "administrador"]),
+                Usuario.perfil.notin_(["master", "administrador"]),
             ).count()
         )
 
@@ -1185,7 +1185,7 @@ def dashboard_workspaces(db: Session = Depends(get_db)):
             .filter(
                 AcessoWorkspace.espaco_trabalho_id == ws.id,
                 AcessoWorkspace.nivel_acesso == "apenas_relatorios",
-                Usuario.perfil.notin_(["super_administrador", "administrador"]),
+                Usuario.perfil.notin_(["master", "administrador"]),
             ).count()
         )
 
@@ -1461,7 +1461,7 @@ def listar_usuarios_workspace(workspace_id: str, db: Session = Depends(get_db)):
             AcessoWorkspace.espaco_trabalho_id == workspace_id,
             AcessoWorkspace.nivel_acesso != "nenhum",
             Usuario.status == "ativo",
-            Usuario.perfil.notin_(["super_administrador", "administrador"]),
+            Usuario.perfil.notin_(["master", "administrador"]),
         )
         .order_by(Usuario.nome)
         .all()
@@ -2219,7 +2219,7 @@ def minhas_permissoes(request: Request, db: Session = Depends(get_db)):
 
 # ─── Permissões por Perfil ────────────────────────────────────────────────────
 
-_PERFIS_VALIDOS_PERM  = {"super_administrador", "administrador", "gerente", "operador", "visitante"}
+_PERFIS_VALIDOS_PERM  = {"master", "administrador", "coordenador", "colaborador", "convidado"}
 _MODULOS_VALIDOS_PERM = {"usuarios", "permissoes", "relatorios", "workspaces", "auditoria",
                          "seguranca", "configuracoes", "expediente", "grupos_excecao", "landbank"}
 
@@ -2236,8 +2236,8 @@ class PermissaoPerfilInput(BaseModel):
 @app.get("/api/permissoes/perfis")
 def listar_permissoes_perfis(request: Request, db: Session = Depends(get_db)):
     autor = get_usuario_requisicao(request, db)
-    if not autor or autor.perfil != "super_administrador":
-        raise HTTPException(status_code=403, detail="Acesso restrito a super administradores.")
+    if not autor or autor.perfil != "master":
+        raise HTTPException(status_code=403, detail="Acesso restrito a masters.")
     registros = db.query(PermissaoPerfil).all()
     return [
         {
@@ -2260,8 +2260,8 @@ def atualizar_permissao_perfil(
     request: Request, db: Session = Depends(get_db),
 ):
     autor = get_usuario_requisicao(request, db)
-    if not autor or autor.perfil != "super_administrador":
-        raise HTTPException(status_code=403, detail="Acesso restrito a super administradores.")
+    if not autor or autor.perfil != "master":
+        raise HTTPException(status_code=403, detail="Acesso restrito a masters.")
     if perfil not in _PERFIS_VALIDOS_PERM:
         raise HTTPException(status_code=422, detail="Perfil inválido.")
     if modulo not in _MODULOS_VALIDOS_PERM:
@@ -2332,7 +2332,7 @@ def _permissao_efetiva(perfil: str, modulo: str, sobrescrita: Optional["Sobrescr
 @app.get("/api/usuarios/{usuario_id}/permissoes")
 def listar_permissoes_usuario(usuario_id: str, request: Request, db: Session = Depends(get_db)):
     autor = get_usuario_requisicao(request, db)
-    if not autor or autor.perfil not in {"super_administrador", "administrador"}:
+    if not autor or autor.perfil not in {"master", "administrador"}:
         raise HTTPException(status_code=403, detail="Acesso negado.")
 
     alvo = db.query(Usuario).filter_by(id=usuario_id).first()
@@ -2369,7 +2369,7 @@ def upsert_sobrescrita_permissao(
     request: Request, db: Session = Depends(get_db),
 ):
     autor = get_usuario_requisicao(request, db)
-    if not autor or autor.perfil not in {"super_administrador", "administrador"}:
+    if not autor or autor.perfil not in {"master", "administrador"}:
         raise HTTPException(status_code=403, detail="Acesso negado.")
     if modulo not in _MODULOS_VALIDOS_PERM:
         raise HTTPException(status_code=422, detail="Módulo inválido.")
@@ -2406,7 +2406,7 @@ def remover_sobrescrita_permissao(
     request: Request, db: Session = Depends(get_db),
 ):
     autor = get_usuario_requisicao(request, db)
-    if not autor or autor.perfil not in {"super_administrador", "administrador"}:
+    if not autor or autor.perfil not in {"master", "administrador"}:
         raise HTTPException(status_code=403, detail="Acesso negado.")
 
     alvo = db.query(Usuario).filter_by(id=usuario_id).first()

@@ -10,11 +10,11 @@ import { apiFetch, logout, temPermissao } from '../utils/api'
 const API = 'http://localhost:8000'
 
 const PERFIS = [
-  { value: 'super_administrador', label: 'Super Admin' },
-  { value: 'administrador',       label: 'Administrador' },
-  { value: 'gerente',             label: 'Gerente' },
-  { value: 'operador',            label: 'Operador' },
-  { value: 'visitante',           label: 'Visitante' },
+  { value: 'master',        label: 'Master' },
+  { value: 'administrador', label: 'Administrador' },
+  { value: 'coordenador',   label: 'Coordenador' },
+  { value: 'colaborador',   label: 'Colaborador' },
+  { value: 'convidado',     label: 'Convidado' },
 ]
 
 const STATUS = [
@@ -24,11 +24,11 @@ const STATUS = [
 ]
 
 const PERFIL_LABELS = {
-  super_administrador: 'Super Admin',
+  master:        'Master',
   administrador: 'Administrador',
-  gerente: 'Gerente',
-  operador: 'Operador',
-  visitante: 'Visitante',
+  coordenador:   'Coordenador',
+  colaborador:   'Colaborador',
+  convidado:     'Convidado',
 }
 
 function formatDate(iso) {
@@ -193,7 +193,7 @@ function ModalUsuario({ usuario, acessosIniciais = [], onClose, onSave }) {
   const [form, setForm] = useState({
     nome:   usuario?.nome   ?? '',
     email:  usuario?.email  ?? '',
-    perfil: usuario?.perfil ?? 'operador',
+    perfil: usuario?.perfil ?? 'colaborador',
     status: usuario?.status ?? 'ativo',
     senha:  '',
   })
@@ -392,7 +392,7 @@ function ModalUsuario({ usuario, acessosIniciais = [], onClose, onSave }) {
             {/* ── Acesso a Workspaces ── */}
             <div className="form-group">
               <label className="form-label">Acesso a Workspaces</label>
-              {['super_administrador', 'administrador'].includes(form.perfil) ? (
+              {['master', 'administrador'].includes(form.perfil) ? (
                 <div style={{
                   display: 'flex', alignItems: 'center', gap: 10,
                   padding: '10px 14px', borderRadius: 'var(--r-md)',
@@ -401,7 +401,7 @@ function ModalUsuario({ usuario, acessosIniciais = [], onClose, onSave }) {
                 }}>
                   <i className="fa-solid fa-shield-halved" />
                   <span>
-                    <strong>Acesso total</strong> — Super Admin e Admin têm acesso a todos os workspaces e relatórios automaticamente.
+                    <strong>Acesso total</strong> — Master e Admin têm acesso a todos os workspaces e relatórios automaticamente.
                   </span>
                 </div>
               ) : workspaces.length === 0 ? (
@@ -695,7 +695,7 @@ export default function UsersPage() {
                           </td>
                           <td>
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                              {['super_administrador', 'administrador'].includes(u.perfil) ? (
+                              {['master', 'administrador'].includes(u.perfil) ? (
                                 <span style={{
                                   display: 'inline-flex', alignItems: 'center', gap: 5,
                                   padding: '2px 8px', borderRadius: 99,

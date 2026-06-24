@@ -72,7 +72,7 @@ historico_config_critica
 | `nome` | NVARCHAR(255) | NOT NULL | Nome completo |
 | `email` | NVARCHAR(255) | NOT NULL, UNIQUE | E-mail corporativo |
 | `hash_senha` | NVARCHAR(255) | NOT NULL | Hash bcrypt |
-| `perfil` | NVARCHAR(30) | NOT NULL, CHECK | super_administrador, administrador, gerente, operador, visitante |
+| `perfil` | NVARCHAR(30) | NOT NULL, CHECK | master, administrador, coordenador, colaborador, convidado |
 | `status` | NVARCHAR(20) | NOT NULL, DEFAULT 'ativo' | ativo, inativo, bloqueado |
 | `tentativas_login` | SMALLINT | DEFAULT 0 | Contador de tentativas falhas |
 | `senha_provisoria` | BIT | NOT NULL, DEFAULT 0 | Se verdadeiro, exige troca de senha no próximo login |
@@ -90,9 +90,9 @@ CREATE TABLE usuarios (
   nome             NVARCHAR(255)     NOT NULL,
   email            NVARCHAR(255)     NOT NULL,
   hash_senha       NVARCHAR(255)     NOT NULL,
-  perfil           NVARCHAR(30)      NOT NULL DEFAULT 'operador'
+  perfil           NVARCHAR(30)      NOT NULL DEFAULT 'colaborador'
                      CONSTRAINT CK_usuarios_perfil CHECK (perfil IN (
-                       'super_administrador','administrador','gerente','operador','visitante'
+                       'master','administrador','coordenador','colaborador','convidado'
                      )),
   status           NVARCHAR(20)      NOT NULL DEFAULT 'ativo'
                      CONSTRAINT CK_usuarios_status CHECK (status IN ('ativo','inativo','bloqueado')),
@@ -269,7 +269,7 @@ CREATE TABLE permissoes_perfil (
   id              UNIQUEIDENTIFIER  NOT NULL CONSTRAINT PK_permissoes_perfil PRIMARY KEY DEFAULT NEWID(),
   perfil          NVARCHAR(30)      NOT NULL
                     CONSTRAINT CK_pp_perfil CHECK (perfil IN (
-                      'super_administrador','administrador','gerente','operador','visitante'
+                      'master','administrador','coordenador','colaborador','convidado'
                     )),
   modulo          NVARCHAR(100)     NOT NULL,
   pode_visualizar BIT               NOT NULL DEFAULT 0,

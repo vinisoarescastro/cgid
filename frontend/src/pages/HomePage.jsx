@@ -16,14 +16,14 @@ import { logout } from '../utils/api'
 const API = 'http://localhost:8000'
 
 const PERFIL_LABEL = {
-  super_administrador: 'Super Administrador',
+  master:        'Master',
   administrador: 'Administrador',
-  gerente: 'Gerente',
-  operador: 'Operador',
-  visitante: 'Visitante',
+  coordenador:   'Coordenador',
+  colaborador:   'Colaborador',
+  convidado:     'Convidado',
 }
 
-const ADMIN_PERFIS = ['super_administrador', 'administrador']
+const ADMIN_PERFIS = ['master', 'administrador']
 
 export default function HomePage() {
   const navigate = useNavigate()
@@ -403,7 +403,7 @@ const user = JSON.parse(sessionStorage.getItem('cgid_user') || '{}')
                     <div className="card-title">Eventos Recentes</div>
                     <div className="card-sub">Últimas atividades no portal</div>
                   </div>
-                  {user.perfil === 'super_administrador' && (
+                  {user.perfil === 'master' && (
                     <button className="btn btn-ghost btn-sm" onClick={() => navigate('/auditoria')}>
                       Ver todos <i className="fa-solid fa-arrow-right" />
                     </button>

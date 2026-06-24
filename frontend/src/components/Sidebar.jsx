@@ -6,19 +6,19 @@ import Avatar from './Avatar'
 import { temPermissao } from '../utils/api'
 
 const PERFIL_LABEL = {
-  super_administrador: 'Super Administrador',
+  master:        'Master',
   administrador: 'Administrador',
-  gerente: 'Gerente',
-  operador: 'Operador',
-  visitante: 'Visitante',
+  coordenador:   'Coordenador',
+  colaborador:   'Colaborador',
+  convidado:     'Convidado',
 }
 
 export default function Sidebar({ user, active }) {
   const navigate = useNavigate()
   const [expanded, setExpanded] = useState(() => sessionStorage.getItem('sidebar_expanded') === '1')
 
-  const isAdmin = ['super_administrador', 'administrador'].includes(user?.perfil)
-  const isSuperAdmin = user?.perfil === 'super_administrador'
+  const isAdmin = ['master', 'administrador'].includes(user?.perfil)
+  const isSuperAdmin = user?.perfil === 'master'
 
   const toggle = () => setExpanded(v => {
     sessionStorage.setItem('sidebar_expanded', v ? '' : '1')

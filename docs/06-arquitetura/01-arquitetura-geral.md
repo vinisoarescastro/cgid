@@ -13,7 +13,7 @@
                       ┌─────────────────────────────────┐
                       │                                 │
     [Colaborador]──▶ │   BrasilTerrenos                │──▶ [Power BI Service]
-    [Gerente]    ──▶ │   Portal Corporativo            │
+    [Coordenador]──▶ │   Portal Corporativo            │
     [Admin]      ──▶ │                                 │
                       │   Sistema de Governança         │
                       │   Analítica                     │
@@ -171,7 +171,7 @@ Expiração:
 {
   "sub": "uuid-do-usuario",
   "sid": "uuid-da-sessao",
-  "perfil": "operador",
+  "perfil": "colaborador",
   "exp": 1700003600
 }
 ```

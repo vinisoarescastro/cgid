@@ -227,7 +227,7 @@ Browser                    Portal API              Azure AD
 ### Considerações de Implementação
 - Usar biblioteca compatível com FastAPI, como `msal` ou `authlib`, para validar o fluxo OIDC
 - Sincronizar grupos do Azure AD com perfis do portal (via MS Graph API)
-- Primeiro acesso via SSO cria o usuário automaticamente com perfil `operador` (configurável)
+- Primeiro acesso via SSO cria o usuário automaticamente com perfil `colaborador` (configurável)
 - Usuários criados manualmente ainda podem coexistir com usuários SSO
 
 ---

@@ -36,7 +36,7 @@ O **CGID - Centro de Governança e Inteligência de Dados** tem como missão ser
 | P02 | Colaboradores acessam relatórios fora do horário comercial sem controle | TI, Compliance | 🔴 Alto | Power BI Service não oferece controle de expediente nativo |
 | P03 | Impossibilidade de rastrear quem acessou, alterou ou exportou dados analíticos | Compliance, Jurídico | 🔴 Alto | Ausência de log de auditoria centralizado |
 | P04 | Processo manual e lento de provisionamento/revogação de acessos | TI, RH | 🟡 Médio | Dependência de chamados manuais ao time de TI |
-| P05 | Gestores sem visibilidade sobre os relatórios disponíveis para sua equipe | Gerentes | 🟡 Médio | Ausência de catálogo de relatórios por departamento |
+| P05 | Gestores sem visibilidade sobre os relatórios disponíveis para sua equipe | Coordenadores | 🟡 Médio | Ausência de catálogo de relatórios por departamento |
 | P06 | Dificuldade de demonstrar conformidade com LGPD no manuseio de dados analíticos | Jurídico, DPO | 🔴 Alto | Falta de registro de acessos e base legal para processamento |
 | P07 | Experiência de usuário fragmentada (múltiplos portais/links para relatórios) | Todos os usuários | 🟢 Baixo | Ausência de ponto único de acesso |
 | P08 | Impossibilidade de conceder acesso temporário de forma controlada | TI, Gestores | 🟡 Médio | Sem mecanismo de acesso temporário com janela de validade |

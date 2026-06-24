@@ -12,10 +12,10 @@
 | Ator        | Descrição                              |
 |-------------|----------------------------------------|
 | **Usuário** | Qualquer pessoa autenticada no sistema |
-| **Operador** | Colaborador com acesso a relatórios específicos |
-| **Gerente** | Líder departamental com acesso ao workspace do seu departamento |
-| **Admin** | Administrador do portal com acesso ao painel administrativo |
-| **Super Admin** | Administrador com acesso total, incluindo configurações do sistema |
+| **Colaborador** | Colaborador com acesso a relatórios específicos |
+| **Coordenador** | Líder departamental com acesso ao workspace do seu departamento |
+| **Administrador** | Administrador do portal com acesso ao painel administrativo |
+| **Master** | Administrador com acesso total, incluindo configurações do sistema |
 | **Sistema** | Processos automáticos internos (renovação de token, verificação de expediente) |
 | **Azure AD** | Serviço externo de autenticação Microsoft |
 | **PBI Service** | Microsoft Power BI Service (API externa) |
@@ -50,7 +50,7 @@
 
 ## UC-02 - Visualizar Relatório Power BI
 
-**Ator principal:** Operador, Gerente  
+**Ator principal:** Colaborador, Coordenador  
 **Pré-condição:** Usuário autenticado; relatório com status `publicado`; usuário com permissão no workspace/relatório  
 **Pós-condição:** Relatório renderizado inline no portal  
 
@@ -80,7 +80,7 @@
 
 ## UC-03 - Gerenciar Permissões de Usuário
 
-**Ator principal:** Admin, Super Admin  
+**Ator principal:** Administrador, Master  
 **Pré-condição:** Ator autenticado com perfil adequado  
 **Pós-condição:** Permissões salvas; log de auditoria registrado  
 
@@ -95,7 +95,7 @@
 8. Sistema registra no log: quem alterou, workspaces e relatórios afetados.
 
 ### Fluxos Alternativos
-- **A1: Admin tenta alterar permissão de Super Admin:** Sistema retorna 403.
+- **A1: Administrador tenta alterar permissão de Master:** Sistema retorna 403.
 - **A2: Erro de validação:** Sistema retorna mensagem de erro; alterações não são salvas.
 - **A3: Admin cancela:** Alterações são descartadas; log não é gerado.
 
@@ -103,7 +103,7 @@
 
 ## UC-04 - Configurar Regras de Expediente
 
-**Ator principal:** Admin, Super Admin  
+**Ator principal:** Administrador, Master  
 **Pré-condição:** Ator autenticado  
 **Pós-condição:** Regras de expediente atualizadas; vigência imediata  
 
@@ -127,7 +127,7 @@
 
 ## UC-05 - Criar Novo Usuário
 
-**Ator principal:** Admin, Super Admin  
+**Ator principal:** Administrador, Master  
 **Pré-condição:** Ator autenticado  
 **Pós-condição:** Usuário criado
 
@@ -149,7 +149,7 @@
 
 ## UC-06 - Consultar e Exportar Log de Auditoria
 
-**Ator principal:** Admin, Super Admin  
+**Ator principal:** Administrador, Master  
 **Pré-condição:** Ator autenticado  
 **Pós-condição:** Log exibido e/ou exportado  
 
@@ -171,7 +171,7 @@
 
 ## UC-07 - Bloquear / Desbloquear Usuário
 
-**Ator principal:** Admin, Super Admin  
+**Ator principal:** Administrador, Master  
 **Pré-condição:** Ator autenticado; usuário-alvo existe  
 **Pós-condição:** Status do usuário atualizado; sessões ativas invalidadas  
 
@@ -187,25 +187,25 @@
 
 ### Fluxos Alternativos
 - **A1: Desbloquear:** Fluxo inverso; zera contador de tentativas; log registra desbloqueio.
-- **A2: Admin tenta bloquear Super Admin:** Sistema retorna 403; Super Admin não pode ser bloqueado por Admin.
+- **A2: Administrador tenta bloquear Master:** Sistema retorna 403; Master não pode ser bloqueado por Administrador.
 
 ---
 
 ## UC-08 - Configurar Integração Power BI
 
-**Ator principal:** Super Admin  
-**Pré-condição:** Super Admin autenticado; dados do Service Principal disponíveis  
+**Ator principal:** Master  
+**Pré-condição:** Master autenticado; dados do Service Principal disponíveis  
 **Pós-condição:** Integração PBI configurada e testada  
 
 ### Fluxo Principal
-1. Super Admin acessa o módulo de Configurações.
-2. Super Admin insere Client ID, Tenant ID e Client Secret do Service Principal.
-3. Super Admin insere o Workspace ID padrão do Power BI.
-4. Super Admin clica em "Testar Conexão".
+1. Master acessa o módulo de Configurações.
+2. Master insere Client ID, Tenant ID e Client Secret do Service Principal.
+3. Master insere o Workspace ID padrão do Power BI.
+4. Master clica em "Testar Conexão".
 5. Sistema tenta autenticar no Azure AD com as credenciais fornecidas.
 6. Sistema tenta listar workspaces do PBI Service.
 7. Sistema exibe resultado do teste (sucesso ou falha com detalhe do erro).
-8. Super Admin clica em "Salvar".
+8. Master clica em "Salvar".
 9. Sistema armazena as credenciais de forma criptografada.
 10. Sistema registra alteração nas configurações no log de auditoria.
 
@@ -213,7 +213,7 @@
 
 ## UC-09 — Arquivar e Reativar Workspace
 
-**Ator principal:** Admin, Super Admin  
+**Ator principal:** Administrador, Master  
 **Pré-condição:** Ator autenticado; workspace existe  
 **Pós-condição:** Status do workspace atualizado; log de auditoria registrado  
 

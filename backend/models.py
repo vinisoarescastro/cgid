@@ -20,7 +20,7 @@ class Usuario(Base):
     nome              = Column(String(255), nullable=False)
     email             = Column(String(255), nullable=False, unique=True, index=True)
     hash_senha        = Column(String(255), nullable=False)
-    perfil            = Column(String(30),  nullable=False)   # super_administrador | administrador | gerente | operador | visitante
+    perfil            = Column(String(30),  nullable=False)   # master | administrador | coordenador | colaborador | convidado
     status            = Column(String(20),  nullable=False, default="ativo")  # ativo | inativo | bloqueado
     tentativas_login  = Column(SmallInteger, nullable=False, default=0)
     senha_provisoria  = Column(Boolean, nullable=False, default=False)

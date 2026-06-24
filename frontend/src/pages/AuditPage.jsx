@@ -9,8 +9,8 @@ import { logout, temPermissao } from '../utils/api'
 
 const API = 'http://localhost:8000'
 
-const ADMIN_PERFIS  = ['super_administrador', 'administrador']
-const SUPER_ADMIN   = 'super_administrador'
+const ADMIN_PERFIS  = ['master', 'administrador']
+const SUPER_ADMIN   = 'master'
 const POR_PAGINA    = 50
 
 const TIPO_META = {

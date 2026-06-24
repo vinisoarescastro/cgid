@@ -14,14 +14,14 @@ import TopbarExpediente from '../components/TopbarExpediente'
 const API = 'http://localhost:8000'
 
 const PERFIL_LABEL = {
-  super_administrador: 'Super Administrador',
+  master:        'Master',
   administrador: 'Administrador',
-  gerente: 'Gerente',
-  operador: 'Operador',
-  visitante: 'Visitante',
+  coordenador:   'Coordenador',
+  colaborador:   'Colaborador',
+  convidado:     'Convidado',
 }
 
-const ADMIN_PERFIS = ['super_administrador', 'administrador']
+const ADMIN_PERFIS = ['master', 'administrador']
 
 const STATUS_RELATORIO_LABEL = {
   publicado: 'Publicado',

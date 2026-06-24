@@ -19,7 +19,7 @@
 | ID | Regra | Origem |
 |----|-------|--------|
 | RN-AUTH-01 | A conta de um usuário deve ser **bloqueada automaticamente** após 5 tentativas consecutivas de login inválido | Política de segurança corporativa |
-| RN-AUTH-02 | O desbloqueio de conta pode ser feito apenas por um Admin ou Super Admin - **não há desbloqueio automático por tempo** | Política de segurança |
+| RN-AUTH-02 | O desbloqueio de conta pode ser feito apenas por um Administrador ou Master — **não há desbloqueio automático por tempo** | Política de segurança |
 | RN-AUTH-03 | Um usuário com status `inativo` **não pode fazer login**, mesmo que suas credenciais sejam válidas | Gestão de ciclo de vida de usuários |
 | RN-AUTH-04 | Um usuário com status `bloqueado` **não pode fazer login** e deve receber mensagem específica (diferente de "credenciais inválidas") | Segurança - não revelar motivo do bloqueio para usuários mal-intencionados; diferente para usuários legítimos |
 | RN-AUTH-05 | O sistema deve **verificar a restrição de expediente a cada tentativa de login**, não apenas no momento de criação da sessão | Garantir que a regra temporal seja respeitada sempre |
@@ -35,10 +35,10 @@
 
 | ID | Regra | Origem |
 |----|-------|--------|
-| RN-PERM-01 | **Super Admin e Admin têm acesso irrestrito** a todos os workspaces e relatórios, independentemente das permissões de workspace configuradas | Hierarquia de perfis |
+| RN-PERM-01 | **Master e Administrador têm acesso irrestrito** a todos os workspaces e relatórios, independentemente das permissões de workspace configuradas | Hierarquia de perfis |
 | RN-PERM-02 | **Permissões individuais (por usuário) sobrepõem permissões de perfil** — se um usuário tem permissão explícita concedida ou negada, essa prevalece sobre o perfil | Princípio de precedência individual |
 | RN-PERM-03 | Um usuário **só pode visualizar workspaces explicitamente atribuídos** ao seu perfil ou a ele individualmente | Princípio do menor privilégio |
-| RN-PERM-04 | Relatórios com status `rascunho` (rascunho) **não são visíveis para perfis Operador e Visitante** - apenas Admin, Super Admin e Gerente podem vê-los | Controle de conteúdo publicado |
+| RN-PERM-04 | Relatórios com status `rascunho` **não são visíveis para perfis Colaborador e Convidado** — apenas Master, Administrador e Coordenador podem vê-los | Controle de conteúdo publicado |
 | RN-PERM-05 | A remoção de um usuário de um workspace **não exclui o histórico de acesso** dele àquele workspace nos logs de auditoria | Integridade histórica |
 | RN-PERM-06 | Quando um perfil de usuário é alterado, as permissões individuais (overrides) **não são removidas automaticamente** - devem ser revisadas manualmente pelo Admin | Segurança - evitar escalada acidental de privilégios |
 
@@ -48,7 +48,7 @@
 
 | ID | Regra | Origem |
 |----|-------|--------|
-| RN-SCHED-01 | **O acesso fora do horário de expediente é bloqueado por padrão** para todos os usuários, exceto `administrador` e `super_administrador`, que têm acesso irrestrito independente do horário | Política de segurança; hierarquia de perfis |
+| RN-SCHED-01 | **O acesso fora do horário de expediente é bloqueado por padrão** para todos os usuários, exceto `master` e `administrador`, que têm acesso irrestrito independente do horário | Política de segurança; hierarquia de perfis |
 | RN-SCHED-02 | Um grupo de exceção concede acesso **apenas dentro da janela de horário configurada** para aquele grupo — a janela de exceção é **aditiva** ao horário base (ex: expediente 08h–18h + exceção 18h–20h = acesso até 20h) | Precisão na gestão de exceções |
 | RN-SCHED-03 | Uma exceção individual **prevalece sobre a regra geral do grupo** ao qual o usuário pertence (pode ser mais restritiva ou mais permissiva) | Flexibilidade com controle granular |
 | RN-SCHED-04 | A configuração de expediente **aplica-se globalmente** a todos os workspaces e relatórios - não é possível ter expediente diferente por workspace nesta versão | Simplicidade do MVP |
@@ -102,11 +102,11 @@
 
 | ID | Regra | Origem |
 |----|-------|--------|
-| RN-AUD-01 | Logs de auditoria são **imutáveis**: não podem ser editados ou excluídos por nenhum perfil, incluindo Super Admin | Conformidade e integridade |
+| RN-AUD-01 | Logs de auditoria são **imutáveis**: não podem ser editados ou excluídos por nenhum perfil, incluindo Master | Conformidade e integridade |
 | RN-AUD-02 | A exclusão de um usuário **não remove** os logs históricos a ele associados | Rastreabilidade permanente |
 | RN-AUD-03 | A remoção de um workspace **não exclui** os logs de acesso históricos a ele | Rastreabilidade permanente |
 | RN-AUD-04 | Alterações de dados sensíveis (permissões, perfis, configurações PBI) devem registrar o **estado anterior ("de") e o novo estado ("para")** | Rastreabilidade de mudanças |
-| RN-AUD-05 | O acesso ao módulo de Logs é **exclusivo do Super Admin** — outros perfis são redirecionados para Home ao tentar acessar `/auditoria` | Confidencialidade dos eventos |
+| RN-AUD-05 | O acesso ao módulo de Logs é **exclusivo do Master** — outros perfis são redirecionados para Home ao tentar acessar `/auditoria` | Confidencialidade dos eventos |
 | RN-AUD-06 | Na exibição de logs, o sistema **resolve o nome e e-mail atuais** do usuário quando ele ainda existe no banco — o snapshot (`nome_usuario`, `email_usuario`) é usado apenas como fallback para usuários já excluídos | Consistência da informação; o snapshot preserva rastreabilidade histórica pós-exclusão |
 
 ---
@@ -116,13 +116,13 @@
 | ID | Regra | Origem |
 |----|-------|--------|
 | RN-SYS-01 | **Favoritos são pessoais** e visíveis apenas para o próprio usuário | Privacidade |
-| RN-SYS-02 | As credenciais de integração Power BI (Client ID, Tenant ID, Client Secret) **só podem ser configuradas pelo Super Admin** | Segurança de configurações sensíveis |
+| RN-SYS-02 | As credenciais de integração Power BI (Client ID, Tenant ID, Client Secret) **só podem ser configuradas pelo Master** | Segurança de configurações sensíveis |
 | RN-SYS-03 | Ao criar um novo usuário, o sistema deve **gerar uma senha temporária padrão** e o usuário deve alterá-la no primeiro login | Boas práticas de gestão de credenciais |
 | RN-SYS-04 | O sistema deve exibir o **ambiente atual** (Produção / Homologação) de forma visível para Admins, para evitar operações acidentais em produção | Operações seguras |
 | RN-SYS-05 | Um usuário não deve conseguir duplicar o mesmo relatório nos favoritos; a combinação usuário + relatório é única | Integridade da lista pessoal |
 | RN-SYS-06 | Remover um favorito não altera o relatório, o workspace nem permissões de acesso; remove apenas o vínculo pessoal na tabela `favoritos` | Separação entre preferência de navegação e controle de acesso |
-| RN-SYS-07 | Ao **criar ou reativar** um workspace, o sistema vincula automaticamente todos os usuários `administrador` e `super_administrador` ativos com `nivel_acesso = total` — sem necessidade de configuração manual | Consistência; admins sempre têm acesso a todos os workspaces |
-| RN-SYS-08 | **Admins e Super Admins não aparecem na lista de usuários vinculados** de um workspace — seu acesso é implícito e universal, exibir individualmente seria redundante | UX — clareza da listagem |
+| RN-SYS-07 | Ao **criar ou reativar** um workspace, o sistema vincula automaticamente todos os usuários `master` e `administrador` ativos com `nivel_acesso = total` — sem necessidade de configuração manual | Consistência; admins sempre têm acesso a todos os workspaces |
+| RN-SYS-08 | **Master e Administrador não aparecem na lista de usuários vinculados** de um workspace — seu acesso é implícito e universal, exibir individualmente seria redundante | UX — clareza da listagem |
 | RN-SYS-09 | A página Home de usuários não-admin exibe o **status do expediente no topbar** (dot colorido + label + horário), os workspaces acessíveis e seus relatórios com botão "Abrir" | Visibilidade do estado de acesso |
 | RN-SYS-10 | O **footer da sidebar** exibe nome completo, e-mail e perfil do usuário logado em todas as páginas; as iniciais no avatar refletem o primeiro e segundo nome | Identificação contextual permanente |
 | RN-SYS-11 | O **indicador de expediente** (`TopbarExpediente`) é exibido no topbar de **todas as páginas** do portal (Home, Workspaces, Usuários, Favoritos, Auditoria e Configurações) — não apenas na Home | Visibilidade consistente do estado de acesso em qualquer contexto |
@@ -153,8 +153,9 @@
 | 1.4 | Junho/2026 | Vinicius Soares | Página de Configurações implementada: CRUD de expediente por dia, grupos de exceção com membros e credenciais PBI |
 | 1.5 | Junho/2026 | Vinicius Soares | RN-AUD-05 refinado: acesso à Auditoria exclusivo do Super Admin com redirecionamento para Home |
 | 1.6 | Junho/2026 | Vinicius Soares | Corrigido ID duplicado de token Power BI para RN-PBI-06 e adicionadas RN-SYS-05/06 sobre favoritos |
-| 1.7 | Junho/2026 | Vinicius Soares | RN-SCHED-01 atualizado: `administrador` e `super_administrador` são isentos da restrição de expediente; demais perfis (incluindo gerente e operador) obedecem a regra, salvo grupo de exceção |
+| 1.7 | Junho/2026 | Vinicius Soares | RN-SCHED-01 atualizado: `master` e `administrador` são isentos da restrição de expediente; demais perfis (coordenador, colaborador, convidado) obedecem a regra, salvo grupo de exceção |
 | 1.8 | Junho/2026 | Vinicius Soares | RN-SCHED-08/09: semantica de `ativo=false` (dia bloqueado) vs `bloquear_fora=false`; `ignora_dia_inativo` em grupos de exceção. RN-SCHED-10/11: indicador de expediente no topbar para todos os perfis. RN-AUD-06: resolução de nome atual nos logs. RN-SYS-07–10: auto-vínculo de admins em workspaces, ocultação da lista, home não-admin, footer da sidebar |
 | 1.9 | Junho/2026 | Vinicius Soares | RN-PBI-07/08: endpoint V2 GenerateToken e credenciais lidas do banco. Nova seção RN-CONF (01–05): segurança de campos críticos — somente-leitura, confirmação digitada, log critico, backup automático e histórico visual |
 | 2.0 | Junho/2026 | Vinicius Soares | RN-SYS-11: TopbarExpediente em todas as páginas. RN-SYS-12/13: exclusão permanente de workspace com cascade (≠ arquivamento). Nova seção RN-WS (01–04): regras de exclusão — confirmação, disponibilidade, log de auditoria e fechamento do painel |
 | 2.1 | Junho/2026 | Vinicius Soares | Adicionados RN-AUTH-07 a 10: sessão única por usuário, log de sessão simultânea, notificação em tempo real via polling e armazenamento seguro do token como hash SHA-256 |
+| 2.2 | Junho/2026 | Vinicius Soares | Nomenclatura de perfis atualizada: Super Admin → Master, Gerente → Coordenador, Operador → Colaborador, Visitante → Convidado. Slugs internos: `super_administrador` → `master`, `gerente` → `coordenador`, `operador` → `colaborador`, `visitante` → `convidado`. |

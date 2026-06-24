@@ -56,17 +56,17 @@ Implementa um fluxo de três telas:
 Usuários disponíveis no mock:
 | E-mail | Perfil | Acesso |
 |--------|--------|--------|
-| admin@bt.com | Super Admin | Total |
-| ana@bt.com | Admin | Total |
-| carlos@bt.com | Gerente | Workspace Controladoria |
-| mariana@bt.com | Operador | Workspace Marketing |
-| pedro@bt.com | Operador | Workspace SAC |
+| admin@bt.com | Master | Total |
+| ana@bt.com | Administrador | Total |
+| carlos@bt.com | Coordenador | Workspace Controladoria |
+| mariana@bt.com | Colaborador | Workspace Marketing |
+| pedro@bt.com | Colaborador | Workspace SAC |
 
 ### 2.4 RBAC Implementado no Frontend
 
 A função `applyRBAC()` aplica controle de acesso visual com base no perfil do usuário logado:
 - Oculta/exibe menus de administrador
-- Adapta o dashboard (visão admin vs. operador)
+- Adapta o dashboard (visão admin vs. colaborador)
 - Filtra relatórios e workspaces visíveis
 - Controla quais botões de ação aparecem
 
@@ -77,7 +77,7 @@ As funções `canAccessWs()` e `canAccessReport()` verificam permissões antes d
 | Módulo | Status |
 |--------|--------|
 | Login / Boas-vindas | ✅ Completo |
-| Home / Dashboard | ✅ Completo (admin + operador) |
+| Home / Dashboard | ✅ Completo (admin + colaborador) |
 | Workspaces (visão usuário) | ✅ Completo |
 | Relatórios PBI (listagem) | ✅ Completo |
 | Favoritos | ✅ Completo |

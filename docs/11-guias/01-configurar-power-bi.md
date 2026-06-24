@@ -79,7 +79,7 @@ Para cada workspace do Power BI que terá relatórios no CGID:
 
 ## Etapa 4 — Configurar as Credenciais no CGID
 
-1. No sistema CGID, acesse **Configurações → Power BI** (requer perfil Administrador ou Super Admin)
+1. No sistema CGID, acesse **Configurações → Power BI** (requer perfil Administrador ou Master)
 2. Preencha os campos:
 
 | Campo | Valor |

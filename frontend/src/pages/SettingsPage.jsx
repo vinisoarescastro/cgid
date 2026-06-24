@@ -11,7 +11,7 @@ import ModalHistoricoCritico from '../components/ModalHistoricoCritico'
 
 const API = 'http://localhost:8000'
 
-const SUPER_ADMIN  = 'super_administrador'
+const SUPER_ADMIN  = 'master'
 
 function Toggle({ checked, onChange }) {
   return (
@@ -707,11 +707,11 @@ const MODULOS_LABEL = {
 }
 
 const PERFIS_LABEL = {
-  super_administrador: 'Super Admin',
-  administrador:       'Administrador',
-  gerente:             'Gerente',
-  operador:            'Operador',
-  visitante:           'Visitante',
+  master:        'Master',
+  administrador: 'Administrador',
+  coordenador:   'Coordenador',
+  colaborador:   'Colaborador',
+  convidado:     'Convidado',
 }
 
 const ACOES = ['visualizar', 'criar', 'editar', 'excluir', 'exportar', 'gerenciar']

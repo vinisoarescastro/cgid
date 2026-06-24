@@ -30,7 +30,7 @@
 | Comparação | `bcrypt.compare()` — timing-safe, sem comparação direta |
 | Senha temporária | Gerada aleatoriamente (32 bytes hex), expirada após primeiro uso |
 | Complexidade mínima | 8 caracteres, ao menos 1 maiúscula, 1 número, 1 especial |
-| Expiração de senha | A definir (recomendado: 90 dias para admins, 180 para operadores) |
+| Expiração de senha | A definir (recomendado: 90 dias para masters/admins, 180 para colaboradores) |
 
 ### 2.2 Tokens JWT
 
@@ -122,7 +122,7 @@ Se qualquer etapa falhar → 403 Forbidden + registro em logs_auditoria
 
 ### 3.2 Prevenção de Escalada de Privilégios
 
-- Admin não pode alterar permissões de Super Admin
+- Admin não pode alterar permissões de Master
 - Usuário não pode alterar o próprio perfil/status
 - Validação server-side: perfil do token é comparado com o banco em cada requisição crítica
 - Propriedade de recursos: usuário só pode operar sobre recursos do seu escopo
@@ -227,7 +227,7 @@ Pre-commit hook: detect-secrets
 | Prática | Implementação |
 |---------|--------------|
 | Service Principal | Apenas permissões mínimas necessárias no Azure |
-| Client Secret | Armazenado na tabela `configuracoes_sistema`; nunca exposto ao frontend diretamente; revelação do valor real via `GET /configuracoes/pbi/secret` restrita a perfis `administrador` e `super_administrador` (403 para demais) |
+| Client Secret | Armazenado na tabela `configuracoes_sistema`; nunca exposto ao frontend diretamente; revelação do valor real via `GET /configuracoes/pbi/secret` restrita a perfis `master` e `administrador` (403 para demais) |
 | Tokens de embed | Gerados server-side; TTL de 1h; sem reutilização entre usuários |
 | Cache do access token | Token Azure AD cacheado em memória por processo com TTL = `expires_in - 300s`; não compartilhado entre usuários; sem dados sensíveis expostos |
 | Whitelist de embeds | CSP `frameSrc` restringe apenas domínios oficiais do PBI |
@@ -252,7 +252,7 @@ Pre-commit hook: detect-secrets
 | LGPD: DPO aprovação formal | ⬜ Pendente |
 | Backup e recovery testados | ⬜ Pendente |
 | Dependências sem vulnerabilidades críticas | ⬜ Pendente |
-| MFA habilitado para Super Admin | ⬜ Pendente |
+| MFA habilitado para Master e Administrador | ⬜ Pendente |
 
 ---
 
