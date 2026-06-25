@@ -10,19 +10,27 @@
 
 ## 1. Diagrama de Entidades (Relacionamentos)
 
+> **v2.0:** 21 tabelas. Removida `sobrescritas_permissao`; adicionadas `departamentos`, `categorias_relatorio`, `perfis`, `credenciais_pbi`, `pacotes_permissao`, `pacotes_permissao_itens`, `usuarios_pacotes`.
+
 ```
+departamentos
+  └── usuarios (1:N — via departamento_id)
+
 usuarios
   ├── acessos_workspace (N:M com espacos_trabalho)
   ├── acessos_relatorio (N:M com relatorios)
-  ├── sobrescritas_permissao (1:N)
+  ├── usuarios_pacotes (N:M com pacotes_permissao)
   ├── membros_grupo_excecao (N:M com grupos_excecao)
   ├── favoritos (1:N com relatorios)
   ├── sessoes_autenticacao (1:N)
-  └── logs_auditoria (1:N - autor dos eventos)
+  └── logs_auditoria (1:N - autor dos eventos, snapshot)
 
 espacos_trabalho
   ├── relatorios (1:N)
   └── acessos_workspace (N:M com usuarios)
+
+categorias_relatorio
+  └── relatorios (1:N — via categoria_id)
 
 relatorios
   ├── acessos_relatorio (N:M com usuarios)
@@ -31,6 +39,13 @@ relatorios
 permissoes_perfil
   └── Permissões padrão por perfil (perfil × modulo × acoes)
 
+perfis
+  └── Metadados dos perfis (nivel_hierarquia, nome_exibicao)
+
+pacotes_permissao
+  ├── pacotes_permissao_itens (1:N — permissões por módulo)
+  └── usuarios_pacotes (N:M com usuarios)
+
 grupos_excecao
   └── membros_grupo_excecao (1:N)
 
@@ -38,13 +53,16 @@ regras_expediente
   └── Uma por dia da semana (7 registros)
 
 configuracoes_sistema
-  └── Configurações globais (chave-valor); inclui credenciais PBI
+  └── Configurações globais (chave-valor)
+
+credenciais_pbi
+  └── Credenciais Azure AD para Power BI Embedded
 
 logs_auditoria
   └── Append-only; sem FK para preservar histórico após exclusões
 
 historico_config_critica
-  └── Backup automático de valores anteriores/novos de campos críticos (IDs PBI, credenciais)
+  └── Backup automático de valores anteriores/novos de campos críticos
 ```
 
 ---
@@ -64,11 +82,39 @@ historico_config_critica
 
 ---
 
+### Tabela: `departamentos` *(novo em v2.0)*
+
+| Coluna | Tipo SQL Server | Restrições | Descrição |
+|--------|----------------|-----------|-----------|
+| `id` | NVARCHAR(36) | PK | Identificador único (UUID) |
+| `nome` | NVARCHAR(255) | NOT NULL, UNIQUE | Nome do departamento |
+| `codigo` | NVARCHAR(20) | NULL, UNIQUE | Código abreviado (ex: TI, RH) |
+| `descricao` | NVARCHAR(MAX) | NULL | Descrição longa |
+| `ativo` | BIT | NOT NULL, DEFAULT 1 | Status |
+| `criado_em` | DATETIME2(7) | NOT NULL, DEFAULT GETUTCDATE() | Criação (UTC) |
+| `atualizado_em` | DATETIME2(7) | NOT NULL, DEFAULT GETUTCDATE() | Última atualização (UTC) |
+
+```sql
+CREATE TABLE departamentos (
+  id            NVARCHAR(36)  NOT NULL CONSTRAINT PK_departamentos PRIMARY KEY,
+  nome          NVARCHAR(255) NOT NULL,
+  codigo        NVARCHAR(20)  NULL,
+  descricao     NVARCHAR(MAX) NULL,
+  ativo         BIT           NOT NULL DEFAULT 1,
+  criado_em     DATETIME2(7)  NOT NULL DEFAULT GETUTCDATE(),
+  atualizado_em DATETIME2(7)  NOT NULL DEFAULT GETUTCDATE(),
+  CONSTRAINT UQ_dep_nome   UNIQUE (nome),
+  CONSTRAINT UQ_dep_codigo UNIQUE (codigo)
+);
+```
+
+---
+
 ### Tabela: `usuarios`
 
 | Coluna | Tipo SQL Server | Restrições | Descrição |
 |--------|----------------|-----------|-----------|
-| `id` | UNIQUEIDENTIFIER | PK, DEFAULT NEWID() | Identificador único |
+| `id` | NVARCHAR(36) | PK | Identificador único |
 | `nome` | NVARCHAR(255) | NOT NULL | Nome completo |
 | `email` | NVARCHAR(255) | NOT NULL, UNIQUE | E-mail corporativo |
 | `hash_senha` | NVARCHAR(255) | NOT NULL | Hash bcrypt |
@@ -82,30 +128,33 @@ historico_config_critica
 | `mfa_segredo` | NVARCHAR(255) | NULL | Secret TOTP (criptografado) |
 | `criado_em` | DATETIME2(7) | NOT NULL, DEFAULT GETUTCDATE() | Data de criação (UTC) |
 | `atualizado_em` | DATETIME2(7) | NOT NULL, DEFAULT GETUTCDATE() | Data da última atualização (UTC) |
-| `criado_por_id` | UNIQUEIDENTIFIER | FK → usuarios(id), NULL | Quem criou o usuário |
+| `criado_por_id` | NVARCHAR(36) | FK → usuarios(id), NULL | Quem criou o usuário |
+| `departamento_id` | NVARCHAR(36) | FK → departamentos(id), NULL | Departamento do usuário *(novo em v2.0)* |
 
 ```sql
 CREATE TABLE usuarios (
-  id               UNIQUEIDENTIFIER  NOT NULL CONSTRAINT PK_usuarios PRIMARY KEY DEFAULT NEWID(),
-  nome             NVARCHAR(255)     NOT NULL,
-  email            NVARCHAR(255)     NOT NULL,
-  hash_senha       NVARCHAR(255)     NOT NULL,
-  perfil           NVARCHAR(30)      NOT NULL DEFAULT 'colaborador'
+  id               NVARCHAR(36)  NOT NULL CONSTRAINT PK_usuarios PRIMARY KEY,
+  nome             NVARCHAR(255) NOT NULL,
+  email            NVARCHAR(255) NOT NULL,
+  hash_senha       NVARCHAR(255) NOT NULL,
+  perfil           NVARCHAR(30)  NOT NULL DEFAULT 'colaborador'
                      CONSTRAINT CK_usuarios_perfil CHECK (perfil IN (
                        'master','administrador','coordenador','colaborador','convidado'
                      )),
-  status           NVARCHAR(20)      NOT NULL DEFAULT 'ativo'
+  status           NVARCHAR(20)  NOT NULL DEFAULT 'ativo'
                      CONSTRAINT CK_usuarios_status CHECK (status IN ('ativo','inativo','bloqueado')),
-  tentativas_login SMALLINT          NOT NULL DEFAULT 0,
-  senha_provisoria BIT               NOT NULL DEFAULT 0,
-  ultimo_login     DATETIME2(7)      NULL,
-  foto_url         NVARCHAR(500)     NULL,
-  mfa_ativo        BIT               NOT NULL DEFAULT 0,
-  mfa_segredo      NVARCHAR(255)     NULL,
-  criado_em        DATETIME2(7)      NOT NULL DEFAULT GETUTCDATE(),
-  atualizado_em    DATETIME2(7)      NOT NULL DEFAULT GETUTCDATE(),
-  criado_por_id    UNIQUEIDENTIFIER  NULL
-                     CONSTRAINT FK_usuarios_criado_por REFERENCES usuarios(id) ON DELETE SET NULL
+  tentativas_login SMALLINT      NOT NULL DEFAULT 0,
+  senha_provisoria BIT           NOT NULL DEFAULT 0,
+  ultimo_login     DATETIME2(7)  NULL,
+  foto_url         NVARCHAR(500) NULL,
+  mfa_ativo        BIT           NOT NULL DEFAULT 0,
+  mfa_segredo      NVARCHAR(255) NULL,
+  criado_em        DATETIME2(7)  NOT NULL DEFAULT GETUTCDATE(),
+  atualizado_em    DATETIME2(7)  NOT NULL DEFAULT GETUTCDATE(),
+  criado_por_id    NVARCHAR(36)  NULL
+                     CONSTRAINT FK_usuarios_criado_por REFERENCES usuarios(id) ON DELETE NO ACTION,
+  departamento_id  NVARCHAR(36)  NULL
+                     CONSTRAINT FK_usuarios_departamento REFERENCES departamentos(id) ON DELETE SET NULL
 );
 
 CREATE UNIQUE INDEX UQ_usuarios_email ON usuarios(email);

@@ -148,20 +148,34 @@ O projeto usa um design system próprio baseado em variáveis CSS, sem dependên
 | Biblioteca | Função |
 |---|---|
 | **passlib + bcrypt** | Hash seguro de senhas |
+| **secrets** (nativo Python) | Geração de token de sessão opaco |
+| **hashlib** (nativo Python) | SHA-256 do token para armazenamento |
 
-> JWT (python-jose) será implementado no Sprint 1-2. Na v1 atual, a sessão do usuário é mantida via `sessionStorage` no frontend.
+**Autenticação implementada:** Token de sessão opaco (sem JWT). O token bruto é retornado ao frontend; o SHA-256 é armazenado em `sessoes_autenticacao`. A cada requisição o token é validado via middleware.
 
-### 4.3 Estrutura de Arquivos (Backend)
+### 4.3 Estrutura de Arquivos (Backend — v2.0 modular)
 
 ```
 backend/
-├── main.py        ← FastAPI app, CORS, todos os endpoints
-├── .env.example   ← variáveis Power BI Embedded (Service Principal)
-├── database.py    ← conexão SQLite + engine + SessionLocal + get_db
-├── models.py      ← 14 tabelas do banco (classes SQLAlchemy)
-├── schemas.py     ← schemas Pydantic de entrada e saída
-├── seed.py        ← cria tabelas e insere dados iniciais
-└── cgid.db        ← arquivo do banco SQLite (gerado pelo seed.py)
+├── main.py               ← FastAPI app, CORS, registra routers (~47 linhas)
+├── database.py           ← conexão SQLite/SQL Server, engine, get_db
+├── models.py             ← 21 tabelas do banco (SQLAlchemy ORM)
+├── schemas.py            ← todos os schemas Pydantic centralizados
+├── dependencies.py       ← middleware de sessão, checar_permissao, exigir_permissao
+├── seed.py               ← cria tabelas e insere dados iniciais
+├── alembic.ini           ← configuração Alembic
+├── .env / .env.example   ← variáveis de ambiente Power BI
+├── services/
+│   ├── auth_service.py   ← login, seed de dados/permissões, expediente
+│   ├── audit_service.py  ← registrar_log, salvar_backup_critico
+│   └── pbi_service.py    ← OAuth2 Azure AD, geração de embed token
+├── routers/
+│   ├── auth.py, usuarios.py, workspaces.py, permissoes.py
+│   ├── auditoria.py, configuracoes.py, dashboard.py
+│   ├── landbank.py, departamentos.py
+└── migrations/
+    ├── env.py
+    └── versions/60fc08a85566_v2_schema_completo.py
 ```
 
 ### 4.4 Endpoints Disponíveis
@@ -203,24 +217,33 @@ backend/
 | **ORM** | SQLAlchemy 2.0 com dialeto `mssql+pyodbc` |
 | **Migração** | Alterar apenas `DATABASE_URL` em `database.py` |
 
-### 5.3 Tabelas do banco
+### 5.3 Tabelas do banco (v2.0 — 21 tabelas)
 
-| Tabela | Conteúdo |
-|---|---|
-| `usuarios` | Contas de acesso ao portal |
-| `sessoes_autenticacao` | Sessões, refresh tokens e revogação |
-| `espacos_trabalho` | Workspaces (agrupamentos de relatórios) |
-| `relatorios` | Relatórios Power BI cadastrados |
-| `acessos_workspace` | Permissão de usuário por workspace |
-| `acessos_relatorio` | Permissão de usuário por relatório específico |
-| `permissoes_perfil` | Matriz de permissões por perfil (RBAC) |
-| `sobrescritas_permissao` | Exceções de permissão por usuário |
-| `regras_expediente` | Horários de acesso permitidos por dia da semana |
-| `grupos_excecao` | Grupos com acesso fora do expediente |
-| `membros_grupo_excecao` | Membros dos grupos de exceção |
-| `favoritos` | Relatórios favoritos por usuário |
-| `logs_auditoria` | Registro imutável de todas as ações |
-| `configuracoes_sistema` | Parâmetros globais do sistema |
+| # | Tabela | Conteúdo |
+|---|--------|----------|
+| 1 | `departamentos` | Unidades organizacionais *(novo v2.0)* |
+| 2 | `usuarios` | Contas de acesso ao portal |
+| 3 | `sessoes_autenticacao` | Sessões com token opaco SHA-256 |
+| 4 | `espacos_trabalho` | Workspaces (agrupamentos de relatórios) |
+| 5 | `categorias_relatorio` | Categorias de relatório com cor e ícone *(novo v2.0)* |
+| 6 | `relatorios` | Relatórios Power BI cadastrados |
+| 7 | `acessos_workspace` | Permissão de usuário por workspace |
+| 8 | `acessos_relatorio` | Permissão de usuário por relatório específico |
+| 9 | `permissoes_perfil` | Matriz de permissões por perfil (RBAC) |
+| 10 | `perfis` | Metadados dos perfis (nível hierárquico) *(novo v2.0)* |
+| 11 | `regras_expediente` | Horários de acesso por dia da semana |
+| 12 | `grupos_excecao` | Grupos com acesso fora do expediente |
+| 13 | `membros_grupo_excecao` | Membros dos grupos de exceção |
+| 14 | `favoritos` | Relatórios favoritos por usuário |
+| 15 | `logs_auditoria` | Registro imutável de todas as ações |
+| 16 | `configuracoes_sistema` | Parâmetros globais chave-valor |
+| 17 | `historico_config_critica` | Histórico de campos críticos |
+| 18 | `credenciais_pbi` | Credenciais Azure AD para Power BI *(novo v2.0)* |
+| 19 | `pacotes_permissao` | Pacotes reutilizáveis de permissão *(novo v2.0)* |
+| 20 | `pacotes_permissao_itens` | Permissões de cada módulo no pacote *(novo v2.0)* |
+| 21 | `usuarios_pacotes` | Atribuição de pacotes a usuários *(novo v2.0)* |
+
+> **Removida em v2.0:** `sobrescritas_permissao` — substituída por `pacotes_permissao`.
 
 ### 5.4 Perfis de usuário
 
@@ -259,7 +282,7 @@ backend/
 **Terminal 1 — Backend:**
 ```powershell
 cd backend
-pip install fastapi uvicorn sqlalchemy passlib bcrypt pydantic requests
+pip install fastapi uvicorn sqlalchemy passlib bcrypt pydantic requests alembic
 python seed.py
 uvicorn main:app --reload
 ```
@@ -283,7 +306,7 @@ npm run dev
 | admin@cgid.com | Admin@2025 | Master |
 | carlos@cgid.com | Carlos@123 | Coordenador |
 | mariana@cgid.com | Mariana@123 | Colaborador |
-| convidado@cgid.com | Convidado@123 | Convidado |
+| visitante@cgid.com | Visitante@123 | Convidado |
 
 ---
 
@@ -305,13 +328,15 @@ npm run dev
 |---|---|
 | **Frontend** | React 19 + JavaScript + Vite 8 |
 | **Roteamento** | React Router v7 |
-| **Estado de autenticação** | sessionStorage → AuthContext (Sprint 1-2) |
+| **Estado de autenticação** | sessionStorage (token de sessão opaco) |
 | **HTTP** | fetch nativo |
-| **Backend** | Python 3.12 + FastAPI |
+| **Backend** | Python 3.12 + FastAPI (arquitetura modular: routers/services) |
 | **ORM** | SQLAlchemy 2.0 |
+| **Migrações** | Alembic (render_as_batch para SQLite) |
 | **Banco (dev)** | SQLite |
 | **Banco (prod)** | SQL Server on-premise |
 | **Senhas** | passlib + bcrypt |
+| **Schemas** | Pydantic v2 (todos centralizados em schemas.py) |
 | **Power BI** | powerbi-client + Power BI REST API via requests |
 | **Servidor** | uvicorn |
 
@@ -326,3 +351,4 @@ npm run dev
 | 3.0 | Maio/2026 | Vinicius Soares | Atualização para estado real do projeto: React 19, Vite 8, React Router v7, SQLite como banco de desenvolvimento, remoção de TanStack Query/Axios/React Hook Form/Yup, estrutura de pastas atualizada (pages/, styles/, routes/, components/), endpoints de dashboard implementados |
 | 3.1 | Junho/2026 | Vinicius Soares | Inclusão de powerbi-client, requests, páginas Favoritos/Auditoria/Configurações, utilitário apiFetch e endpoints de Power BI, auditoria, favoritos e configurações |
 | 3.2 | Junho/2026 | Vinicius Soares | Extração do menu lateral para componente compartilhado `Sidebar.jsx`; adição de `TopbarExpediente.jsx`, `ModalConfirmacao.jsx` e `ModalHistoricoCritico.jsx` na lista de componentes |
+| 4.0 | 2026-06-25 | Vinicius Soares | **v2.0:** Backend modularizado (routers/, services/, dependencies.py, schemas.py centralizados); Alembic adicionado à stack; 21 tabelas (+7 novas, -1 removida); autenticação por token opaco SHA-256; estrutura de arquivos atualizada; credenciais dev corrigidas; tabela sobrescritas_permissao removida |

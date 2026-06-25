@@ -24,11 +24,11 @@ function Toggle({ checked, onChange }) {
 
 // ─── Aba Expediente ───────────────────────────────────────────────────────────
 function AbaExpediente({ podeEditar }) {
-  const [regras, setRegras]     = useState([])
-  const [loading, setLoading]   = useState(true)
-  const [salvando, setSalvando] = useState(null) // dia_semana sendo salvo
-  const [ok, setOk]             = useState(null) // dia_semana com feedback OK
-  const [erros, setErros]       = useState({})  // { [dia_semana]: mensagem }
+  const [regras, setRegras]   = useState([])
+  const [loading, setLoading] = useState(true)
+  const [salvando, setSalvando] = useState(false)
+  const [ok, setOk]           = useState(false)
+  const [erro, setErro]       = useState('')
 
   useEffect(() => {
     fetch(`${API}/configuracoes/expediente`)
@@ -40,25 +40,32 @@ function AbaExpediente({ podeEditar }) {
 
   function set(dia, campo, valor) {
     setRegras(prev => prev.map(r => r.dia_semana === dia ? { ...r, [campo]: valor } : r))
+    setOk(false)
+    setErro('')
   }
 
-  async function salvar(dia) {
-    const r = regras.find(x => x.dia_semana === dia)
-    if (r.ativo && (!r.hora_inicio || !r.hora_fim)) return
-    setSalvando(dia)
+  async function salvarTodos() {
+    const invalidos = regras.filter(r => r.ativo && (!r.hora_inicio || !r.hora_fim))
+    if (invalidos.length > 0) {
+      setErro(`Preencha início e fim para: ${invalidos.map(r => r.nome_dia).join(', ')}.`)
+      return
+    }
+    setSalvando(true)
+    setErro('')
     try {
-      const res = await apiFetch(`/configuracoes/expediente/${dia}`, {
-        method: 'PUT',
-        body: { hora_inicio: r.hora_inicio, hora_fim: r.hora_fim, ativo: r.ativo, bloquear_fora: r.bloquear_fora },
-      })
-      if (!res.ok) { const d = await res.json(); throw new Error(d.detail) }
-      setOk(dia)
-      setErros(prev => ({ ...prev, [dia]: null }))
-      setTimeout(() => setOk(v => v === dia ? null : v), 2000)
+      for (const r of regras) {
+        const res = await apiFetch(`/configuracoes/expediente/${r.dia_semana}`, {
+          method: 'PUT',
+          body: { hora_inicio: r.hora_inicio || '00:00', hora_fim: r.hora_fim || '00:00', ativo: r.ativo, bloquear_fora: r.bloquear_fora },
+        })
+        if (!res.ok) { const d = await res.json(); throw new Error(`${r.nome_dia}: ${d.detail}`) }
+      }
+      setOk(true)
+      setTimeout(() => setOk(false), 2500)
     } catch (e) {
-      setErros(prev => ({ ...prev, [dia]: e.message || 'Erro ao salvar.' }))
+      setErro(e.message || 'Erro ao salvar.')
     } finally {
-      setSalvando(null)
+      setSalvando(false)
     }
   }
 
@@ -80,11 +87,9 @@ function AbaExpediente({ podeEditar }) {
           <span>Fim</span>
           <span>Ativo</span>
           <span>Bloquear fora</span>
-          <span />
         </div>
         {regras.map(r => (
-          <div key={r.dia_semana}>
-          <div className={`sched-row${r.ativo ? '' : ' inativo'}`}>
+          <div key={r.dia_semana} className={`sched-row${r.ativo ? '' : ' inativo'}`}>
             <div className="sched-dia">{r.nome_dia}</div>
 
             <input
@@ -113,30 +118,33 @@ function AbaExpediente({ podeEditar }) {
                 onChange={v => set(r.dia_semana, 'bloquear_fora', v)}
               />
             </div>
-
-            <button
-              className="btn btn-ghost btn-sm"
-              style={{ whiteSpace: 'nowrap', fontSize: 12 }}
-              disabled={salvando === r.dia_semana || !podeEditar}
-              onClick={() => salvar(r.dia_semana)}
-            >
-              {salvando === r.dia_semana
-                ? <i className="fa-solid fa-spinner fa-spin" />
-                : ok === r.dia_semana
-                  ? <><i className="fa-solid fa-check" style={{ color: 'var(--brand-500)' }} /> Salvo</>
-                  : erros[r.dia_semana]
-                    ? <><i className="fa-solid fa-circle-exclamation" style={{ color: '#ef4444' }} /> Erro</>
-                    : 'Salvar'}
-            </button>
-          </div>
-          {erros[r.dia_semana] && (
-            <div style={{ fontSize: 11, color: '#ef4444', padding: '2px 0 6px 0' }}>
-              {erros[r.dia_semana]}
-            </div>
-          )}
           </div>
         ))}
       </div>
+
+      {podeEditar && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 20 }}>
+          <button
+            className="btn btn-primary"
+            onClick={salvarTodos}
+            disabled={salvando}
+          >
+            {salvando
+              ? <><i className="fa-solid fa-spinner fa-spin" /> Salvando...</>
+              : 'Salvar expediente'}
+          </button>
+          {ok && (
+            <span style={{ fontSize: 13, color: 'var(--brand-600)', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <i className="fa-solid fa-check" /> Salvo com sucesso
+            </span>
+          )}
+          {erro && (
+            <span style={{ fontSize: 13, color: '#dc2626', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <i className="fa-solid fa-circle-exclamation" /> {erro}
+            </span>
+          )}
+        </div>
+      )}
     </div>
   )
 }

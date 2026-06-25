@@ -360,10 +360,17 @@ function ModalRelatorio({ workspaceId, workspacePbiId, relatorio, onClose, onSav
   const [form, setForm] = useState({
     nome:             relatorio?.nome             ?? '',
     categoria:        relatorio?.categoria        ?? '',
+    categoria_id:     relatorio?.categoria_id     ?? '',
     status:           relatorio?.status           ?? 'publicado',
     descricao:        relatorio?.descricao        ?? '',
     id_relatorio_pbi: relatorio?.id_relatorio_pbi ?? '',
   })
+  const [categorias, setCategorias] = useState([])
+
+  useEffect(() => {
+    fetch(`${API}/categorias-relatorio`).then(r => r.json()).then(setCategorias).catch(() => {})
+  }, [])
+
   const [loading, setLoading]         = useState(false)
   const [erro, setErro]               = useState('')
   const [editandoId, setEditandoId]   = useState(false)
@@ -418,11 +425,13 @@ function ModalRelatorio({ workspaceId, workspacePbiId, relatorio, onClose, onSav
         ? `/workspaces/${workspaceId}/relatorios/${relatorio.id}`
         : `/workspaces/${workspaceId}/relatorios`
       const method = editando ? 'PUT' : 'POST'
+      const catSelecionada = categorias.find(c => String(c.id) === String(form.categoria_id))
       const r = await apiFetch(path, {
         method,
         body: {
           nome:             form.nome.trim(),
-          categoria:        form.categoria.trim() || null,
+          categoria:        catSelecionada?.nome ?? (form.categoria.trim() || null),
+          categoria_id:     form.categoria_id || null,
           status:           form.status,
           descricao:        form.descricao.trim() || null,
           id_relatorio_pbi: form.id_relatorio_pbi.trim() || null,
@@ -460,7 +469,10 @@ function ModalRelatorio({ workspaceId, workspacePbiId, relatorio, onClose, onSav
         </div>
         <div className="modal-field">
           <label className="modal-label">Categoria</label>
-          <input className="modal-input" value={form.categoria} onChange={e => set('categoria', e.target.value)} placeholder="Ex: Financeiro, Operacional..." />
+          <select className="modal-input" value={form.categoria_id} onChange={e => setForm(f => ({ ...f, categoria_id: e.target.value }))}>
+            <option value="">Sem categoria</option>
+            {categorias.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+          </select>
         </div>
         <div className="modal-field">
           <label className="modal-label">Status</label>
@@ -550,7 +562,12 @@ function ModalRelatorio({ workspaceId, workspacePbiId, relatorio, onClose, onSav
           <textarea className="modal-textarea" value={form.descricao} onChange={e => set('descricao', e.target.value)} placeholder="Descrição opcional..." />
         </div>
 
-        {erro && <div style={{ fontSize: 12, color: 'var(--red-500)', marginBottom: 8 }}>{erro}</div>}
+        {erro && (
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: 13, color: '#991b1b', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 'var(--r-md)', padding: '10px 14px', marginBottom: 4 }}>
+            <i className="fa-solid fa-circle-exclamation" style={{ marginTop: 1, flexShrink: 0 }} />
+            <span>{erro}</span>
+          </div>
+        )}
 
         <div className="modal-actions">
           <button className="btn btn-ghost" onClick={onClose} disabled={loading}>Cancelar</button>

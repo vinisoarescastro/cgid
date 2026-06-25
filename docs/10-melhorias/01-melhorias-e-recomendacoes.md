@@ -1,56 +1,42 @@
 # Melhorias Técnicas e Organizacionais
 
 > **Documento:** 10-melhorias/01-melhorias-e-recomendacoes.md  
-> **Status:** Rascunho  
+> **Status:** Em andamento  
 > **Criado em:** Maio/2026  
-> **Atualizado em:** Maio/2026
+> **Atualizado em:** 2026-06-25
 
 ---
 
-## 1. Melhorias Técnicas no Repositório Atual
+## 1. Status das Melhorias Implementadas (v2.0)
 
-### 1.1 Problemas Críticos a Resolver Imediatamente
+Os itens abaixo foram identificados como pendentes e foram implementados na v2.0:
 
-| Problema | Localização no protótipo | Solução |
-|----------|------------------------|---------|
-| Credenciais em texto puro | Array `CREDS` no HTML | Remover completamente; autenticação real no backend |
-| Autenticação client-side bypassável | Função `doLogin()` | Mover toda validação de credenciais para o backend |
-| RBAC no frontend (burlável) | Funções `applyRBAC()`, `canAccessWs()` | Toda autorização deve ocorrer no backend via guards |
-| Código HTML/CSS/JS monolítico (5k+ linhas) | `portal_v4_8.html` | Separar em projeto frontend React componentizado |
-| Sem tratamento de erros de rede | Toda a lógica de mock | Implementar interceptors de erro + estados de carregamento |
+| Item | Descrição | Status |
+|------|-----------|--------|
+| Backend modular | `main.py` dividido em routers/, services/, dependencies.py | ✅ Implementado |
+| Schemas centralizados | Todos os schemas Pydantic em `schemas.py` | ✅ Implementado |
+| Alembic | Migrações de banco configuradas (migration 60fc08a85566) | ✅ Implementado |
+| Departamentos | Nova tabela + CRUD + vínculo com usuários | ✅ Implementado |
+| Categorias de relatório | Nova tabela + CRUD + FK em relatorios | ✅ Implementado |
+| Perfis (metadados) | Nova tabela com nivel_hierarquia e nome_exibicao | ✅ Implementado |
+| Credenciais PBI | Nova tabela + gestão via interface administrativa | ✅ Implementado |
+| Pacotes de permissão | Substituem sobrescritas individuais; reutilizáveis | ✅ Implementado |
+| Token de sessão opaco | SHA-256 em sessoes_autenticacao (sem JWT) | ✅ Implementado |
+| CASCADE correto | membros_grupo_excecao.usuario_id agora CASCADE | ✅ Implementado |
 
-### 1.2 Migração do Design System
+---
 
-O protótipo possui um design system CSS bem estruturado. Para preservá-lo:
+## 1.1 Melhorias Pendentes (backlog técnico)
 
-```
-1. Extrair todas as variáveis CSS (--brand-*, --gray-*, --shadow-*, --r-*) 
-   para src/styles/tokens.css no projeto React
-
-2. Mapear os componentes existentes no HTML para componentes React:
-   .card → <Card />
-   .btn → <Button variant="primary|secondary|ghost" size="sm|md|lg" />
-   .tbl → <Table /> com TanStack Table
-   .badge → <Badge type="success|warning|danger|info" />
-   .modal-overlay → <Modal />
-   .pbi-badge → <PBIBadge />
-
-3. Manter a paleta de cores exatamente como está (validada visualmente)
-
-4. Extrair a tipografia Plus Jakarta Sans para variável de fonte:
-   --font-sans: 'Plus Jakarta Sans', system-ui, sans-serif;
-```
-
-### 1.3 Refatorações Recomendadas
-
-| Área | Problema atual | Refatoração |
-|------|---------------|-------------|
-| Navegação SPA | `navigateTo()` manipula DOM diretamente | Usar React Router v6 com `<Link>` e `useNavigate()` |
-| Dados mockados | Arrays globais em JavaScript | Substituir por chamadas à API real com TanStack Query |
-| Event listeners inline | `onclick="..."` no HTML | Usar event handlers React (`onClick`, `onChange`) |
-| Renderização de tabelas | `innerHTML = ...template literal...` | Componentes React tipados |
-| Estado global | Variável `STATE` global | React Context para autenticação e TanStack Query para dados de servidor |
-| Estilos inline | `style="..."` em muitos elementos | Classes CSS do design system |
+| Área | Melhoria pendente | Prioridade |
+|------|------------------|-----------|
+| Segurança | Rate limiting por IP no login | Alta |
+| Segurança | Headers HTTP de segurança (HSTS, CSP, X-Frame-Options) via middleware | Alta |
+| Frontend | Tratamento de erros de rede mais robusto (retry, offline state) | Média |
+| Frontend | React.lazy() para módulos administrativos (code splitting) | Baixa |
+| Backend | Pydantic Settings para validação de variáveis de ambiente no startup | Média |
+| Backend | Health check endpoints (/saude, /saude/banco) | Média |
+| Testes | Testes unitários e de integração (pytest) | Alta |
 
 ---
 
@@ -211,3 +197,4 @@ Um item do backlog está "Pronto" apenas quando:
 | Versão | Data | Autor | Descrição |
 |--------|------|-------|-----------|
 | 1.0 | Maio/2026 | Vinicius Soares | Criação inicial do documento |
+| 2.0 | 2026-06-25 | Vinicius Soares | Seção 1 reescrita para refletir v2.0: lista de melhorias implementadas + backlog técnico atualizado |

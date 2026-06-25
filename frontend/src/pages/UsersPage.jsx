@@ -42,15 +42,16 @@ const NIVEL_LABELS = {
 }
 
 // ─── Modal de Criar/Editar ────────────────────────────────────────────────────
-function ModalUsuario({ usuario, acessosIniciais = [], onClose, onSave }) {
+function ModalUsuario({ usuario, acessosIniciais = [], departamentos = [], onClose, onSave }) {
   const editando = !!usuario
   const [abaAtiva, setAbaAtiva] = useState('dados')
   const [form, setForm] = useState({
-    nome:   usuario?.nome   ?? '',
-    email:  usuario?.email  ?? '',
-    perfil: usuario?.perfil ?? 'colaborador',
-    status: usuario?.status ?? 'ativo',
-    senha:  '',
+    nome:            usuario?.nome            ?? '',
+    email:           usuario?.email           ?? '',
+    perfil:          usuario?.perfil          ?? 'colaborador',
+    status:          usuario?.status          ?? 'ativo',
+    senha:           '',
+    departamento_id: usuario?.departamento_id ?? '',
   })
   const [erros, setErros]       = useState({})
   const [loading, setLoading]   = useState(false)
@@ -144,7 +145,7 @@ function ModalUsuario({ usuario, acessosIniciais = [], onClose, onSave }) {
     }
     setLoading(true)
     try {
-      const body = { nome: form.nome, email: form.email, perfil: form.perfil }
+      const body = { nome: form.nome, email: form.email, perfil: form.perfil, departamento_id: form.departamento_id || null }
       if (!editando) body.senha = form.senha
       if (editando) {
         body.status = form.status
@@ -313,6 +314,14 @@ function ModalUsuario({ usuario, acessosIniciais = [], onClose, onSave }) {
                 </div>
 
                 <div className="form-group">
+                  <label className="form-label">Departamento</label>
+                  <select className="form-select" value={form.departamento_id} onChange={e => setForm(p => ({ ...p, departamento_id: e.target.value }))}>
+                    <option value="">Sem departamento</option>
+                    {departamentos.map(d => <option key={d.id} value={d.id}>{d.nome}</option>)}
+                  </select>
+                </div>
+
+                <div className="form-group">
                   <label className="form-label">{editando ? 'Nova senha (deixe vazio para manter)' : 'Senha'}</label>
                   <input
                     className={`form-input${erros.senha ? ' error' : ''}`}
@@ -393,10 +402,12 @@ export default function UsersPage() {
 
   useEffect(() => {
     if (!temPermissao('usuarios')) navigate('/')
+    fetch(`${API}/departamentos`).then(r => r.json()).then(setDepartamentos).catch(() => {})
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const [usuarios, setUsuarios]   = useState([])
   const [acessosMap, setAcessosMap] = useState({}) // { userId: [{nome, nivel_acesso}] }
+  const [departamentos, setDepartamentos] = useState([])
   const [busca, setBusca]         = useState('')
   const [filtroStatus, setFiltroStatus] = useState('')
   const [filtroPerfil, setFiltroPerfil] = useState('')
@@ -547,6 +558,7 @@ export default function UsersPage() {
                         <th>Usuário</th>
                         <th>E-mail</th>
                         <th>Perfil</th>
+                        <th>Departamento</th>
                         <th>Workspaces</th>
                         <th>Status</th>
                         <th>Último acesso</th>
@@ -567,6 +579,9 @@ export default function UsersPage() {
                             <span className={`perfil-badge perfil-${u.perfil}`}>
                               {PERFIL_LABELS[u.perfil]}
                             </span>
+                          </td>
+                          <td style={{ color: 'var(--gray-500)', fontSize: 13 }}>
+                            {u.departamento_nome ?? <span style={{ color: 'var(--gray-300)' }}>—</span>}
                           </td>
                           <td>
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
@@ -656,6 +671,7 @@ export default function UsersPage() {
         <ModalUsuario
           usuario={modalEditar}
           acessosIniciais={modalEditar ? (acessosMap[modalEditar.id] ?? []) : []}
+          departamentos={departamentos}
           onClose={() => { setModalNovo(false); setModalEditar(null) }}
           onSave={handleSave}
         />

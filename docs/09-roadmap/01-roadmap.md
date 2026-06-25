@@ -3,7 +3,7 @@
 > **Documento:** 09-roadmap/01-roadmap.md  
 > **Status:** Em andamento  
 > **Criado em:** Maio/2026  
-> **Atualizado em:** Junho/2026
+> **Atualizado em:** 2026-06-25
 
 ---
 
@@ -38,7 +38,7 @@ Infra    Permissões     Workspaces  Exceções     Dashboard   Ajustes    MVP v
 |------|-----------|--------|
 | ✅ Repositório configurado | Monorepo com frontend/ e backend/ | Concluído |
 | ✅ Estrutura do frontend | pages/, styles/, routes/, components/ | Concluído |
-| ✅ Modelos SQLAlchemy | 14 tabelas conforme documentação de modelagem | Concluído |
+| ✅ Modelos SQLAlchemy | 21 tabelas conforme documentação de modelagem (v2.0) | Concluído |
 | ✅ Seed de desenvolvimento | Usuários, workspaces, relatórios, permissões, expediente, configs | Concluído |
 | ✅ Banco de dados (dev) | SQLite — zero configuração, arquivo `cgid.db` | Concluído |
 | ✅ Tela de login | Autenticação real contra o banco, bloqueio após 5 tentativas | Concluído |
@@ -48,7 +48,7 @@ Infra    Permissões     Workspaces  Exceções     Dashboard   Ajustes    MVP v
 | ⏳ App Registration Azure | Service Principal com permissões PBI | Pendente (TI) |
 | ⏳ Power BI workspace | Workspaces de desenvolvimento no PBI Service | Pendente (TI) |
 | ⏳ Ambientes cloud | Staging e Produção provisionados | Pendente (Infra) |
-| ⏳ Chave JWT | Chave secreta para assinatura HS256 | Pendente (Sprint 1-2) |
+| ✅ Autenticação por token opaco | Token SHA-256 em sessoes_autenticacao (sem JWT) — implementado v2.0 | Concluído |
 
 ### Critério de conclusão do Sprint 0
 > Backend e frontend iniciam com `uvicorn` e `npm run dev`; `GET /` retorna 200; seed executado com sucesso; login funcional com dados reais do banco. ✅
@@ -59,23 +59,26 @@ Infra    Permissões     Workspaces  Exceções     Dashboard   Ajustes    MVP v
 
 **Objetivo:** Núcleo de segurança e gestão de identidade.
 
+**Status:** ✅ Concluído (implementado em v2.0)
+
 ### Funcionalidades
 
-| # | Feature | Módulo |
-|---|---------|--------|
-| 1 | Login com e-mail/senha (JWT HS256) | Auth |
-| 2 | Refresh token automático (httpOnly cookie) | Auth |
-| 3 | Logout com revogação da sessão no SQL Server | Auth |
-| 4 | Bloqueio automático após 5 tentativas | Auth |
-| 5 | Rate limiting por IP | Auth |
-| 6 | Tela de boas-vindas personalizada por perfil | Frontend |
-| 7 | CRUD de usuários (Admin) | Users |
-| 8 | Status de usuário: ativar, inativar, bloquear, desbloquear | Users |
-| 9 | Matriz de permissões por perfil | Permissions |
-| 10 | Override de permissão por usuário individual | Permissions |
-| 11 | Dependências/guards FastAPI: autenticação, perfil e permissões | Backend |
-| 12 | Headers de segurança via middleware FastAPI | Backend |
-| 13 | Hash bcrypt nas senhas | Auth |
+| # | Feature | Módulo | Status |
+|---|---------|--------|--------|
+| 1 | Login com e-mail/senha + token de sessão opaco (SHA-256) | Auth | ✅ |
+| 2 | Sessão única com revogação automática de sessões anteriores | Auth | ✅ |
+| 3 | Logout com revogação da sessão | Auth | ✅ |
+| 4 | Bloqueio automático após 5 tentativas | Auth | ✅ |
+| 5 | Rate limiting por IP | Auth | ⏳ |
+| 6 | Tela de boas-vindas personalizada por perfil | Frontend | ✅ |
+| 7 | CRUD de usuários (Admin) | Users | ✅ |
+| 8 | Status de usuário: ativar, inativar, bloquear, desbloquear | Users | ✅ |
+| 9 | Matriz de permissões por perfil (11 módulos × 5 perfis) | Permissions | ✅ |
+| 10 | Pacotes de permissão reutilizáveis (substitui overrides individuais) | Permissions | ✅ |
+| 11 | Middleware de sessão + checar_permissao/exigir_permissao | Backend | ✅ |
+| 12 | Headers de segurança via middleware FastAPI | Backend | ⏳ |
+| 13 | Hash bcrypt nas senhas | Auth | ✅ |
+| 14 | Departamentos — CRUD + vínculo com usuários | Users | ✅ |
 
 ### Critério de conclusão
 > Usuário consegue fazer login; token expira em 1h; refresh funciona via cookie httpOnly e sessão no SQL Server; 5 tentativas bloqueiam a conta; RBAC impede acesso de Colaborador a módulos Admin.
@@ -217,7 +220,21 @@ Infra    Permissões     Workspaces  Exceções     Dashboard   Ajustes    MVP v
 
 ---
 
-## 10. Versão 2.0 — Médio Prazo (3–6 meses pós-v1.1)
+## 10. Versão 2.0 — Concluída (2026-06-25)
+
+**Status:** ✅ Implementado
+
+| Feature | Status |
+|---------|--------|
+| Arquitetura modular (routers/, services/, dependencies.py) | ✅ |
+| 21 tabelas (+departamentos, +categorias_relatorio, +perfis, +credenciais_pbi, +pacotes_permissao, -sobrescritas_permissao) | ✅ |
+| Alembic configurado com migration 60fc08a85566 | ✅ |
+| schemas.py centralizados | ✅ |
+| Controle de acesso refatorado: perfil base + pacotes | ✅ |
+
+---
+
+## 10-A. Versão 2.1 — Médio Prazo (3–6 meses)
 
 **Foco:** Capacidades enterprise e self-service.
 
@@ -264,3 +281,4 @@ Infra    Permissões     Workspaces  Exceções     Dashboard   Ajustes    MVP v
 | Versão | Data | Autor | Descrição |
 |--------|------|-------|-----------|
 | 1.0 | Maio/2026 | Vinicius Soares | Criação inicial do documento |
+| 2.0 | 2026-06-25 | Vinicius Soares | Atualização: Sprint 0 concluído; Sprint 1-2 marcado como concluído com status por feature; v2.0 marcada como concluída com lista de features implementadas; adicionada v2.1 |

@@ -4,8 +4,9 @@
 > **SGBD:** Microsoft SQL Server 2017+ / Azure SQL Database  
 > **Collation:** Latin1_General_CI_AS  
 > **Schema:** `dbo` (padrão)  
-> **Versão:** 1.0  
+> **Versão:** 2.0  
 > **Criado em:** 2026-06-23  
+> **Atualizado em:** 2026-06-25  
 > **Referência:** [DATABASE.md](DATABASE.md)
 
 ---
@@ -42,6 +43,8 @@ DATABASE_URL = (
 9. [Dados Iniciais (Seed)](#seção-9--dados-iniciais-seed)
 10. [Checklist de Validação](#checklist-de-validação)
 11. [Diferenças em relação ao SQLite](#diferenças-em-relação-ao-sqlite)
+
+> **v2.0:** Schema expandido para 21 tabelas. Novas tabelas: `departamentos`, `categorias_relatorio`, `perfis`, `credenciais_pbi`, `pacotes_permissao`, `pacotes_permissao_itens`, `usuarios_pacotes`. Removida: `sobrescritas_permissao`. Adicionadas colunas: `usuarios.departamento_id`, `relatorios.categoria_id`. Corrigido CASCADE em `membros_grupo_excecao.usuario_id`.
 
 ---
 
@@ -86,7 +89,33 @@ GO
 ## Seção 3 — Tabelas sem dependências externas
 
 > Tabelas que não possuem FK apontando para outras tabelas desta aplicação.
-> A FK auto-referencial de `usuarios.criado_por_id` será adicionada na Seção 6.
+> A FK auto-referencial de `usuarios.criado_por_id` e a FK `usuarios.departamento_id` serão adicionadas na Seção 6.
+
+---
+
+### 3.0 — `departamentos` *(novo em v2.0)*
+
+```sql
+IF OBJECT_ID('dbo.departamentos', 'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.departamentos (
+        id            NVARCHAR(36)  NOT NULL CONSTRAINT df_dep_id      DEFAULT CONVERT(NVARCHAR(36), NEWID()),
+        nome          NVARCHAR(255) NOT NULL,
+        codigo        NVARCHAR(20)       NULL,
+        descricao     NVARCHAR(MAX)      NULL,
+        ativo         BIT           NOT NULL CONSTRAINT df_dep_ativo   DEFAULT 1,
+        criado_em     DATETIME2(7)  NOT NULL CONSTRAINT df_dep_criado  DEFAULT GETUTCDATE(),
+        atualizado_em DATETIME2(7)  NOT NULL CONSTRAINT df_dep_atualiz DEFAULT GETUTCDATE(),
+        CONSTRAINT pk_departamentos PRIMARY KEY (id),
+        CONSTRAINT uq_dep_nome      UNIQUE (nome),
+        CONSTRAINT uq_dep_codigo    UNIQUE (codigo)
+    );
+    PRINT 'Tabela [departamentos] criada.';
+END
+ELSE
+    PRINT 'Tabela [departamentos] ja existe.';
+GO
+```
 
 ---
 
@@ -114,6 +143,8 @@ BEGIN
         atualizado_em    DATETIME2(7)  NOT NULL CONSTRAINT df_usuarios_atualiz  DEFAULT GETUTCDATE(),
         criado_por_id    NVARCHAR(36)       NULL,
         -- FK auto-referencial adicionada na Secao 6 (SQL Server nao permite SET NULL em FK auto-referencial)
+        departamento_id  NVARCHAR(36)       NULL,
+        -- FK para departamentos adicionada na Secao 6 (novo em v2.0)
         CONSTRAINT pk_usuarios          PRIMARY KEY (id),
         CONSTRAINT uq_usuarios_email    UNIQUE (email)
     );
@@ -121,6 +152,28 @@ BEGIN
 END
 ELSE
     PRINT 'Tabela [usuarios] ja existe.';
+GO
+```
+
+---
+
+### 3.1b — `perfis` *(novo em v2.0)*
+
+```sql
+IF OBJECT_ID('dbo.perfis', 'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.perfis (
+        codigo             NVARCHAR(30)  NOT NULL,
+        nome_exibicao      NVARCHAR(100) NOT NULL,
+        descricao          NVARCHAR(MAX)      NULL,
+        nivel_hierarquia   SMALLINT      NOT NULL CONSTRAINT df_per_nivel   DEFAULT 0,
+        pode_ser_atribuido BIT           NOT NULL CONSTRAINT df_per_atrib   DEFAULT 1,
+        CONSTRAINT pk_perfis PRIMARY KEY (codigo)
+    );
+    PRINT 'Tabela [perfis] criada.';
+END
+ELSE
+    PRINT 'Tabela [perfis] ja existe.';
 GO
 ```
 
@@ -312,34 +365,77 @@ GO
 
 ---
 
-### 4.3 — `sobrescritas_permissao`
+### 4.3 — `categorias_relatorio` *(novo em v2.0)*
 
 ```sql
-IF OBJECT_ID('dbo.sobrescritas_permissao', 'U') IS NULL
+IF OBJECT_ID('dbo.categorias_relatorio', 'U') IS NULL
 BEGIN
-    CREATE TABLE dbo.sobrescritas_permissao (
-        id              NVARCHAR(36)  NOT NULL CONSTRAINT df_sp_id     DEFAULT CONVERT(NVARCHAR(36), NEWID()),
-        usuario_id      NVARCHAR(36)  NOT NULL,
-        modulo          NVARCHAR(100) NOT NULL,
-        pode_visualizar BIT                NULL,
-        -- NULL = herda do perfil; 0 = negar; 1 = conceder
-        pode_criar      BIT                NULL,
-        pode_editar     BIT                NULL,
-        pode_excluir    BIT                NULL,
-        pode_exportar   BIT                NULL,
-        pode_gerenciar  BIT                NULL,
-        definido_por_id NVARCHAR(36)       NULL,
-        -- FK adicionada na Secao 6 com NO ACTION (nao pode SET NULL — multiplo caminho de cascade)
-        definido_em     DATETIME2(7)  NOT NULL CONSTRAINT df_sp_def    DEFAULT GETUTCDATE(),
-        CONSTRAINT pk_sobrescritas_permissao  PRIMARY KEY (id),
-        CONSTRAINT uq_sp_usuario_modulo       UNIQUE (usuario_id, modulo)
+    CREATE TABLE dbo.categorias_relatorio (
+        id    NVARCHAR(36)  NOT NULL CONSTRAINT df_cr_id    DEFAULT CONVERT(NVARCHAR(36), NEWID()),
+        nome  NVARCHAR(100) NOT NULL,
+        cor   NVARCHAR(7)        NULL,
+        -- Cor hexadecimal (ex: #16a34a)
+        icone NVARCHAR(50)       NULL,
+        -- Classe de icone (ex: fa-chart-line)
+        ativo BIT           NOT NULL CONSTRAINT df_cr_ativo DEFAULT 1,
+        CONSTRAINT pk_categorias_relatorio PRIMARY KEY (id),
+        CONSTRAINT uq_cr_nome              UNIQUE (nome)
     );
-    PRINT 'Tabela [sobrescritas_permissao] criada.';
+    PRINT 'Tabela [categorias_relatorio] criada.';
 END
 ELSE
-    PRINT 'Tabela [sobrescritas_permissao] ja existe.';
+    PRINT 'Tabela [categorias_relatorio] ja existe.';
 GO
 ```
+
+---
+
+### 4.3b — `credenciais_pbi` *(novo em v2.0)*
+
+```sql
+IF OBJECT_ID('dbo.credenciais_pbi', 'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.credenciais_pbi (
+        id                NVARCHAR(36)  NOT NULL CONSTRAINT df_cpbi_id      DEFAULT CONVERT(NVARCHAR(36), NEWID()),
+        tenant_id         NVARCHAR(255)      NULL,
+        client_id         NVARCHAR(255)      NULL,
+        client_secret     NVARCHAR(500)      NULL,
+        ativo             BIT           NOT NULL CONSTRAINT df_cpbi_ativo   DEFAULT 1,
+        atualizado_em     DATETIME2(7)  NOT NULL CONSTRAINT df_cpbi_atualiz DEFAULT GETUTCDATE(),
+        atualizado_por_id NVARCHAR(36)       NULL,
+        CONSTRAINT pk_credenciais_pbi PRIMARY KEY (id)
+    );
+    PRINT 'Tabela [credenciais_pbi] criada.';
+END
+ELSE
+    PRINT 'Tabela [credenciais_pbi] ja existe.';
+GO
+```
+
+---
+
+### 4.3c — `pacotes_permissao` *(novo em v2.0)*
+
+```sql
+IF OBJECT_ID('dbo.pacotes_permissao', 'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.pacotes_permissao (
+        id            NVARCHAR(36)  NOT NULL CONSTRAINT df_pp2_id     DEFAULT CONVERT(NVARCHAR(36), NEWID()),
+        nome          NVARCHAR(255) NOT NULL,
+        descricao     NVARCHAR(MAX)      NULL,
+        criado_em     DATETIME2(7)  NOT NULL CONSTRAINT df_pp2_criado DEFAULT GETUTCDATE(),
+        criado_por_id NVARCHAR(36)       NULL,
+        CONSTRAINT pk_pacotes_permissao PRIMARY KEY (id),
+        CONSTRAINT uq_pp2_nome          UNIQUE (nome)
+    );
+    PRINT 'Tabela [pacotes_permissao] criada.';
+END
+ELSE
+    PRINT 'Tabela [pacotes_permissao] ja existe.';
+GO
+```
+
+> **Nota sobre `sobrescritas_permissao`:** Esta tabela foi **removida** na v2.0. Os overrides individuais de permissão foram substituídos pelos `pacotes_permissao`. Se o banco existente ainda possui a tabela, ela pode ser removida com `DROP TABLE dbo.sobrescritas_permissao;` após confirmar que não há dados críticos.
 
 ---
 
@@ -395,7 +491,7 @@ GO
 
 ---
 
-### Fase 3 — Depende de `espacos_trabalho` e `usuarios`
+### Fase 3 — Depende de `espacos_trabalho`, `categorias_relatorio` e `usuarios`
 
 ---
 
@@ -410,6 +506,9 @@ BEGIN
         espaco_trabalho_id  NVARCHAR(36)  NOT NULL,
         id_relatorio_pbi    NVARCHAR(255)      NULL,
         categoria           NVARCHAR(100)      NULL,
+        -- Campo legado (texto livre); mantido por compatibilidade
+        categoria_id        NVARCHAR(36)       NULL,
+        -- FK para categorias_relatorio (novo em v2.0); adicionada na Secao 6
         status              NVARCHAR(20)  NOT NULL CONSTRAINT df_rel_status  DEFAULT N'publicado',
         -- Valores: publicado | rascunho | arquivado
         descricao           NVARCHAR(MAX)      NULL,
@@ -522,27 +621,84 @@ GO
 
 ---
 
+### 4.11 — `pacotes_permissao_itens` *(novo em v2.0)*
+
+```sql
+IF OBJECT_ID('dbo.pacotes_permissao_itens', 'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.pacotes_permissao_itens (
+        id              NVARCHAR(36)  NOT NULL CONSTRAINT df_ppi_id    DEFAULT CONVERT(NVARCHAR(36), NEWID()),
+        pacote_id       NVARCHAR(36)  NOT NULL,
+        modulo          NVARCHAR(100) NOT NULL,
+        pode_visualizar BIT           NOT NULL CONSTRAINT df_ppi_vis   DEFAULT 0,
+        pode_criar      BIT           NOT NULL CONSTRAINT df_ppi_cri   DEFAULT 0,
+        pode_editar     BIT           NOT NULL CONSTRAINT df_ppi_edi   DEFAULT 0,
+        pode_excluir    BIT           NOT NULL CONSTRAINT df_ppi_exc   DEFAULT 0,
+        pode_exportar   BIT           NOT NULL CONSTRAINT df_ppi_exp   DEFAULT 0,
+        pode_gerenciar  BIT           NOT NULL CONSTRAINT df_ppi_ger   DEFAULT 0,
+        CONSTRAINT pk_pacotes_permissao_itens PRIMARY KEY (id),
+        CONSTRAINT uq_ppi_pacote_modulo       UNIQUE (pacote_id, modulo)
+    );
+    PRINT 'Tabela [pacotes_permissao_itens] criada.';
+END
+ELSE
+    PRINT 'Tabela [pacotes_permissao_itens] ja existe.';
+GO
+```
+
+---
+
+### 4.12 — `usuarios_pacotes` *(novo em v2.0)*
+
+```sql
+IF OBJECT_ID('dbo.usuarios_pacotes', 'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.usuarios_pacotes (
+        id               NVARCHAR(36) NOT NULL CONSTRAINT df_up_id      DEFAULT CONVERT(NVARCHAR(36), NEWID()),
+        usuario_id       NVARCHAR(36) NOT NULL,
+        pacote_id        NVARCHAR(36) NOT NULL,
+        atribuido_por_id NVARCHAR(36)      NULL,
+        -- FK adicionada na Secao 6 com NO ACTION (multiplo caminho de cascade)
+        atribuido_em     DATETIME2(7) NOT NULL CONSTRAINT df_up_atrib   DEFAULT GETUTCDATE(),
+        CONSTRAINT pk_usuarios_pacotes   PRIMARY KEY (id),
+        CONSTRAINT uq_up_usuario_pacote  UNIQUE (usuario_id, pacote_id)
+    );
+    PRINT 'Tabela [usuarios_pacotes] criada.';
+END
+ELSE
+    PRINT 'Tabela [usuarios_pacotes] ja existe.';
+GO
+```
+
+---
+
 ## Seção 5 — Chaves Primárias
 
 As chaves primárias foram definidas inline nas instruções `CREATE TABLE` das Seções 3 e 4 como constraints nomeadas. A tabela abaixo lista todas para referência.
 
-| Tabela | Constraint | Coluna(s) |
-|--------|-----------|-----------|
-| `usuarios` | `pk_usuarios` | `id` |
-| `sessoes_autenticacao` | `pk_sessoes_autenticacao` | `id` |
-| `espacos_trabalho` | `pk_espacos_trabalho` | `id` |
-| `relatorios` | `pk_relatorios` | `id` |
-| `acessos_workspace` | `pk_acessos_workspace` | `id` |
-| `acessos_relatorio` | `pk_acessos_relatorio` | `id` |
-| `permissoes_perfil` | `pk_permissoes_perfil` | `id` |
-| `sobrescritas_permissao` | `pk_sobrescritas_permissao` | `id` |
-| `regras_expediente` | `pk_regras_expediente` | `id` |
-| `grupos_excecao` | `pk_grupos_excecao` | `id` |
-| `membros_grupo_excecao` | `pk_membros_grupo_excecao` | `(grupo_id, usuario_id)` |
-| `favoritos` | `pk_favoritos` | `id` |
-| `logs_auditoria` | `pk_logs_auditoria` | `id` |
-| `configuracoes_sistema` | `pk_configuracoes_sistema` | `chave` |
-| `historico_config_critica` | `pk_historico_config_critica` | `id` |
+| # | Tabela | Constraint | Coluna(s) |
+|---|--------|-----------|-----------|
+| 1 | `departamentos` | `pk_departamentos` | `id` |
+| 2 | `usuarios` | `pk_usuarios` | `id` |
+| 3 | `sessoes_autenticacao` | `pk_sessoes_autenticacao` | `id` |
+| 4 | `espacos_trabalho` | `pk_espacos_trabalho` | `id` |
+| 5 | `categorias_relatorio` | `pk_categorias_relatorio` | `id` |
+| 6 | `relatorios` | `pk_relatorios` | `id` |
+| 7 | `acessos_workspace` | `pk_acessos_workspace` | `id` |
+| 8 | `acessos_relatorio` | `pk_acessos_relatorio` | `id` |
+| 9 | `permissoes_perfil` | `pk_permissoes_perfil` | `id` |
+| 10 | `perfis` | `pk_perfis` | `codigo` |
+| 11 | `regras_expediente` | `pk_regras_expediente` | `id` |
+| 12 | `grupos_excecao` | `pk_grupos_excecao` | `id` |
+| 13 | `membros_grupo_excecao` | `pk_membros_grupo_excecao` | `(grupo_id, usuario_id)` |
+| 14 | `favoritos` | `pk_favoritos` | `id` |
+| 15 | `logs_auditoria` | `pk_logs_auditoria` | `id` |
+| 16 | `configuracoes_sistema` | `pk_configuracoes_sistema` | `chave` |
+| 17 | `historico_config_critica` | `pk_historico_config_critica` | `id` |
+| 18 | `credenciais_pbi` | `pk_credenciais_pbi` | `id` |
+| 19 | `pacotes_permissao` | `pk_pacotes_permissao` | `id` |
+| 20 | `pacotes_permissao_itens` | `pk_pacotes_permissao_itens` | `id` |
+| 21 | `usuarios_pacotes` | `pk_usuarios_pacotes` | `id` |
 
 ---
 
@@ -550,20 +706,41 @@ As chaves primárias foram definidas inline nas instruções `CREATE TABLE` das 
 
 > **Importante — Adaptações para SQL Server:**
 >
-> Três FKs que no modelo SQLite usariam `ON DELETE SET NULL` precisam de `NO ACTION` no SQL Server para evitar erros de *multiple cascade paths* (mais de uma FK apontando da mesma tabela pai para a mesma tabela filha, onde ao menos uma já usa CASCADE):
+> Algumas FKs que no modelo SQLite usariam `ON DELETE SET NULL` precisam de `NO ACTION` no SQL Server para evitar erros de *multiple cascade paths* (mais de uma FK apontando da mesma tabela pai para a mesma tabela filha, onde ao menos uma já usa CASCADE):
 >
 > | Tabela | Coluna | Motivo |
 > |--------|--------|--------|
 > | `usuarios` | `criado_por_id` | FK auto-referencial — SQL Server bloqueia CASCADE/SET NULL em ciclos |
-> | `sobrescritas_permissao` | `definido_por_id` | Segunda FK de `usuarios` para a mesma tabela (primeira: `usuario_id` CASCADE) |
 > | `acessos_workspace` | `concedido_por_id` | Segunda FK de `usuarios` para a mesma tabela (primeira: `usuario_id` CASCADE) |
 > | `acessos_relatorio` | `concedido_por_id` | Segunda FK de `usuarios` para a mesma tabela (primeira: `usuario_id` CASCADE) |
+> | `usuarios_pacotes` | `atribuido_por_id` | Segunda FK de `usuarios` para a mesma tabela (primeira: `usuario_id` CASCADE) |
 >
-> Com `NO ACTION`, a aplicação Python fica responsável por setar essas colunas como NULL antes de excluir o usuário referenciado (o SQLAlchemy já faz isso automaticamente via `passive_deletes` ou `onupdate`).
+> Com `NO ACTION`, a aplicação Python fica responsável por setar essas colunas como NULL antes de excluir o usuário referenciado (o SQLAlchemy já faz isso automaticamente).
+>
+> **v2.0:** `membros_grupo_excecao.usuario_id` agora possui `ON DELETE CASCADE` (antes era `NO ACTION`). Isso corrige o comportamento anterior que impedia a exclusão de usuários pertencentes a grupos de exceção.
 
 ---
 
 ```sql
+-- ============================================================
+-- 6.0  usuarios → departamentos (novo em v2.0)
+-- ============================================================
+IF NOT EXISTS (
+    SELECT 1 FROM sys.foreign_keys
+    WHERE name = N'fk_usuarios_departamento'
+      AND parent_object_id = OBJECT_ID('dbo.usuarios')
+)
+BEGIN
+    ALTER TABLE dbo.usuarios
+        ADD CONSTRAINT fk_usuarios_departamento
+        FOREIGN KEY (departamento_id)
+        REFERENCES dbo.departamentos (id)
+        ON DELETE SET NULL
+        ON UPDATE NO ACTION;
+    PRINT 'FK [fk_usuarios_departamento] criada.';
+END
+GO
+
 -- ============================================================
 -- 6.1  usuarios (auto-referencial)
 -- ============================================================
@@ -622,37 +799,59 @@ END
 GO
 
 -- ============================================================
--- 6.4  sobrescritas_permissao
+-- 6.4  categorias_relatorio → relatorios (novo em v2.0)
 -- ============================================================
 IF NOT EXISTS (
     SELECT 1 FROM sys.foreign_keys
-    WHERE name = N'fk_sp_usuario'
-      AND parent_object_id = OBJECT_ID('dbo.sobrescritas_permissao')
+    WHERE name = N'fk_rel_categoria'
+      AND parent_object_id = OBJECT_ID('dbo.relatorios')
 )
 BEGIN
-    ALTER TABLE dbo.sobrescritas_permissao
-        ADD CONSTRAINT fk_sp_usuario
-        FOREIGN KEY (usuario_id)
-        REFERENCES dbo.usuarios (id)
-        ON DELETE CASCADE
+    ALTER TABLE dbo.relatorios
+        ADD CONSTRAINT fk_rel_categoria
+        FOREIGN KEY (categoria_id)
+        REFERENCES dbo.categorias_relatorio (id)
+        ON DELETE SET NULL
         ON UPDATE NO ACTION;
-    PRINT 'FK [fk_sp_usuario] criada.';
+    PRINT 'FK [fk_rel_categoria] criada.';
 END
 GO
 
+-- ============================================================
+-- 6.4b  pacotes_permissao → usuarios (novo em v2.0)
+-- ============================================================
 IF NOT EXISTS (
     SELECT 1 FROM sys.foreign_keys
-    WHERE name = N'fk_sp_definido_por'
-      AND parent_object_id = OBJECT_ID('dbo.sobrescritas_permissao')
+    WHERE name = N'fk_pp_criado_por'
+      AND parent_object_id = OBJECT_ID('dbo.pacotes_permissao')
 )
 BEGIN
-    ALTER TABLE dbo.sobrescritas_permissao
-        ADD CONSTRAINT fk_sp_definido_por
-        FOREIGN KEY (definido_por_id)
+    ALTER TABLE dbo.pacotes_permissao
+        ADD CONSTRAINT fk_pp_criado_por
+        FOREIGN KEY (criado_por_id)
         REFERENCES dbo.usuarios (id)
-        ON DELETE NO ACTION   -- Seria SET NULL no SQLite; NO ACTION aqui para evitar multiplo caminho de cascade
+        ON DELETE SET NULL
         ON UPDATE NO ACTION;
-    PRINT 'FK [fk_sp_definido_por] criada.';
+    PRINT 'FK [fk_pp_criado_por] criada.';
+END
+GO
+
+-- ============================================================
+-- 6.4c  credenciais_pbi → usuarios (novo em v2.0)
+-- ============================================================
+IF NOT EXISTS (
+    SELECT 1 FROM sys.foreign_keys
+    WHERE name = N'fk_cpbi_atualizado_por'
+      AND parent_object_id = OBJECT_ID('dbo.credenciais_pbi')
+)
+BEGIN
+    ALTER TABLE dbo.credenciais_pbi
+        ADD CONSTRAINT fk_cpbi_atualizado_por
+        FOREIGN KEY (atualizado_por_id)
+        REFERENCES dbo.usuarios (id)
+        ON DELETE SET NULL
+        ON UPDATE NO ACTION;
+    PRINT 'FK [fk_cpbi_atualizado_por] criada.';
 END
 GO
 
@@ -895,9 +1094,79 @@ BEGIN
         ADD CONSTRAINT fk_mge_usuario
         FOREIGN KEY (usuario_id)
         REFERENCES dbo.usuarios (id)
-        ON DELETE NO ACTION   -- Sem ondelete no modelo original; NO ACTION aqui
+        ON DELETE CASCADE    -- v2.0: alterado de NO ACTION para CASCADE
         ON UPDATE NO ACTION;
     PRINT 'FK [fk_mge_usuario] criada.';
+END
+GO
+
+-- ============================================================
+-- 6.12  pacotes_permissao_itens (novo em v2.0)
+-- ============================================================
+IF NOT EXISTS (
+    SELECT 1 FROM sys.foreign_keys
+    WHERE name = N'fk_ppi_pacote'
+      AND parent_object_id = OBJECT_ID('dbo.pacotes_permissao_itens')
+)
+BEGIN
+    ALTER TABLE dbo.pacotes_permissao_itens
+        ADD CONSTRAINT fk_ppi_pacote
+        FOREIGN KEY (pacote_id)
+        REFERENCES dbo.pacotes_permissao (id)
+        ON DELETE CASCADE
+        ON UPDATE NO ACTION;
+    PRINT 'FK [fk_ppi_pacote] criada.';
+END
+GO
+
+-- ============================================================
+-- 6.13  usuarios_pacotes (novo em v2.0)
+-- ============================================================
+IF NOT EXISTS (
+    SELECT 1 FROM sys.foreign_keys
+    WHERE name = N'fk_up_usuario'
+      AND parent_object_id = OBJECT_ID('dbo.usuarios_pacotes')
+)
+BEGIN
+    ALTER TABLE dbo.usuarios_pacotes
+        ADD CONSTRAINT fk_up_usuario
+        FOREIGN KEY (usuario_id)
+        REFERENCES dbo.usuarios (id)
+        ON DELETE CASCADE
+        ON UPDATE NO ACTION;
+    PRINT 'FK [fk_up_usuario] criada.';
+END
+GO
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.foreign_keys
+    WHERE name = N'fk_up_pacote'
+      AND parent_object_id = OBJECT_ID('dbo.usuarios_pacotes')
+)
+BEGIN
+    ALTER TABLE dbo.usuarios_pacotes
+        ADD CONSTRAINT fk_up_pacote
+        FOREIGN KEY (pacote_id)
+        REFERENCES dbo.pacotes_permissao (id)
+        ON DELETE CASCADE
+        ON UPDATE NO ACTION;
+    PRINT 'FK [fk_up_pacote] criada.';
+END
+GO
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.foreign_keys
+    WHERE name = N'fk_up_atribuido_por'
+      AND parent_object_id = OBJECT_ID('dbo.usuarios_pacotes')
+)
+BEGIN
+    ALTER TABLE dbo.usuarios_pacotes
+        ADD CONSTRAINT fk_up_atribuido_por
+        FOREIGN KEY (atribuido_por_id)
+        REFERENCES dbo.usuarios (id)
+        ON DELETE NO ACTION   -- NO ACTION para evitar multiplo caminho de cascade
+        ON UPDATE NO ACTION;
+    PRINT 'FK [fk_up_atribuido_por] criada.';
 END
 GO
 ```
@@ -1393,7 +1662,7 @@ Execute as queries abaixo após rodar todo o script para confirmar que a criaç�
 USE cgid;
 GO
 
--- 1. Verificar as 15 tabelas
+-- 1. Verificar as 21 tabelas
 SELECT
     t.name         AS tabela,
     p.rows         AS linhas
@@ -1401,7 +1670,7 @@ FROM sys.tables t
 INNER JOIN sys.partitions p ON t.object_id = p.object_id AND p.index_id IN (0,1)
 WHERE t.schema_id = SCHEMA_ID('dbo')
 ORDER BY t.name;
--- Esperado: 15 tabelas listadas
+-- Esperado: 21 tabelas listadas
 
 -- 2. Verificar todas as FKs
 SELECT
@@ -1419,7 +1688,7 @@ INNER JOIN sys.columns cp ON fkc.parent_object_id = cp.object_id  AND fkc.parent
 INNER JOIN sys.tables tr  ON fk.referenced_object_id = tr.object_id
 INNER JOIN sys.columns cr ON fkc.referenced_object_id = cr.object_id AND fkc.referenced_column_id = cr.column_id
 ORDER BY tp.name, fk.name;
--- Esperado: 19 FKs
+-- Esperado: 27 FKs (19 originais + 8 novas em v2.0)
 
 -- 3. Verificar todos os indices
 SELECT
@@ -1435,18 +1704,22 @@ WHERE t.schema_id = SCHEMA_ID('dbo')
 ORDER BY t.name, i.name;
 
 -- 4. Verificar seeds
-SELECT 'usuarios'            AS tabela, COUNT(*) AS linhas FROM dbo.usuarios
+SELECT 'departamentos',        COUNT(*) AS linhas FROM dbo.departamentos
 UNION ALL
-SELECT 'permissoes_perfil',  COUNT(*) FROM dbo.permissoes_perfil
+SELECT 'categorias_relatorio', COUNT(*) FROM dbo.categorias_relatorio
 UNION ALL
-SELECT 'regras_expediente',  COUNT(*) FROM dbo.regras_expediente
+SELECT 'usuarios',             COUNT(*) FROM dbo.usuarios
+UNION ALL
+SELECT 'permissoes_perfil',    COUNT(*) FROM dbo.permissoes_perfil
+UNION ALL
+SELECT 'regras_expediente',    COUNT(*) FROM dbo.regras_expediente
 UNION ALL
 SELECT 'configuracoes_sistema', COUNT(*) FROM dbo.configuracoes_sistema
 UNION ALL
-SELECT 'espacos_trabalho',   COUNT(*) FROM dbo.espacos_trabalho
+SELECT 'espacos_trabalho',     COUNT(*) FROM dbo.espacos_trabalho
 UNION ALL
-SELECT 'relatorios',         COUNT(*) FROM dbo.relatorios;
--- Esperado: 4 | 45 | 7 | 7 | 4 | 12
+SELECT 'relatorios',           COUNT(*) FROM dbo.relatorios;
+-- Esperado: 5 | 6 | 4 | 55 | 7 | 7 | 4 | 12
 
 -- 5. Verificar trigger de imutabilidade
 SELECT name, type_desc FROM sys.triggers
@@ -1490,4 +1763,5 @@ GO
 
 | Versão | Data | Autor | Descrição |
 |--------|------|-------|-----------|
-| 1.0 | 2026-06-23 | Vinicius Soares | Criação inicial — scripts SQL Server adaptados do schema SQLite |
+| 1.0 | 2026-06-23 | Vinicius Soares | Criação inicial — scripts SQL Server adaptados do schema SQLite (15 tabelas) |
+| 2.0 | 2026-06-25 | Vinicius Soares | v2.0: +6 tabelas novas; remoção de `sobrescritas_permissao`; `departamento_id` em `usuarios`; `categoria_id` em `relatorios`; CASCADE corrigido em `membros_grupo_excecao.usuario_id` |

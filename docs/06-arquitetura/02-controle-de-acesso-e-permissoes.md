@@ -3,22 +3,32 @@
 > **Documento:** 06-arquitetura/02-controle-de-acesso-e-permissoes.md  
 > **Status:** Vigente  
 > **Criado em:** Maio/2026  
-> **Atualizado em:** Junho/2026
+> **Atualizado em:** 2026-06-25 (v2.0)
 
 ---
 
 ## 1. Modelo de Controle de Acesso
 
-O sistema adota um modelo **RBAC (Role-Based Access Control)** com extensão de **overrides individuais**:
+O sistema adota um modelo **RBAC (Role-Based Access Control)** com extensão via **pacotes de permissão**:
 
 ```
 Perfil (role)
-  └── Permissões padrão (role_permissions)
-        └── Override por usuário (user_permission_overrides) ← Sobrepõe
-              └── Permissão final aplicada ao usuário
+  └── permissoes_perfil (matriz padrão por perfil × módulo)
+        └── Permissão base do perfil
+
+Pacotes de Permissão (aditivos)
+  └── pacotes_permissao → pacotes_permissao_itens
+        └── Atribuídos a usuários via usuarios_pacotes
+              └── Ampliam as permissões do perfil base (só concedem, nunca removem)
+
+Resolução final:
+  1. master → acesso total imediato (bypass)
+  2. Permissão do perfil base (permissoes_perfil)  — se concedida, usa
+  3. Permissão de algum pacote atribuído (pacotes_permissao_itens) — se concedida, usa
+  4. Nenhum → false (fail-safe)
 ```
 
-**Regra de precedência:** Permissão individual (override) sobrepõe permissão de perfil. Se o campo do override for `NULL`, herda do perfil. Se for `true` ou `false`, sobrepõe.
+> **v2.0:** A tabela `sobrescritas_permissao` foi **removida**. Sobrescritas individuais foram substituídas pelos `pacotes_permissao`, que permitem criar conjuntos reutilizáveis de permissões e atribuí-los a qualquer número de usuários.
 
 ---
 
@@ -50,7 +60,7 @@ Convidado     (nível 1) → Acesso read-only temporário, apenas relatórios au
 
 ## 3. Matriz de Permissões por Módulo e Perfil
 
-> **Nota:** Esta matriz representa os **valores padrão** do seed inicial. A partir da versão 1.3, todos os valores são configuráveis em tempo de execução pela interface em **Configurações → Permissões** (restrito ao Master). Sobrescritas por usuário individual também são suportadas via painel em **Usuários → editar usuário → Permissões individuais**.
+> **Nota:** Esta matriz representa os **valores padrão** do seed inicial (`backend/services/auth_service.py → garantir_permissoes_default`). Os valores são configuráveis em tempo de execução pela interface em **Configurações → Permissões** (restrito ao Master). Permissões adicionais podem ser concedidas a usuários individuais via **Pacotes de Permissão** (seção 6).
 
 ### Legenda
 - ✅ Permitido por padrão
@@ -103,12 +113,12 @@ Admins podem alterar a lista de relatórios específicos por `PUT /workspaces/{w
 
 ## 5. Implementação das Dependências/Guards
 
-### Backend (FastAPI)
+### Backend (FastAPI) — `backend/dependencies.py`
 
 #### get_usuario_requisicao
 ```python
-# Lê o header X-Usuario-Id da requisição
-# Valida sessão ativa via X-Session-Token
+# Lê o header X-Session-Token da requisição
+# Calcula SHA-256 do token e valida contra sessoes_autenticacao
 # Retorna o objeto Usuario ou None
 ```
 
@@ -116,19 +126,21 @@ Admins podem alterar a lista de relatórios específicos por `PUT /workspaces/{w
 ```python
 # checar_permissao(usuario, modulo, acao, db) -> bool
 #   1. master → True imediato (bypass)
-#   2. Consulta SobrescritaPermissao (usuario_id, modulo) — se campo != None, usa override
-#   3. Consulta PermissaoPerfil (perfil, modulo) — fallback ao padrão do perfil
+#   2. Consulta PermissaoPerfil (perfil, modulo) — permissão base do perfil
+#   3. Consulta pacotes atribuídos via UsuarioPacote → PacotePermissaoItem
+#      → qualquer pacote que conceda o campo retorna True
 #   4. Sem registro → False (fail-safe)
 #
 # exigir_permissao(usuario, modulo, acao, db)
 #   → eleva HTTPException 403 se checar_permissao retornar False
 ```
 
-#### _garantir_permissoes_default
+#### garantir_permissoes_default — `backend/services/auth_service.py`
 ```python
 # Chamado no startup do servidor (@app.on_event("startup"))
 # Popula permissoes_perfil com a matriz padrão caso ainda não existam registros
 # Idempotente: só insere o que não existe (não sobrescreve valores editados via UI)
+# Também chama garantir_dados_iniciais: popula perfis e categorias_relatorio
 ```
 
 ### Frontend
@@ -138,20 +150,6 @@ Admins podem alterar a lista de relatórios específicos por `PUT /workspaces/{w
 // Lê cgid_permissoes do sessionStorage (carregado no login)
 // Retorna perms[modulo]?.[acao] ?? false
 // Usado em guards de página (useEffect) e no Sidebar para exibir/ocultar itens
-```
-
-#### carregarPermissoes() — utils/api.js
-```js
-// Chama GET /api/me/permissoes após login bem-sucedido
-// Salva resultado em sessionStorage como cgid_permissoes
-// Também limpo no logout
-```
-
-#### Endpoint GET /api/me/permissoes
-```
-Retorna as permissões efetivas do usuário logado para todos os módulos,
-já aplicando sobrescritas individuais. Formato:
-{ "auditoria": { "visualizar": true, "criar": false, ... }, ... }
 ```
 
 ### validar_expediente
@@ -176,7 +174,26 @@ já aplicando sobrescritas individuais. Formato:
 
 ---
 
-## 6. Algoritmo de Resolução de Permissão
+## 6. Pacotes de Permissão
+
+Os pacotes (`pacotes_permissao`) são conjuntos reutilizáveis de permissões que podem ser atribuídos a usuários individualmente, **ampliando** (nunca reduzindo) as permissões do perfil base.
+
+| Tabela | Papel |
+|--------|-------|
+| `pacotes_permissao` | Definição do pacote (nome, descrição) |
+| `pacotes_permissao_itens` | Permissões por módulo dentro do pacote |
+| `usuarios_pacotes` | Atribuição do pacote a um usuário específico |
+
+**Casos de uso:**
+- Dar acesso a `auditoria.visualizar` para um colaborador específico sem alterar o perfil
+- Conceder `usuarios.gerenciar` temporariamente para um coordenador
+- Agrupar múltiplas permissões temáticas (ex: "Pacote RH") e atribuir em bloco
+
+**Gestão:** Via API endpoints em `/permissoes/pacotes` (CRUD) e `/usuarios/{id}/pacotes`.
+
+---
+
+## 7. Algoritmo de Resolução de Permissão (v2.0)
 
 ```python
 def checar_permissao(usuario, modulo, acao, db) -> bool:
@@ -187,30 +204,34 @@ def checar_permissao(usuario, modulo, acao, db) -> bool:
 
     campo = f"pode_{acao}"  # "visualizar" → "pode_visualizar"
 
-    # 2. Verificar override individual (precedência sobre o perfil)
-    sobrescrita = db.query(SobrescritaPermissao).filter_by(
-        usuario_id=usuario.id, modulo=modulo
-    ).first()
-    if sobrescrita:
-        valor = getattr(sobrescrita, campo)
-        if valor is not None:
-            return valor  # True ou False — override definitivo
-
-    # 3. Fallback para permissão do perfil
+    # 2. Verificar permissão base do perfil
     pp = db.query(PermissaoPerfil).filter_by(
         perfil=usuario.perfil, modulo=modulo
     ).first()
-    if pp:
-        return bool(getattr(pp, campo))
+    if pp and getattr(pp, campo):
+        return True
+
+    # 3. Verificar pacotes de permissão atribuídos ao usuário
+    pacote_ids = [
+        up.pacote_id
+        for up in db.query(UsuarioPacote).filter_by(usuario_id=usuario.id).all()
+    ]
+    if pacote_ids:
+        itens = db.query(PacotePermissaoItem).filter(
+            PacotePermissaoItem.pacote_id.in_(pacote_ids),
+            PacotePermissaoItem.modulo == modulo,
+        ).all()
+        if any(getattr(item, campo) for item in itens):
+            return True
 
     return False  # fail-safe: sem registro = sem acesso
 ```
 
-> **Nota:** Diferente da versão anterior do documento, `administrador` **não** tem bypass automático — suas permissões são controladas pela tabela `permissoes_perfil` como qualquer outro perfil, com os valores padrão do seed concedendo acesso amplo. Isso permite restringir um admin específico via sobrescrita individual.
+> `administrador` **não** tem bypass automático — suas permissões são controladas pela tabela `permissoes_perfil` como qualquer outro perfil. Os valores padrão do seed concedem acesso amplo. Para ampliar pontualmente as permissões de qualquer usuário, use pacotes de permissão.
 
 ---
 
-## 7. Controle de Acesso a Relatórios PBI
+## 8. Controle de Acesso a Relatórios PBI
 
 ```python
 def pode_acessar_relatorio(usuario_id: str, relatorio_id: str) -> bool:
@@ -245,7 +266,7 @@ def pode_acessar_relatorio(usuario_id: str, relatorio_id: str) -> bool:
 
 ---
 
-## 8. Vinculação Automática de Admins a Workspaces
+## 9. Vinculação Automática de Admins a Workspaces
 
 Ao criar ou reativar um workspace, o sistema executa `_vincular_admins_workspace(workspace_id, db)`, que itera todos os usuários com perfil `master` ou `administrador` com status `ativo` e cria registros em `acessos_workspace` com `nivel_acesso = "total"` para os que ainda não possuem vínculo.
 
@@ -264,3 +285,4 @@ Ao criar ou reativar um workspace, o sistema executa `_vincular_admins_workspace
 | 1.2 | Junho/2026 | Vinicius Soares | Corrigida matriz de Auditoria: "Visualizar (todos)" e "Exportar" são exclusivos do Super Admin (RN-AUD-05); pseudocódigo `validar_expediente` atualizado com `ativo=false`, `ignora_dia_inativo` e janelas de exceção; adicionada seção 8 sobre auto-vínculo de admins a workspaces |
 | 1.3 | Junho/2026 | Vinicius Soares | Sistema de permissões implementado em produção: seed automático no startup, helpers `checar_permissao`/`exigir_permissao`, endpoints CRUD para permissões por perfil e sobrescritas por usuário, endpoint `/api/me/permissoes`, UI de gestão em Configurações → Permissões e painel de sobrescritas em Usuários. Sidebar e guards de página migrados de checks hardcoded (`isAdmin`) para `temPermissao()`. Algoritmo de resolução atualizado: `administrador` deixa de ter bypass e passa a ser controlado pelo banco. |
 | 1.4 | Junho/2026 | Vinicius Soares | Renomeação dos perfis de usuário: `super_administrador` → `master`, `gerente` → `coordenador`, `operador` → `colaborador`, `visitante` → `convidado`. Labels atualizados: Master, Administrador, Coordenador, Colaborador, Convidado. Toda a documentação, código e banco de dados migrados para a nova nomenclatura. |
+| 2.0 | 2026-06-25 | Vinicius Soares | **v2.0:** Remoção de `sobrescritas_permissao`. Substituída por `pacotes_permissao` (conjuntos reutilizáveis atribuídos via `usuarios_pacotes`). Algoritmo `checar_permissao` atualizado para 2 camadas: perfil base + pacotes (sem overrides individuais). Adicionada seção 6 (Pacotes de Permissão) e seção 7 (algoritmo v2.0). Implementação em `backend/dependencies.py`. |

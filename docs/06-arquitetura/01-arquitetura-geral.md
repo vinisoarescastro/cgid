@@ -3,7 +3,7 @@
 > **Documento:** 06-arquitetura/01-arquitetura-geral.md  
 > **Status:** Vigente  
 > **Criado em:** Maio/2026  
-> **Atualizado em:** Maio/2026
+> **Atualizado em:** 2026-06-25 (v2.0)
 
 ---
 
@@ -31,19 +31,19 @@
 │  ┌────────────────┐   HTTPS/REST    ┌──────────────────────────┐     │
 │  │   React SPA    │ ◀────────────▶ │    FastAPI (Backend)     │     │
 │  │  (Frontend)    │  JSON/fetch     │                          │     │
-│  │  JavaScript    │                 │   main.py:               │     │
-│  │  Vite          │                 │   - auth/login           │     │
-│  │  sessionStorage│                 │   - usuarios             │     │
-│  │  apiFetch      │                 │   - workspaces           │     │
-│  │  powerbi-client│                 │   - relatorios           │     │
-│  └────────────────┘                 │   - configuracoes        │     │
-│                                     │   - auditoria            │     │
+│  │  JavaScript    │                 │   routers/ (9 módulos)   │     │
+│  │  Vite          │                 │   services/ (3 arquivos) │     │
+│  │  sessionStorage│                 │   dependencies.py        │     │
+│  │  apiFetch      │                 │   schemas.py             │     │
+│  │  powerbi-client│                 │   models.py (21 tabelas) │     │
+│  └────────────────┘                 │   Alembic (migrações)    │     │
+│                                     │                          │     │
 │                                     └──────────────┬───────────┘     │
-│                                                   │ pyodbc           │
+│                                                   │ SQLAlchemy       │
 │                                     ┌─────────────▼──────────────┐   │
-│                                     │  SQL Server (on-premise)   │   │
-│                                     │  ODBC Driver 17            │   │
-│                                     │  SQLAlchemy 2.0            │   │
+│                                     │  SQLite (dev) /            │   │
+│                                     │  SQL Server (prod)         │   │
+│                                     │  SQLAlchemy 2.0 + Alembic  │   │
 │                                     └────────────────────────────┘   │
 └──────────────────────────────────────────────────────────────────────┘
                                     │
@@ -83,16 +83,36 @@
 
 **Responsabilidade:** Toda a lógica de negócio, autenticação, autorização, integração PBI e persistência.
 
-**Estrutura de arquivos:**
+**Estrutura de arquivos (v2.0 — modular):**
 
 ```
 backend/
-├── main.py           ← inicializa o FastAPI, CORS e endpoints do protótipo
-├── .env.example      ← exemplo de variáveis Power BI Embedded
-├── database.py       ← cria a conexão SQLite/SQL Server (engine + sessão)
-├── models.py         ← define as tabelas do banco (classes SQLAlchemy)
-├── schemas.py        ← define o formato dos dados de entrada e saída (Pydantic)
-└── seed.py           ← cria tabelas e insere dados iniciais
+├── main.py               ← ponto de entrada FastAPI (~47 linhas): CORS, middleware, routers
+├── database.py           ← conexão SQLite/SQL Server (engine + sessão)
+├── models.py             ← 21 tabelas (SQLAlchemy ORM)
+├── schemas.py            ← todos os schemas Pydantic centralizados
+├── dependencies.py       ← middleware de sessão, checar_permissao, exigir_permissao
+├── seed.py               ← cria tabelas e insere dados iniciais
+├── alembic.ini           ← configuração Alembic (migrações)
+├── .env / .env.example   ← variáveis de ambiente
+├── services/
+│   ├── auth_service.py   ← login, seed de permissões/dados, expediente
+│   ├── audit_service.py  ← registrar_log, salvar_backup_critico
+│   └── pbi_service.py    ← OAuth2 Azure AD, geração de embed token
+├── routers/
+│   ├── auth.py           ← /login, /logout, /sessao/ping
+│   ├── usuarios.py       ← CRUD usuários, favoritos, acessos
+│   ├── workspaces.py     ← workspaces, relatórios, categorias, embed PBI
+│   ├── permissoes.py     ← pacotes, perfis, controle de acesso
+│   ├── auditoria.py      ← logs, CSV, histórico crítico
+│   ├── configuracoes.py  ← expediente, grupos, credenciais PBI
+│   ├── dashboard.py      ← KPIs, gráficos
+│   ├── landbank.py       ← terrenos georreferenciados
+│   └── departamentos.py  ← CRUD departamentos
+└── migrations/
+    ├── env.py
+    └── versions/
+        └── 60fc08a85566_v2_schema_completo.py
 ```
 
 **Pipeline de uma requisição autenticada:**
@@ -100,126 +120,85 @@ backend/
 ```
 Request
   → CORS (verificação de origem)
-  → Rota FastAPI em main.py
-  → Validação Pydantic (schemas de entrada)
-  → Função de rota → banco via SQLAlchemy
-  → registrar_log(...) quando a ação é auditável
+  → validar_sessao_middleware (dependencies.py)
+      → calcula SHA-256 do X-Session-Token
+      → valida contra sessoes_autenticacao (expira_em, revogado_em)
+      → injeta usuario_id no request.state
+  → Router FastAPI (routers/*.py)
+  → Validação Pydantic (schemas.py)
+  → get_usuario_requisicao + exigir_permissao (dependencies.py)
+  → Lógica de negócio → banco via SQLAlchemy
+  → registrar_log(...) em audit_service quando auditável
   → Resposta Pydantic (serialização automática)
 Response
 ```
 
-> Observação: autenticação forte via JWT, guards FastAPI e roteadores separados são a direção arquitetural futura. O estado atual do protótipo usa rotas diretas e sessão de usuário no frontend.
-
 ---
 
-### 3.3 Banco de Dados (SQL Server)
+### 3.3 Banco de Dados
 
-- SQL Server Developer Edition para desenvolvimento local (gratuito, sem limitações)
-- SQL Server on-premise da empresa para produção
+- **Desenvolvimento:** SQLite 3 (`backend/cgid.db`) — criado automaticamente ao rodar `seed.py`
+- **Produção recomendada:** SQL Server 2019+
 - Conexão via `pyodbc` + `ODBC Driver 17 for SQL Server`
 - ORM: SQLAlchemy 2.0 com dialeto `mssql+pyodbc`
-- Tabela `logs_auditoria` com trigger `INSTEAD OF` que impede UPDATE e DELETE
-- Tabela `sessoes_autenticacao` para refresh tokens, rotação e revogação de sessão
-- Índices nas colunas de busca mais frequentes
+- **Migrações:** Alembic com `render_as_batch=True` (suporte a ALTER TABLE no SQLite)
+- Tabela `logs_auditoria` sem FK para preservar histórico; trigger `INSTEAD OF` no SQL Server
+- Tabela `sessoes_autenticacao` para token opaco SHA-256, expiração 12h, sessão única
 
-**Criação das tabelas:**
-```python
-# Em database.py — cria todas as tabelas definidas em models.py
-Base.metadata.create_all(bind=engine)
+**Criação do banco:**
+```bash
+# Banco novo (primeira vez)
+python seed.py   # cria tabelas + dados iniciais
+
+# Banco existente (atualizar para v2.0)
+alembic upgrade head
 ```
 
 ---
 
-## 4. Autenticação
+## 4. Autenticação (v2.0 — Implementada)
 
-### Estado Atual
-
-O protótipo autentica com `POST /login`, valida e-mail/senha com hash bcrypt, atualiza `ultimo_login`, zera tentativas em caso de sucesso e incrementa/bloqueia o usuário após falhas consecutivas. O frontend guarda os dados retornados em `sessionStorage` e protege rotas com `PrivateRoute`.
-
-Para auditoria de ações administrativas, o frontend envia `X-Usuario-Id` pelo helper `apiFetch`; o backend usa esse header apenas para identificar o autor do log (`registrar_log`). Esse header não deve ser tratado como mecanismo definitivo de autorização em produção.
-
-### Alvo Futuro: Fluxo de Tokens
+O sistema usa **token de sessão opaco** (não JWT). Fluxo:
 
 ```
-Login bem-sucedido:
-  token_acesso → JWT HS256, 60 minutos, retornado no body
-  refresh_token → valor opaco, 24 horas, salvo em cookie httpOnly
-  sessoes_autenticacao → sessão ativa associada ao token
+POST /login
+  → valida e-mail/senha (bcrypt)
+  → gera token aleatório (secrets.token_urlsafe(32))
+  → armazena SHA-256 em sessoes_autenticacao (expira_em = agora + 12h)
+  → revoga sessões anteriores do mesmo usuário (sessão única)
+  → retorna session_token (bruto) ao frontend + dados do usuário
 
-A cada requisição:
-  Authorization: Bearer <token_acesso>
+A cada requisição autenticada:
+  → Frontend envia X-Session-Token: <token_bruto>
+  → validar_sessao_middleware (dependencies.py) valida o SHA-256
+  → Se válido: injeta usuario_id no request.state
+  → Se inválido/expirado: 401
 
-Renovação:
-  POST /auth/renovar
-  → Backend valida cookie httpOnly e sessão ativa no SQL Server
-  → Retorna novo token_acesso e rotaciona refresh_token
+POST /api/logout
+  → registra revogado_em na sessão ativa
+  → Frontend limpa sessionStorage
 
-Logout:
-  POST /auth/sair
-  → Registro no log de auditoria
-  → Backend revoga a sessão no SQL Server e limpa o cookie httpOnly
-  → Frontend limpa o token_acesso mantido em memória
-
-Expiração:
-  → Backend retorna 401
-  → Frontend tenta renovar; se não conseguir, redireciona para /login
+GET /sessao/ping
+  → renova ultimo_uso_em da sessão (mantém sessão viva enquanto usuário está ativo)
 ```
 
-### Estrutura do JWT (token_acesso)
-
-```json
-{
-  "sub": "uuid-do-usuario",
-  "sid": "uuid-da-sessao",
-  "perfil": "colaborador",
-  "exp": 1700003600
-}
-```
-
-### Dependências FastAPI
-
-```python
-# dependencies.py
-
-def obter_db():
-    banco = SessionLocal()
-    try:
-        yield banco
-    finally:
-        banco.close()
-
-def obter_usuario_atual(credenciais, banco):
-    # Valida Bearer token → retorna objeto Usuario
-    payload = decodificar_token(credenciais.credentials)
-    sessao = banco.query(SessaoAutenticacao).filter(
-        SessaoAutenticacao.id == payload["sid"],
-        SessaoAutenticacao.revogado_em.is_(None),
-    ).first()
-    if not sessao:
-        raise HTTPException(status_code=401)
-    usuario = banco.query(Usuario).filter(Usuario.id == payload["sub"]).first()
-    return usuario
-
-def exigir_perfil(*perfis):
-    # Retorna uma dependência que verifica se usuario.perfil está nos perfis permitidos
-    def verificador(usuario = Depends(obter_usuario_atual)):
-        if usuario.perfil not in perfis:
-            raise HTTPException(status_code=403)
-        return usuario
-    return verificador
-```
+**Segurança adicional:**
+- Bloqueio automático após 5 tentativas de login incorretas (`tentativas_login`)
+- Senha provisória força troca no próximo login (`senha_provisoria = True`)
+- Todas as ações autenticadas são registradas em `logs_auditoria`
 
 ---
 
-## 5. API REST — Endpoints Disponíveis
+## 5. API REST — Endpoints Disponíveis (v2.0)
 
-### Autenticação
+### Autenticação (`routers/auth.py`)
 ```
-GET    /                         → health check
-POST   /login                    → autenticação com e-mail e senha
+POST   /login                    → autenticação; retorna session_token + dados do usuário
+POST   /api/logout               → revoga sessão ativa
+GET    /sessao/ping              → renova ultimo_uso_em da sessão
 ```
 
-### Dashboard
+### Dashboard (`routers/dashboard.py`)
 ```
 GET    /dashboard/kpis           → KPIs globais
 GET    /dashboard/eventos        → últimos eventos de auditoria
@@ -227,12 +206,20 @@ GET    /dashboard/workspaces     → workspaces com contagens
 GET    /dashboard/expediente     → status atual do expediente no servidor
 ```
 
-### Usuários
+### Departamentos — *novo v2.0* (`routers/departamentos.py`)
 ```
-GET    /usuarios                  → listagem com filtros
-POST   /usuarios                  → criar usuário
-PUT    /usuarios/{id}             → atualizar usuário
-DELETE /usuarios/{id}             → excluir usuário
+GET    /departamentos
+POST   /departamentos
+PUT    /departamentos/{id}
+DELETE /departamentos/{id}       → soft-delete (ativo=False)
+```
+
+### Usuários (`routers/usuarios.py`)
+```
+GET    /usuarios
+POST   /usuarios
+PUT    /usuarios/{id}
+DELETE /usuarios/{id}
 POST   /usuarios/{id}/resetar-senha
 GET    /usuarios/{id}/acessos
 PUT    /usuarios/{id}/acessos
@@ -241,7 +228,7 @@ POST   /usuarios/{id}/favoritos
 DELETE /usuarios/{id}/favoritos/{relatorio_id}
 ```
 
-### Workspaces
+### Workspaces e Relatórios (`routers/workspaces.py`)
 ```
 GET    /workspaces
 POST   /workspaces
@@ -253,18 +240,42 @@ PATCH  /workspaces/{id}/usuarios/{usuario_id}
 DELETE /workspaces/{id}/usuarios/{usuario_id}
 GET    /workspaces/{id}/usuarios/{usuario_id}/relatorios
 PUT    /workspaces/{id}/usuarios/{usuario_id}/relatorios
-```
-
-### Relatórios
-```
 GET    /workspaces/{id}/relatorios
 POST   /workspaces/{id}/relatorios
 PUT    /workspaces/{id}/relatorios/{relatorio_id}
 DELETE /workspaces/{id}/relatorios/{relatorio_id}
-GET    /relatorios/{id}/embed          → embed URL + token Power BI
+GET    /relatorios/{id}/embed
+GET    /categorias-relatorio                         → novo v2.0
+POST   /categorias-relatorio                         → novo v2.0
+PUT    /categorias-relatorio/{id}                    → novo v2.0
+DELETE /categorias-relatorio/{id}                    → novo v2.0
 ```
 
-### Configurações
+### Permissões (`routers/permissoes.py`)
+```
+GET    /api/perfis               → lista perfis com metadados (nivel_hierarquia)
+GET    /permissoes/perfil        → matriz RBAC por perfil
+PUT    /permissoes/perfil/{perfil}/{modulo}
+GET    /permissoes/pacotes
+POST   /permissoes/pacotes
+PUT    /permissoes/pacotes/{id}
+DELETE /permissoes/pacotes/{id}
+GET    /usuarios/{id}/pacotes
+POST   /usuarios/{id}/pacotes
+DELETE /usuarios/{id}/pacotes/{pacote_id}
+GET    /usuarios/{id}/permissoes → permissões efetivas do usuário
+```
+
+### Auditoria (`routers/auditoria.py`)
+```
+GET    /auditoria
+GET    /auditoria/export-csv
+GET    /auditoria/tipos
+GET    /auditoria/modulos
+GET    /historico-critico
+```
+
+### Configurações (`routers/configuracoes.py`)
 ```
 GET    /configuracoes/expediente
 PUT    /configuracoes/expediente/{dia_semana}
@@ -275,41 +286,28 @@ DELETE /configuracoes/grupos-excecao/{grupo_id}
 POST   /configuracoes/grupos-excecao/{grupo_id}/membros
 DELETE /configuracoes/grupos-excecao/{grupo_id}/membros/{usuario_id}
 GET    /configuracoes/pbi
+GET    /configuracoes/pbi/secret
 PUT    /configuracoes/pbi
-```
-
-### Auditoria
-```
-GET    /auditoria                → consultar logs com filtros e paginação
-GET    /auditoria/export-csv     → exportar CSV filtrado
-GET    /auditoria/tipos          → valores de tipo_evento
-GET    /auditoria/modulos        → valores de modulo
 ```
 
 ---
 
 ## 6. Variáveis de Ambiente
 
-**`backend/.env`**
+**`backend/.env`** (copiar de `.env.example`)
 ```env
-DATABASE_URL=mssql+pyodbc://@localhost\SQLEXPRESS/btportal?driver=ODBC+Driver+17+for+SQL+Server&TrustServerCertificate=yes&trusted_connection=yes
-JWT_SECRET_KEY=troque-por-uma-chave-longa-e-aleatoria
-JWT_ALGORITMO=HS256
-JWT_EXPIRA_MINUTOS=60
-PORTA=3001
-AMBIENTE=development
-URL_FRONTEND=http://localhost:5173
+# Banco (opcional — padrão é SQLite)
+# DATABASE_URL=mssql+pyodbc://usuario:senha@servidor/cgid?driver=ODBC+Driver+17+for+SQL+Server
+
+# Power BI Embedded (opcional — se não configurado, embed não funciona)
 PBI_TENANT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 PBI_CLIENT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 PBI_CLIENT_SECRET=sua-chave-secreta-aqui
 ```
 
-**`frontend/.env`**
-```env
-VITE_API_BASE_URL=http://localhost:8000
-VITE_NOME_APP=CGID - Centro de Governança e Inteligência de Dados
-VITE_AMBIENTE=development
-```
+> As credenciais PBI também podem ser cadastradas via interface administrativa em **Configurações → Credenciais Power BI** (persistidas na tabela `configuracoes_sistema`).
+
+**`frontend/` — sem `.env` necessário em desenvolvimento.** O Vite proxia `/api` para `http://localhost:8000` automaticamente via `vite.config.js`.
 
 ---
 
@@ -320,3 +318,4 @@ VITE_AMBIENTE=development
 | 1.0 | Maio/2026 | Vinicius Soares | Criação inicial do documento (stack NestJS) |
 | 2.0 | Maio/2026 | Vinicius Soares | Reescrita completa: migração para Python + FastAPI, SQL Server, remoção de Redis e BullMQ, nomes em Português |
 | 2.1 | Junho/2026 | Vinicius Soares | Atualização para estado atual do protótipo: rotas diretas FastAPI, sessionStorage, apiFetch com X-Usuario-Id, endpoints de favoritos, auditoria, configurações e Power BI Embedded |
+| 2.2 | 2026-06-25 | Vinicius Soares | **v2.0 — arquitetura modular:** `main.py` reduzido a 47 linhas; `routers/` (9 arquivos), `services/` (3 arquivos), `dependencies.py`, `schemas.py` centralizados; Alembic configurado; autenticação migrada para token opaco SHA-256; endpoints atualizados (departamentos, categorias-relatorio, perfis); banco SQLite como padrão de desenvolvimento |
