@@ -7,16 +7,14 @@
 }
 .login-bg {
   position: absolute; inset: 0;
-  background:
-    radial-gradient(ellipse 58% 48% at 0% 0%, rgba(231, 216, 6, 0.15) 0%, rgba(45, 146, 69, 0.15) 34%, transparent 68%),
-    radial-gradient(ellipse 62% 52% at 100% 100%, rgba(231, 216, 6, 0.15) 0%, rgba(45, 146, 69, 0.15) 36%, transparent 72%);
+
 }
 .login-grid {
   position: absolute; inset: 0;
   background-image:
     linear-gradient(rgba(45, 146, 69, 0.08) 1px, transparent 1px),
     linear-gradient(90deg, rgba(45, 146, 69, 0.08) 1px, transparent 1px);
-  background-size: 48px 48px;
+  background-size: 20px 20px;
 }
 .login-wrap {
   position: relative; z-index: 2;
@@ -26,7 +24,7 @@
   border: 1px solid var(--gray-200);
   border-radius: var(--r-xl);
   overflow: hidden;
-  box-shadow: 0 8px 40px rgba(0,0,0,.10);
+  box-shadow: 0 0 50px 10px rgba(0,0,0,.15);
 }
 
 /* Left panel */
