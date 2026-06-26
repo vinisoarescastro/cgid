@@ -10,14 +10,47 @@ export default function TopbarExpediente() {
 
   useEffect(() => {
     if (!user.id) return
-    const url    = isAdmin
-      ? `${API}/dashboard/expediente`
-      : `${API}/usuarios/${user.id}/expediente`
-    const opts   = isAdmin ? {} : { headers: { 'X-Usuario-Id': user.id } }
-    fetch(url, opts)
-      .then(r => r.json())
-      .then(setExpediente)
-      .catch(() => {})
+    const url  = isAdmin ? `${API}/dashboard/expediente` : `${API}/usuarios/${user.id}/expediente`
+    const opts = isAdmin ? {} : { headers: { 'X-Usuario-Id': user.id } }
+
+    const verificar = () =>
+      fetch(url, opts)
+        .then(r => r.json())
+        .then(data => {
+          setExpediente(data)
+          return data
+        })
+        .catch(() => null)
+
+    const deslogar = () => {
+      sessionStorage.clear()
+      window.location.href = '/login'
+    }
+
+    const checarEDeslogar = () =>
+      verificar().then(data => {
+        if (data && !data.dentro_expediente && data.bloquear_fora) deslogar()
+      })
+
+    let timeoutId
+    verificar().then(data => {
+      if (!data || isAdmin || !data.hora_fim) return
+      const [h, m]  = data.hora_fim.split(':').map(Number)
+      const agora   = new Date()
+      const fimHoje = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate(), h, m, 0)
+      const delay   = fimHoje - agora
+      if (delay > 0) timeoutId = setTimeout(checarEDeslogar, delay)
+    })
+
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') checarEDeslogar()
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+
+    return () => {
+      clearTimeout(timeoutId)
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
   }, [user.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!expediente || !expediente.configurado) return null
@@ -29,16 +62,22 @@ export default function TopbarExpediente() {
 
   let label, horario, stateClass
   if (isAdmin) {
-    label      = ok ? 'Expediente' : 'Fora do expediente'
-    horario    = expediente.hora_inicio ? `${expediente.hora_inicio} – ${expediente.hora_fim}` : null
+    label      = ok
+      ? (expediente.hora_inicio ? `Expediente: ${expediente.hora_inicio} às ${expediente.hora_fim}` : 'Expediente')
+      : (expediente.hora_inicio ? `Fora do expediente: ${expediente.hora_inicio} às ${expediente.hora_fim}` : 'Fora do expediente')
+    horario    = null
     stateClass = ok ? 'exp-ok' : 'exp-neutral'
   } else if (diaInativo) {
     label = 'Acesso bloqueado'; stateClass = 'exp-off'
   } else if (excecaoDia) {
     label = 'Acesso especial'; stateClass = 'exp-warn'
+  } else if (ok && excecaoHora) {
+    label      = expediente.janela_fim_excecao ? `Acesso em exceção até ${expediente.janela_fim_excecao}` : 'Acesso em exceção'
+    horario    = null
+    stateClass = 'exp-exception'
   } else if (ok) {
-    label      = 'Expediente'
-    horario    = excecaoHora ? expediente.janela_excecao : `${expediente.hora_inicio} – ${expediente.hora_fim}`
+    label      = `Expediente: ${expediente.hora_inicio} às ${expediente.hora_fim}`
+    horario    = null
     stateClass = 'exp-ok'
   } else {
     label      = 'Fora do expediente'
@@ -52,12 +91,6 @@ export default function TopbarExpediente() {
       <span className="topbar-exp-label">{label}</span>
       {horario && <span className="topbar-exp-divider" />}
       {horario && <span className="topbar-exp-horario">{horario}</span>}
-      {!isAdmin && expediente.excecao_ativa && (
-        <span className="topbar-exp-badge">
-          <i className="fa-solid fa-shield-halved" />
-          {excecaoDia ? 'Dia bloqueado' : 'Exceção'}
-        </span>
-      )}
     </div>
   )
 }

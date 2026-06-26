@@ -93,7 +93,9 @@
 | RF-SCHED-06 | O dashboard do Admin deve exibir o status do expediente atual | Card "Expediente" exibe horário, hora do servidor e status; quando não configurado, exibe mensagem específica | v1.0 | 🔴 |
 | RF-SCHED-07 | A verificação de expediente deve ser feita exclusivamente pelo servidor | Endpoint `GET /dashboard/expediente` retorna `dentro_expediente` calculado com `datetime.now()` server-side | v1.0 | 🔴 |
 | RF-SCHED-08 | Grupos de exceção devem suportar flag `ignora_dia_inativo` | Quando ativo, membros do grupo acessam mesmo em dias com `ativo=false`; grupos sem o flag continuam bloqueados nesses dias | v1.0 | 🔴 |
-| RF-SCHED-09 | O indicador de expediente deve ser exibido no topbar para todos os perfis | Pill colorido (verde/vermelho/âmbar) com label, horário e badge de exceção quando aplicável; admins veem informativamente; usuários comuns veem seu estado real de acesso | v1.0 | 🔴 |
+| RF-SCHED-09 | O indicador de expediente deve ser exibido no topbar para todos os perfis | Pill colorido (verde/vermelho/âmbar) com label e horário; admins veem informativamente; usuários comuns veem seu estado real de acesso | v1.0 | 🔴 |
+| RF-SCHED-10 | O frontend deve encerrar automaticamente a sessão quando o horário de expediente expirar | `TopbarExpediente` agenda um `setTimeout` para o `hora_fim` e registra listener `visibilitychange`; ao disparar, consulta o backend e, se `dentro_expediente=false` e `bloquear_fora=true`, limpa `sessionStorage` e redireciona para `/login`; admins são isentos | v2.4 | 🔴 |
+| RF-SCHED-11 | O indicador de exceção deve exibir o horário fim da janela quando disponível | Topbar exibe `"Acesso em exceção até HH:MM"` quando o grupo tem `janela_fim` configurada; exibe `"Acesso em exceção"` sem horário quando o grupo não tem janela definida | v2.4 | 🔴 |
 
 ---
 
@@ -212,3 +214,4 @@
 | 2.2 | Junho/2026 | Vinicius Soares | Adicionados RF-SEC-04 a 06: sessão única por usuário com revogação automática, detecção de sessão simultânea com log de auditoria e notificação em tempo real via modal bloqueante |
 | 2.3 | Junho/2026 | Vinicius Soares | Adicionada seção RF-DASH (01-06): gráficos de área, rosca e ranking de relatórios com filtros por período e registro de log de acesso ao embed PBI |
 | 2.3 | Junho/2026 | Vinicius Soares | RF-CONF-01 atualizado: Client Secret revelável via botão de olho (rota protegida). Adicionados RF-WS-08 (contadores nos cards), RF-WS-09 (degradê de status nos relatórios), RF-WS-10 (verificação do nome PBI no modal) |
+| 2.4 | Junho/2026 | Vinicius Soares | RF-SCHED-10/11: encerramento automático de sessão via `setTimeout` + `visibilitychange`; exibição do horário fim da exceção no topbar (`"Acesso em exceção até HH:MM"`); correção da verificação de janela horária no login (`auth_service`); RF-SCHED-09 atualizado: badge de exceção removido |

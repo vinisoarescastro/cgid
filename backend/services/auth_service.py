@@ -111,11 +111,20 @@ def verificar_expediente(usuario_id: str, db: Session) -> Optional[str]:
 
 
 def usuario_tem_excecao_horario(usuario_id: str, db: Session) -> bool:
-    return db.query(MembroGrupoExcecao).join(GrupoExcecao).filter(
+    from datetime import datetime
+    hora_atual = datetime.now(TZ_BRASILIA).time().replace(tzinfo=None)
+    grupos = db.query(GrupoExcecao).join(MembroGrupoExcecao, MembroGrupoExcecao.grupo_id == GrupoExcecao.id).filter(
         MembroGrupoExcecao.usuario_id == usuario_id,
         GrupoExcecao.status == "ativo",
         GrupoExcecao.fora_horario == True,
-    ).first() is not None
+    ).all()
+    for g in grupos:
+        if g.janela_inicio and g.janela_fim:
+            if g.janela_inicio <= hora_atual <= g.janela_fim:
+                return True
+        else:
+            return True
+    return False
 
 
 def vincular_admins_workspace(workspace_id: str, db: Session):

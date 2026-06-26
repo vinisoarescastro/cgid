@@ -51,7 +51,7 @@ def salvar_regra_expediente(dia_semana: int, request: Request, dados: RegraExped
         raise HTTPException(status_code=422, detail="Dia da semana inválido (0=Dom … 6=Sab).")
     hi = dtime.fromisoformat(dados.hora_inicio)
     hf = dtime.fromisoformat(dados.hora_fim)
-    if hi >= hf:
+    if dados.ativo and hi >= hf:
         raise HTTPException(status_code=422, detail="Hora de início deve ser anterior à hora de fim.")
     regra = db.query(RegraExpediente).filter(RegraExpediente.dia_semana == dia_semana).first()
     if regra:

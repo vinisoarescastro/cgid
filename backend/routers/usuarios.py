@@ -204,6 +204,7 @@ def expediente_usuario(usuario_id: str, db: Session = Depends(get_db)):
         .filter(MembroGrupoExcecao.usuario_id == usuario_id, GrupoExcecao.status == "ativo", GrupoExcecao.fora_horario == True).all()
     )
     janela_excecao = None
+    janela_fim_excecao = None
     dentro_excecao = False
     if not dentro_base:
         for g in grupos:
@@ -211,6 +212,7 @@ def expediente_usuario(usuario_id: str, db: Session = Depends(get_db)):
                 if g.janela_inicio <= hora_atual <= g.janela_fim:
                     dentro_excecao = True
                     janela_excecao = f"{g.janela_inicio.strftime('%H:%M')} – {g.janela_fim.strftime('%H:%M')}"
+                    janela_fim_excecao = g.janela_fim.strftime('%H:%M')
                     break
             else:
                 dentro_excecao = True
@@ -220,6 +222,7 @@ def expediente_usuario(usuario_id: str, db: Session = Depends(get_db)):
         "bloquear_fora": regra.bloquear_fora,
         "hora_inicio": regra.hora_inicio.strftime("%H:%M"), "hora_fim": regra.hora_fim.strftime("%H:%M"),
         "hora_atual": agora.strftime("%H:%M"), "excecao_ativa": dentro_excecao, "janela_excecao": janela_excecao,
+        "janela_fim_excecao": janela_fim_excecao if dentro_excecao else None,
     }
 
 

@@ -58,7 +58,8 @@
 | RN-SCHED-08 | Um dia com `ativo = false` **bloqueia o acesso por completo** (ex: sábado e domingo desativados). Diferente de `bloquear_fora = false`, que mantém o dia visível no indicador sem bloquear o acesso | Distinção entre "dia desativado" e "expediente não obrigatório" |
 | RN-SCHED-09 | Um grupo de exceção com `ignora_dia_inativo = true` **permite que seus membros acessem o sistema mesmo em dias bloqueados** (`ativo = false`). Grupos sem esse flag continuam bloqueados em dias inativos | Controle granular de exceções por dia bloqueado |
 | RN-SCHED-10 | O indicador de expediente no topbar exibe o estado atual para **todos os perfis**: admins veem informativamente; usuários comuns veem seu estado de acesso com indicadores de exceção quando aplicável | Transparência e visibilidade do estado do sistema |
-| RN-SCHED-11 | O badge de exceção (`excecao_ativa`) **só é exibido quando a exceção é o que está garantindo o acesso** — se o usuário já está dentro do horário base, a exceção não é destacada mesmo que ele pertença a um grupo | Clareza visual; evita informação redundante |
+| RN-SCHED-11 | Quando o usuário está em **acesso por exceção**, o topbar exibe `"Acesso em exceção até HH:MM"` (âmbar) se o grupo tem `janela_fim` configurada, ou `"Acesso em exceção"` sem horário caso contrário. O horário é retornado pelo backend no campo `janela_fim_excecao` | Transparência do estado de acesso excepcional |
+| RN-SCHED-12 | O frontend **encerra automaticamente a sessão** quando o `hora_fim` do expediente é atingido — via `setTimeout` agendado na montagem do `TopbarExpediente` e via `visibilitychange` ao retornar à aba. Ambos consultam o backend antes de deslogar; admins (`master`, `administrador`) são isentos | Garante que sessões abertas não permaneçam ativas após o expediente sem depender de polling contínuo |
 
 ---
 
@@ -159,3 +160,4 @@
 | 2.0 | Junho/2026 | Vinicius Soares | RN-SYS-11: TopbarExpediente em todas as páginas. RN-SYS-12/13: exclusão permanente de workspace com cascade (≠ arquivamento). Nova seção RN-WS (01–04): regras de exclusão — confirmação, disponibilidade, log de auditoria e fechamento do painel |
 | 2.1 | Junho/2026 | Vinicius Soares | Adicionados RN-AUTH-07 a 10: sessão única por usuário, log de sessão simultânea, notificação em tempo real via polling e armazenamento seguro do token como hash SHA-256 |
 | 2.2 | Junho/2026 | Vinicius Soares | Nomenclatura de perfis atualizada: Super Admin → Master, Gerente → Coordenador, Operador → Colaborador, Visitante → Convidado. Slugs internos: `super_administrador` → `master`, `gerente` → `coordenador`, `operador` → `colaborador`, `visitante` → `convidado`. |
+| 2.3 | Junho/2026 | Vinicius Soares | RN-SCHED-11/12: exibição do horário fim da exceção no topbar e encerramento automático de sessão via `setTimeout` + `visibilitychange`; correção de `usuario_tem_excecao_horario` para respeitar `janela_inicio`/`janela_fim` no login |
