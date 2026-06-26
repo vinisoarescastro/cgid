@@ -1,34 +1,44 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, Integer
+from sqlalchemy import cast as sa_cast
 from typing import Optional
 from datetime import datetime, timezone, timedelta
 from database import get_db
 from models import Usuario, EspacoTrabalho, Relatorio, LogAuditoria, AcessoWorkspace, RegraExpediente
 from datetime import date as date_type
 
+# Offset de Brasília em relação a UTC (UTC-3)
+_BRT_OFFSET = "-3 hours"
+
+def _date_brt(col):
+    return func.date(func.datetime(col, _BRT_OFFSET))
+
+def _hour_brt(col):
+    return sa_cast(func.strftime("%H", func.datetime(col, _BRT_OFFSET)), Integer)
+
 router = APIRouter(tags=["dashboard"])
 
 
 @router.get("/dashboard/kpis")
 def dashboard_kpis(db: Session = Depends(get_db)):
-    hoje = datetime.now(timezone.utc).date()
+    hoje = (datetime.now(timezone.utc) - timedelta(hours=3)).date()
     total_usuarios    = db.query(Usuario).filter(Usuario.status == "ativo").count()
     bloqueados        = db.query(Usuario).filter(Usuario.status == "bloqueado").count()
     workspaces_ativos = db.query(EspacoTrabalho).filter(EspacoTrabalho.status == "ativo").count()
     workspaces_total  = db.query(EspacoTrabalho).count()
     logins_hoje = db.query(LogAuditoria).filter(
         LogAuditoria.tipo_evento == "autenticacao", LogAuditoria.detalhe.ilike("%sucesso%"),
-        func.date(LogAuditoria.momento) == hoje).count()
+        _date_brt(LogAuditoria.momento) == hoje).count()
     acessos_negados = db.query(LogAuditoria).filter(
-        LogAuditoria.tipo_evento == "seguranca", func.date(LogAuditoria.momento) == hoje).count()
+        LogAuditoria.tipo_evento == "seguranca", _date_brt(LogAuditoria.momento) == hoje).count()
     total_semana = db.query(LogAuditoria).filter(
         LogAuditoria.tipo_evento == "seguranca",
-        func.date(LogAuditoria.momento) >= hoje - timedelta(days=7),
-        func.date(LogAuditoria.momento) < hoje).count()
+        _date_brt(LogAuditoria.momento) >= hoje - timedelta(days=7),
+        _date_brt(LogAuditoria.momento) < hoje).count()
     bloqueados_hoje = db.query(LogAuditoria).filter(
         LogAuditoria.tipo_evento == "seguranca", LogAuditoria.modulo == "autenticacao",
-        LogAuditoria.detalhe.ilike("%bloqueada%"), func.date(LogAuditoria.momento) == hoje).count()
+        LogAuditoria.detalhe.ilike("%bloqueada%"), _date_brt(LogAuditoria.momento) == hoje).count()
     return {
         "usuarios_ativos": total_usuarios, "logins_hoje": logins_hoje, "usuarios_bloqueados": bloqueados,
         "bloqueados_hoje": bloqueados_hoje, "acessos_negados_hoje": acessos_negados,
@@ -101,7 +111,7 @@ def dashboard_acessos_por_dia(
     data: Optional[str] = Query(None),
     db: Session = Depends(get_db),
 ):
-    hoje = datetime.now(timezone.utc).date()
+    hoje = (datetime.now(timezone.utc) - timedelta(hours=3)).date()
     LABELS_DIA = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"]
     if periodo == "diario":
         try: dia = date_type.fromisoformat(data) if data else hoje
@@ -109,20 +119,20 @@ def dashboard_acessos_por_dia(
         resultado = []
         for hora in range(24):
             logins = db.query(LogAuditoria).filter(LogAuditoria.tipo_evento == "autenticacao", LogAuditoria.detalhe.ilike("%sucesso%"),
-                func.date(LogAuditoria.momento) == dia, func.extract("hour", LogAuditoria.momento) == hora).count()
+                _date_brt(LogAuditoria.momento) == dia, _hour_brt(LogAuditoria.momento) == hora).count()
             negados = db.query(LogAuditoria).filter(LogAuditoria.tipo_evento == "seguranca",
-                func.date(LogAuditoria.momento) == dia, func.extract("hour", LogAuditoria.momento) == hora).count()
+                _date_brt(LogAuditoria.momento) == dia, _hour_brt(LogAuditoria.momento) == hora).count()
             resultado.append({"label": f"{hora:02d}h", "logins": logins, "negados": negados})
         return resultado
     if periodo == "semanal":
         dias = [hoje - timedelta(days=i) for i in range(6, -1, -1)]
         return [{"label": f"{LABELS_DIA[d.weekday()]} {d.strftime('%d/%m')}",
-                 "logins": db.query(LogAuditoria).filter(LogAuditoria.tipo_evento == "autenticacao", LogAuditoria.detalhe.ilike("%sucesso%"), func.date(LogAuditoria.momento) == d).count(),
-                 "negados": db.query(LogAuditoria).filter(LogAuditoria.tipo_evento == "seguranca", func.date(LogAuditoria.momento) == d).count()} for d in dias]
+                 "logins": db.query(LogAuditoria).filter(LogAuditoria.tipo_evento == "autenticacao", LogAuditoria.detalhe.ilike("%sucesso%"), _date_brt(LogAuditoria.momento) == d).count(),
+                 "negados": db.query(LogAuditoria).filter(LogAuditoria.tipo_evento == "seguranca", _date_brt(LogAuditoria.momento) == d).count()} for d in dias]
     dias = [hoje - timedelta(days=i) for i in range(29, -1, -1)]
     return [{"label": d.strftime("%d/%m"),
-             "logins": db.query(LogAuditoria).filter(LogAuditoria.tipo_evento == "autenticacao", LogAuditoria.detalhe.ilike("%sucesso%"), func.date(LogAuditoria.momento) == d).count(),
-             "negados": db.query(LogAuditoria).filter(LogAuditoria.tipo_evento == "seguranca", func.date(LogAuditoria.momento) == d).count()} for d in dias]
+             "logins": db.query(LogAuditoria).filter(LogAuditoria.tipo_evento == "autenticacao", LogAuditoria.detalhe.ilike("%sucesso%"), _date_brt(LogAuditoria.momento) == d).count(),
+             "negados": db.query(LogAuditoria).filter(LogAuditoria.tipo_evento == "seguranca", _date_brt(LogAuditoria.momento) == d).count()} for d in dias]
 
 
 @router.get("/dashboard/top-relatorios")
@@ -132,15 +142,15 @@ def dashboard_top_relatorios(
     data: Optional[str] = Query(None),
     db: Session = Depends(get_db),
 ):
-    hoje = datetime.now(timezone.utc).date()
+    hoje = (datetime.now(timezone.utc) - timedelta(hours=3)).date()
     if periodo == "diario":
         try: dia = date_type.fromisoformat(data) if data else hoje
         except ValueError: dia = hoje
-        filtro_data = func.date(LogAuditoria.momento) == dia
+        filtro_data = _date_brt(LogAuditoria.momento) == dia
     elif periodo == "semanal":
-        filtro_data = func.date(LogAuditoria.momento) >= hoje - timedelta(days=7)
+        filtro_data = _date_brt(LogAuditoria.momento) >= hoje - timedelta(days=7)
     else:
-        filtro_data = func.date(LogAuditoria.momento) >= hoje - timedelta(days=30)
+        filtro_data = _date_brt(LogAuditoria.momento) >= hoje - timedelta(days=30)
     rows = (db.query(LogAuditoria.detalhe, func.count(LogAuditoria.id).label("acessos"))
             .filter(LogAuditoria.tipo_evento == "relatorio", filtro_data)
             .group_by(LogAuditoria.detalhe).order_by(func.count(LogAuditoria.id).desc()).limit(limit).all())

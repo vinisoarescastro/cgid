@@ -402,6 +402,8 @@ Tabelas independentes (sem FK de entrada):
 **Convenção de fuso horário:**  
 `momento` é gravado em UTC (datetime naive, sem tzinfo) via `datetime.now(timezone.utc).replace(tzinfo=None)` em `audit_service.py`. O frontend adiciona sufixo `Z` ao deserializar e converte para `America/Sao_Paulo` na exibição.
 
+Nas queries do dashboard (`dashboard.py`), todos os filtros e agrupamentos por data/hora aplicam a função `datetime(momento, '-3 hours')` do SQLite (helpers `_date_brt` e `_hour_brt`) para converter UTC → BRT antes de comparar. O campo `hoje` também é computado como `datetime.now(timezone.utc) - timedelta(hours=3)` para não avançar o dia ao cruzar a meia-noite UTC (21h BRT).
+
 **Por que não há FK para `usuarios`?**  
 Registros de auditoria devem sobreviver à exclusão do usuário. A ausência de FK é intencional.
 
@@ -1219,5 +1221,6 @@ UPDATE usuarios SET nome = 'Novo Nome', atualizado_em = CURRENT_TIMESTAMP WHERE 
 | 2.1 | 2026-06-25 | Vinicius Soares | Remoção de categorias_relatorio (migration b2c3d4e5f6a7); campo categoria texto livre mantido em relatorios; FK usuarios.perfil → perfis.codigo (migration a1b2c3d4e5f6); lógica de permissões centralizada em permission_service.py; constants.py criado; require_permission() dependency adicionada; schemas.py centralizado |
 | 2.1.1 | 2026-06-26 | Vinicius Soares | Documentação: seção 12 (Arquitetura de Permissões); tipo_evento de logs_auditoria corrigido (adicionado `permissao`); FK usuarios.perfil registrada em §4.2 e §4.9; migration a1b2c3d4e5f6 incluída nos comandos de upgrade; ERD atualizado com FK perfil; ordem de execução atualizada (perfis antes de usuarios); correções de ESLint no frontend (AuditPage, AccessControlPage) |
 | 2.1.2 | 2026-06-26 | Vinicius Soares | Correção de fuso horário na auditoria: `momento` agora gravado explicitamente via `datetime.now(timezone.utc)` no Python (antes dependia de `server_default` do SQLite); frontend (`AuditPage`) passa a interpretar timestamps como UTC e exibe no fuso `America/Sao_Paulo` |
+| 2.1.3 | 2026-06-26 | Vinicius Soares | Correção de fuso horário no dashboard: queries de `/dashboard/kpis`, `/dashboard/acessos-por-dia` e `/dashboard/top-relatorios` passaram a converter UTC → BRT via `datetime(momento, '-3 hours')` (helpers `_date_brt`/`_hour_brt`); `hoje` calculado em BRT para não avançar o dia às 21h |
 
 *Documentação gerada a partir do código-fonte em `backend/models.py` e `backend/seed.py`.*
