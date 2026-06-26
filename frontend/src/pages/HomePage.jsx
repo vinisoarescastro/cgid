@@ -345,7 +345,7 @@ const user = JSON.parse(sessionStorage.getItem('cgid_user') || '{}')
                     <div className="card-sub">Relatórios publicados por workspace</div>
                   </div>
                 </div>
-                <div className="card-bd" style={{ paddingTop: 4, flex: 1, minHeight: 0 }}>
+                <div className="card-bd" style={{ paddingTop: 4 }}>
                   {(() => {
                     const dados = workspaces
                       .filter(w => w.publicados > 0)
@@ -353,7 +353,7 @@ const user = JSON.parse(sessionStorage.getItem('cgid_user') || '{}')
 
                     if (dados.length === 0) return null
                     return (
-                      <ResponsiveContainer width="100%" height="100%">
+                      <ResponsiveContainer width="100%" height={260}>
                         <BarChart
                           data={dados}
                           layout="vertical"
