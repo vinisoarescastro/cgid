@@ -386,7 +386,7 @@ Tabelas independentes (sem FK de entrada):
 | Coluna | Tipo | Nulo | Padrão | Restrições | Descrição |
 |--------|------|------|--------|-----------|-----------|
 | `id` | TEXT(36) | NÃO | UUID | PK | Identificador único |
-| `momento` | DATETIME | NÃO | `CURRENT_TIMESTAMP` | NOT NULL, INDEX | Timestamp do evento (UTC) |
+| `momento` | DATETIME | NÃO | Python UTC | NOT NULL, INDEX | Timestamp do evento em UTC (naive); gerado por `datetime.now(timezone.utc)` no Python |
 | `usuario_id` | TEXT(36) | SIM | NULL | INDEX (sem FK intencional) | ID do usuário |
 | `nome_usuario` | TEXT(255) | SIM | NULL | — | Snapshot do nome (imutável) |
 | `email_usuario` | TEXT(255) | SIM | NULL | — | Snapshot do e-mail (imutável) |
@@ -398,6 +398,9 @@ Tabelas independentes (sem FK de entrada):
 | `valor_novo` | TEXT | SIM | NULL | — | Novo valor em JSON |
 
 **Índices:** `ix_la_momento`, `ix_la_usuario_id`, `ix_la_tipo_evento`, `ix_la_modulo`
+
+**Convenção de fuso horário:**  
+`momento` é gravado em UTC (datetime naive, sem tzinfo) via `datetime.now(timezone.utc).replace(tzinfo=None)` em `audit_service.py`. O frontend adiciona sufixo `Z` ao deserializar e converte para `America/Sao_Paulo` na exibição.
 
 **Por que não há FK para `usuarios`?**  
 Registros de auditoria devem sobreviver à exclusão do usuário. A ausência de FK é intencional.
@@ -421,7 +424,7 @@ Registros de auditoria devem sobreviver à exclusão do usuário. A ausência de
 | Coluna | Tipo | Nulo | Padrão | Restrições | Descrição |
 |--------|------|------|--------|-----------|-----------|
 | `id` | TEXT(36) | NÃO | UUID | PK | Identificador único |
-| `momento` | DATETIME | NÃO | `CURRENT_TIMESTAMP` | NOT NULL, INDEX | Timestamp da alteração (UTC) |
+| `momento` | DATETIME | NÃO | Python UTC | NOT NULL, INDEX | Timestamp da alteração em UTC (naive); gerado por `datetime.now(timezone.utc)` no Python |
 | `entidade` | TEXT(50) | NÃO | — | NOT NULL, INDEX | `workspace` \| `relatorio` \| `pbi_credenciais` |
 | `entidade_id` | TEXT(36) | SIM | NULL | INDEX | ID do workspace/relatório |
 | `campo` | TEXT(100) | NÃO | — | NOT NULL | Nome do campo alterado |
@@ -1215,5 +1218,6 @@ UPDATE usuarios SET nome = 'Novo Nome', atualizado_em = CURRENT_TIMESTAMP WHERE 
 | 2.0 | 2026-06-25 | Vinicius Soares | +6 tabelas novas (departamentos, perfis, credenciais_pbi, pacotes_permissao, pacotes_permissao_itens, usuarios_pacotes); remoção de sobrescritas_permissao; departamento_id em usuarios; CASCADE corrigido em membros_grupo_excecao.usuario_id; Alembic configurado |
 | 2.1 | 2026-06-25 | Vinicius Soares | Remoção de categorias_relatorio (migration b2c3d4e5f6a7); campo categoria texto livre mantido em relatorios; FK usuarios.perfil → perfis.codigo (migration a1b2c3d4e5f6); lógica de permissões centralizada em permission_service.py; constants.py criado; require_permission() dependency adicionada; schemas.py centralizado |
 | 2.1.1 | 2026-06-26 | Vinicius Soares | Documentação: seção 12 (Arquitetura de Permissões); tipo_evento de logs_auditoria corrigido (adicionado `permissao`); FK usuarios.perfil registrada em §4.2 e §4.9; migration a1b2c3d4e5f6 incluída nos comandos de upgrade; ERD atualizado com FK perfil; ordem de execução atualizada (perfis antes de usuarios); correções de ESLint no frontend (AuditPage, AccessControlPage) |
+| 2.1.2 | 2026-06-26 | Vinicius Soares | Correção de fuso horário na auditoria: `momento` agora gravado explicitamente via `datetime.now(timezone.utc)` no Python (antes dependia de `server_default` do SQLite); frontend (`AuditPage`) passa a interpretar timestamps como UTC e exibe no fuso `America/Sao_Paulo` |
 
 *Documentação gerada a partir do código-fonte em `backend/models.py` e `backend/seed.py`.*
