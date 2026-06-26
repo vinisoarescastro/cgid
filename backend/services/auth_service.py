@@ -4,7 +4,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy.orm import Session
 from models import (
     Usuario, PermissaoPerfil, RegraExpediente, MembroGrupoExcecao,
-    GrupoExcecao, AcessoWorkspace, EspacoTrabalho, Perfil, CategoriaRelatorio
+    GrupoExcecao, AcessoWorkspace, EspacoTrabalho, Perfil
 )
 
 TZ_BRASILIA = ZoneInfo("America/Sao_Paulo")
@@ -61,16 +61,6 @@ _PERFIS_DEFAULT = [
     {"codigo": "convidado",     "nome_exibicao": "Convidado",     "descricao": "Acesso somente leitura",  "nivel_hierarquia": 10,  "pode_ser_atribuido": True},
 ]
 
-_CATEGORIAS_DEFAULT = [
-    {"nome": "Financeiro",   "cor": "#16a34a", "icone": "fa-chart-line"},
-    {"nome": "Operacional",  "cor": "#2563eb", "icone": "fa-cogs"},
-    {"nome": "Estrategico",  "cor": "#7c3aed", "icone": "fa-chess"},
-    {"nome": "Marketing",    "cor": "#d97706", "icone": "fa-bullhorn"},
-    {"nome": "RH",           "cor": "#dc2626", "icone": "fa-users"},
-    {"nome": "Tecnologia",   "cor": "#0891b2", "icone": "fa-laptop-code"},
-]
-
-
 def garantir_permissoes_default(db: Session):
     for perfil, modulos in _MATRIZ_PERMISSOES_DEFAULT.items():
         for modulo, (vis, cri, edi, exc, exp, ger) in modulos.items():
@@ -89,9 +79,6 @@ def garantir_dados_iniciais(db: Session):
     for p in _PERFIS_DEFAULT:
         if not db.query(Perfil).filter_by(codigo=p["codigo"]).first():
             db.add(Perfil(**p))
-    for c in _CATEGORIAS_DEFAULT:
-        if not db.query(CategoriaRelatorio).filter_by(nome=c["nome"]).first():
-            db.add(CategoriaRelatorio(**c))
     db.commit()
 
 

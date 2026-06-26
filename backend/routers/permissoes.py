@@ -1,23 +1,15 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
-from typing import Optional, List
 import json
-from datetime import datetime, timezone
 from database import get_db
 from models import Usuario, PermissaoPerfil, PacotePermissao, PacotePermissaoItem, UsuarioPacote, Perfil
-from dependencies import get_usuario_requisicao, exigir_permissao, checar_permissao
+from dependencies import get_usuario_requisicao, exigir_permissao
 from services.audit_service import registrar_log
+from services.permission_service import obter_permissoes_efetivas
 from schemas import PermissaoPerfilInput, PacoteItemInput, PacoteInput, PapelInput
+from constants import ACOES_VALIDAS, MODULOS_VALIDOS, PERFIS_VALIDOS, PERFIS_ATRIBUIVEIS
 
 router = APIRouter(tags=["permissoes"])
-
-_CAMPOS_ACAO = {
-    "visualizar": "pode_visualizar", "criar": "pode_criar", "editar": "pode_editar",
-    "excluir": "pode_excluir", "exportar": "pode_exportar", "gerenciar": "pode_gerenciar",
-}
-_PERFIS_VALIDOS_PERM  = {"master", "administrador", "coordenador", "colaborador", "convidado"}
-_MODULOS_VALIDOS_PERM = {"usuarios", "permissoes", "relatorios", "workspaces", "auditoria",
-                         "seguranca", "configuracoes", "expediente", "grupos_excecao", "landbank", "departamentos"}
 
 
 @router.get("/api/perfis")
@@ -32,10 +24,7 @@ def minhas_permissoes(request: Request, db: Session = Depends(get_db)):
     usuario = get_usuario_requisicao(request, db)
     if not usuario:
         raise HTTPException(status_code=401, detail="Não autenticado.")
-    resultado = {}
-    for modulo in _MODULOS_VALIDOS_PERM:
-        resultado[modulo] = {acao: checar_permissao(usuario, modulo, acao, db) for acao in _CAMPOS_ACAO}
-    return resultado
+    return obter_permissoes_efetivas(usuario, db)
 
 
 @router.get("/api/permissoes/perfis")
@@ -54,9 +43,9 @@ def atualizar_permissao_perfil(perfil: str, modulo: str, dados: PermissaoPerfilI
     autor = get_usuario_requisicao(request, db)
     if not autor or autor.perfil != "master":
         raise HTTPException(status_code=403, detail="Acesso restrito a masters.")
-    if perfil not in _PERFIS_VALIDOS_PERM:
+    if perfil not in PERFIS_VALIDOS:
         raise HTTPException(status_code=422, detail="Perfil inválido.")
-    if modulo not in _MODULOS_VALIDOS_PERM:
+    if modulo not in MODULOS_VALIDOS:
         raise HTTPException(status_code=422, detail="Módulo inválido.")
     pp = db.query(PermissaoPerfil).filter_by(perfil=perfil, modulo=modulo).first()
     anterior = None
@@ -86,30 +75,24 @@ def listar_permissoes_usuario(usuario_id: str, request: Request, db: Session = D
     alvo = db.query(Usuario).filter_by(id=usuario_id).first()
     if not alvo:
         raise HTTPException(status_code=404, detail="Usuário não encontrado.")
-    resultado = []
-    for modulo in sorted(_MODULOS_VALIDOS_PERM):
-        pp = db.query(PermissaoPerfil).filter_by(perfil=alvo.perfil, modulo=modulo).first()
-        efetiva = {}
-        for acao, campo in _CAMPOS_ACAO.items():
-            if pp:
-                efetiva[acao] = bool(getattr(pp, campo))
-            else:
-                efetiva[acao] = False
-        pacote_ids = [up.pacote_id for up in db.query(UsuarioPacote).filter_by(usuario_id=usuario_id).all()]
-        if pacote_ids:
-            from models import PacotePermissaoItem
-            itens = db.query(PacotePermissaoItem).filter(
-                PacotePermissaoItem.pacote_id.in_(pacote_ids), PacotePermissaoItem.modulo == modulo).all()
-            for acao, campo in _CAMPOS_ACAO.items():
-                if not efetiva[acao] and any(getattr(item, campo) for item in itens):
-                    efetiva[acao] = True
-        resultado.append({
+
+    permissoes_perfil = {
+        pp.modulo: pp
+        for pp in db.query(PermissaoPerfil).filter_by(perfil=alvo.perfil).all()
+    }
+    efetivas = obter_permissoes_efetivas(alvo, db)
+
+    return [
+        {
             "modulo": modulo,
-            "permissao_perfil": {campo: bool(getattr(pp, campo)) for campo in _CAMPOS_ACAO.values()} if pp else {campo: False for campo in _CAMPOS_ACAO.values()},
-            "sobrescrita": None,
-            "efetiva": efetiva,
-        })
-    return resultado
+            "permissao_perfil": {
+                campo: bool(getattr(permissoes_perfil[modulo], campo, False))
+                for campo in ACOES_VALIDAS.values()
+            } if modulo in permissoes_perfil else {campo: False for campo in ACOES_VALIDAS.values()},
+            "efetiva": efetivas.get(modulo, {a: False for a in ACOES_VALIDAS}),
+        }
+        for modulo in sorted(MODULOS_VALIDOS)
+    ]
 
 
 @router.get("/api/controle-acesso/pacotes")
@@ -142,7 +125,7 @@ def criar_pacote(dados: PacoteInput, request: Request, db: Session = Depends(get
     pacote = PacotePermissao(nome=dados.nome, descricao=dados.descricao, criado_por_id=autor.id)
     db.add(pacote); db.flush()
     for item_d in dados.itens:
-        if item_d.modulo not in _MODULOS_VALIDOS_PERM: continue
+        if item_d.modulo not in MODULOS_VALIDOS: continue
         db.add(PacotePermissaoItem(pacote_id=pacote.id, modulo=item_d.modulo,
             pode_visualizar=item_d.pode_visualizar, pode_criar=item_d.pode_criar, pode_editar=item_d.pode_editar,
             pode_excluir=item_d.pode_excluir, pode_exportar=item_d.pode_exportar, pode_gerenciar=item_d.pode_gerenciar))
@@ -165,7 +148,7 @@ def atualizar_pacote(pacote_id: str, dados: PacoteInput, request: Request, db: S
     pacote.nome = dados.nome; pacote.descricao = dados.descricao
     db.query(PacotePermissaoItem).filter_by(pacote_id=pacote_id).delete()
     for item_d in dados.itens:
-        if item_d.modulo not in _MODULOS_VALIDOS_PERM: continue
+        if item_d.modulo not in MODULOS_VALIDOS: continue
         db.add(PacotePermissaoItem(pacote_id=pacote_id, modulo=item_d.modulo,
             pode_visualizar=item_d.pode_visualizar, pode_criar=item_d.pode_criar, pode_editar=item_d.pode_editar,
             pode_excluir=item_d.pode_excluir, pode_exportar=item_d.pode_exportar, pode_gerenciar=item_d.pode_gerenciar))
@@ -217,7 +200,7 @@ def alterar_papel_usuario(usuario_id: str, dados: PapelInput, request: Request, 
     alvo = db.query(Usuario).filter_by(id=usuario_id).first()
     if not alvo:
         raise HTTPException(status_code=404, detail="Usuário não encontrado.")
-    if dados.perfil not in _PERFIS_VALIDOS_PERM:
+    if dados.perfil not in PERFIS_VALIDOS:
         raise HTTPException(status_code=422, detail="Perfil inválido.")
     if alvo.perfil == "master" and autor.perfil != "master":
         raise HTTPException(status_code=403, detail="Apenas masters podem alterar outros masters.")
@@ -236,10 +219,14 @@ def atribuir_pacote_usuario(usuario_id: str, pacote_id: str, request: Request, d
     exigir_permissao(autor, "permissoes", "editar", db)
     if not db.query(Usuario).filter_by(id=usuario_id).first():
         raise HTTPException(status_code=404, detail="Usuário não encontrado.")
-    if not db.query(PacotePermissao).filter_by(id=pacote_id).first():
+    pacote = db.query(PacotePermissao).filter_by(id=pacote_id).first()
+    if not pacote:
         raise HTTPException(status_code=404, detail="Pacote não encontrado.")
     if not db.query(UsuarioPacote).filter_by(usuario_id=usuario_id, pacote_id=pacote_id).first():
         db.add(UsuarioPacote(usuario_id=usuario_id, pacote_id=pacote_id, atribuido_por_id=autor.id))
+        registrar_log(db, "permissao", "usuarios_pacotes",
+                      f"Pacote '{pacote.nome}' atribuído ao usuário {usuario_id}",
+                      usuario=autor, request=request)
         db.commit()
     return {"ok": True}
 
@@ -252,5 +239,11 @@ def remover_pacote_usuario(usuario_id: str, pacote_id: str, request: Request, db
     exigir_permissao(autor, "permissoes", "editar", db)
     up = db.query(UsuarioPacote).filter_by(usuario_id=usuario_id, pacote_id=pacote_id).first()
     if up:
-        db.delete(up); db.commit()
+        pacote = db.query(PacotePermissao).filter_by(id=pacote_id).first()
+        nome_pacote = pacote.nome if pacote else pacote_id
+        db.delete(up)
+        registrar_log(db, "permissao", "usuarios_pacotes",
+                      f"Pacote '{nome_pacote}' removido do usuário {usuario_id}",
+                      usuario=autor, request=request)
+        db.commit()
     return {"ok": True}

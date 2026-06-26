@@ -35,7 +35,7 @@ class Usuario(Base):
     nome              = Column(String(255), nullable=False)
     email             = Column(String(255), nullable=False, unique=True, index=True)
     hash_senha        = Column(String(255), nullable=False)
-    perfil            = Column(String(30),  nullable=False)
+    perfil            = Column(String(30),  ForeignKey("perfis.codigo"), nullable=False)
     status            = Column(String(20),  nullable=False, default="ativo")
     tentativas_login  = Column(SmallInteger, nullable=False, default=0)
     senha_provisoria  = Column(Boolean, nullable=False, default=False)
@@ -93,20 +93,7 @@ class EspacoTrabalho(Base):
     acessos_workspace = relationship("AcessoWorkspace", back_populates="espaco_trabalho", cascade="all, delete-orphan", foreign_keys="AcessoWorkspace.espaco_trabalho_id")
 
 
-# ─── 5. Categorias de Relatório ───────────────────────────────────────────────
-class CategoriaRelatorio(Base):
-    __tablename__ = "categorias_relatorio"
-
-    id     = Column(String(36), primary_key=True, default=new_uuid)
-    nome   = Column(String(100), nullable=False, unique=True)
-    cor    = Column(String(7),   nullable=True)
-    icone  = Column(String(50),  nullable=True)
-    ativo  = Column(Boolean,     nullable=False, default=True)
-
-    relatorios = relationship("Relatorio", back_populates="categoria_obj")
-
-
-# ─── 6. Relatórios ───────────────────────────────────────────────────────────
+# ─── 5. Relatórios ───────────────────────────────────────────────────────────
 class Relatorio(Base):
     __tablename__ = "relatorios"
     __table_args__ = (
@@ -119,7 +106,6 @@ class Relatorio(Base):
     espaco_trabalho_id  = Column(String(36), ForeignKey("espacos_trabalho.id", ondelete="CASCADE"), nullable=False, index=True)
     id_relatorio_pbi    = Column(String(255), nullable=True)
     categoria           = Column(String(100), nullable=True)
-    categoria_id        = Column(String(36), ForeignKey("categorias_relatorio.id", ondelete="SET NULL"), nullable=True)
     status              = Column(String(20),  nullable=False, default="publicado")
     descricao           = Column(Text, nullable=True)
     criado_em           = Column(DateTime, nullable=False, server_default=func.now())
@@ -129,7 +115,6 @@ class Relatorio(Base):
     espaco_trabalho   = relationship("EspacoTrabalho", back_populates="relatorios")
     acessos_relatorio = relationship("AcessoRelatorio", back_populates="relatorio", cascade="all, delete-orphan")
     favoritos         = relationship("Favorito",        back_populates="relatorio",  cascade="all, delete-orphan")
-    categoria_obj     = relationship("CategoriaRelatorio", back_populates="relatorios")
 
 
 # ─── 7. Acessos por Workspace ────────────────────────────────────────────────

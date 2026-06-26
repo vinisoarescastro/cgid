@@ -359,17 +359,10 @@ function ModalRelatorio({ workspaceId, workspacePbiId, relatorio, onClose, onSav
   const editando = !!relatorio
   const [form, setForm] = useState({
     nome:             relatorio?.nome             ?? '',
-    categoria:        relatorio?.categoria        ?? '',
-    categoria_id:     relatorio?.categoria_id     ?? '',
     status:           relatorio?.status           ?? 'publicado',
     descricao:        relatorio?.descricao        ?? '',
     id_relatorio_pbi: relatorio?.id_relatorio_pbi ?? '',
   })
-  const [categorias, setCategorias] = useState([])
-
-  useEffect(() => {
-    fetch(`${API}/categorias-relatorio`).then(r => r.json()).then(setCategorias).catch(() => {})
-  }, [])
 
   const [loading, setLoading]         = useState(false)
   const [erro, setErro]               = useState('')
@@ -425,13 +418,10 @@ function ModalRelatorio({ workspaceId, workspacePbiId, relatorio, onClose, onSav
         ? `/workspaces/${workspaceId}/relatorios/${relatorio.id}`
         : `/workspaces/${workspaceId}/relatorios`
       const method = editando ? 'PUT' : 'POST'
-      const catSelecionada = categorias.find(c => String(c.id) === String(form.categoria_id))
       const r = await apiFetch(path, {
         method,
         body: {
           nome:             form.nome.trim(),
-          categoria:        catSelecionada?.nome ?? (form.categoria.trim() || null),
-          categoria_id:     form.categoria_id || null,
           status:           form.status,
           descricao:        form.descricao.trim() || null,
           id_relatorio_pbi: form.id_relatorio_pbi.trim() || null,
@@ -466,13 +456,6 @@ function ModalRelatorio({ workspaceId, workspacePbiId, relatorio, onClose, onSav
               Nome no Power BI: <strong style={{ color: 'var(--gray-600)' }}>{pbiInfo.name}</strong>
             </div>
           )}
-        </div>
-        <div className="modal-field">
-          <label className="modal-label">Categoria</label>
-          <select className="modal-input" value={form.categoria_id} onChange={e => setForm(f => ({ ...f, categoria_id: e.target.value }))}>
-            <option value="">Sem categoria</option>
-            {categorias.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
-          </select>
         </div>
         <div className="modal-field">
           <label className="modal-label">Status</label>
@@ -1253,7 +1236,6 @@ export default function WorkspacePage() {
                               </div>
                               <div className="ws-report-info">
                                 <div className="ws-report-name">{r.nome}</div>
-                                <div className="ws-report-cat">{r.categoria ?? 'Sem categoria'}</div>
                               </div>
                               <div className="ws-report-actions">
                                 <span className={`badge ${r.status === 'publicado' ? 'badge-green' : 'badge-gray'}`}>

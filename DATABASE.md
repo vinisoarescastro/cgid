@@ -6,8 +6,8 @@
 > **Migrações:** Alembic  
 > **Banco (desenvolvimento):** SQLite 3 (`backend/cgid.db`)  
 > **Banco (produção recomendado):** SQL Server 2019+  
-> **Versão do schema:** v2.0 (migration `60fc08a85566_v2_schema_completo`)  
-> **Última revisão:** 2026-06-25
+> **Versão do schema:** v2.1 (migrations `a1b2c3d4e5f6_fk_usuarios_perfil` + `b2c3d4e5f6a7_remove_categorias_relatorio`)  
+> **Última revisão:** 2026-06-26
 
 ---
 
@@ -24,7 +24,8 @@
 9. [Ordem Correta de Execução](#9-ordem-correta-de-execução)
 10. [Passo a Passo: Criar o Banco do Zero](#10-passo-a-passo-criar-o-banco-do-zero)
 11. [Configurações e Variáveis de Ambiente](#11-configurações-e-variáveis-de-ambiente)
-12. [Possíveis Erros e Soluções](#12-possíveis-erros-e-soluções)
+12. [Arquitetura de Permissões (Backend)](#12-arquitetura-de-permissões-backend)
+13. [Possíveis Erros e Soluções](#13-possíveis-erros-e-soluções)
 
 ---
 
@@ -37,16 +38,17 @@ O CGID é um portal de acesso controlado a relatórios do **Power BI**. O banco 
 | **Organização** | `departamentos` — unidades organizacionais vinculadas a usuários |
 | **Autenticação e Sessões** | `usuarios`, `sessoes_autenticacao` — token de sessão opaco (SHA-256), sem JWT |
 | **RBAC (controle de acesso)** | `permissoes_perfil`, `perfis`, `pacotes_permissao`, `pacotes_permissao_itens`, `usuarios_pacotes`, `acessos_workspace`, `acessos_relatorio` |
-| **Conteúdo (workspaces e relatórios)** | `espacos_trabalho`, `categorias_relatorio`, `relatorios`, `favoritos` |
+| **Conteúdo (workspaces e relatórios)** | `espacos_trabalho`, `relatorios`, `favoritos` |
 | **Restrições de horário** | `regras_expediente`, `grupos_excecao`, `membros_grupo_excecao` |
 | **Auditoria e rastreabilidade** | `logs_auditoria`, `historico_config_critica` |
 | **Configurações globais** | `configuracoes_sistema`, `credenciais_pbi` |
 
-**Total:** 21 tabelas.
+**Total:** 20 tabelas.
 
-> A tabela `sobrescritas_permissao` foi **removida** na v2.0. A funcionalidade de override individual foi substituída pelos `pacotes_permissao`, que permitem criar conjuntos reutilizáveis de permissões e atribuí-los a usuários.
+> A tabela `sobrescritas_permissao` foi **removida** na v2.0 e substituída pelos `pacotes_permissao`.  
+> A tabela `categorias_relatorio` foi **removida** na v2.1. O campo `categoria` (texto livre) permanece em `relatorios` para compatibilidade com dados existentes.
 
-O schema é definido inteiramente via modelos SQLAlchemy em `backend/models.py`. Em banco novo, a criação ocorre via `python seed.py`. Para banco com dados existentes, utilize `alembic upgrade head` (migration `60fc08a85566_v2_schema_completo`).
+O schema é definido inteiramente via modelos SQLAlchemy em `backend/models.py`. Em banco novo, a criação ocorre via `python seed.py`. Para banco com dados existentes, utilize `alembic upgrade head`.
 
 ---
 
@@ -62,10 +64,10 @@ O schema é definido inteiramente via modelos SQLAlchemy em `backend/models.py`.
         │
 ┌───────▼─────────────────────────────────────────────────────────────────────┐
 │                                   usuarios                                   │
-│  PK id | nome | email (UQ) | hash_senha | perfil | status | tentativas_login │
-│  senha_provisoria | ultimo_login | foto_url | mfa_ativo | mfa_segredo        │
-│  criado_em | atualizado_em | criado_por_id (FK→usuarios)                     │
-│  departamento_id (FK→departamentos)                                          │
+│  PK id | nome | email (UQ) | hash_senha | perfil (FK→perfis) | status       │
+│  tentativas_login | senha_provisoria | ultimo_login | foto_url               │
+│  mfa_ativo | mfa_segredo | criado_em | atualizado_em                        │
+│  criado_por_id (FK→usuarios) | departamento_id (FK→departamentos)           │
 └─────┬───────────────────────────────────────────────────────────────────────┘
       │ 1
       │
@@ -74,8 +76,8 @@ O schema é definido inteiramente via modelos SQLAlchemy em `backend/models.py`.
       │                   criado_em | expira_em(12h) | ultimo_uso_em
       │                   revogado_em | endereco_ip | user_agent
       │
-      ├──────────── N ──► favoritos ──────── N ──► relatorios ──── N ──► categorias_relatorio
-      │                   id | usuario_id | relatorio_id             │        id | nome | cor | icone
+      ├──────────── N ──► favoritos ──────── N ──► relatorios
+      │                   id | usuario_id | relatorio_id             │
       │                   criado_em (UQ: usuario+relatorio)          │
       │                                                              │
       ├──────────── N ──► acessos_relatorio ─ N ──► (relatorios)    │
@@ -92,8 +94,7 @@ O schema é definido inteiramente via modelos SQLAlchemy em `backend/models.py`.
       │                              criado_por_id                    │
       │                                              relatorios
       │                                              id | nome | espaco_trabalho_id
-      │                                              categoria (texto legado)
-      │                                              categoria_id (FK→categorias_relatorio)
+      │                                              categoria (texto livre, opcional)
       │                                              status
       │
       ├──────────── N ──► membros_grupo_excecao ─ N ──► grupos_excecao
@@ -112,8 +113,8 @@ O schema é definido inteiramente via modelos SQLAlchemy em `backend/models.py`.
 
 Tabelas independentes (sem FK de entrada):
   departamentos           — unidades organizacionais
+  perfis                  — metadados dos perfis (referenciados por usuarios.perfil)
   permissoes_perfil       — matriz RBAC por perfil × módulo
-  perfis                  — metadados dos perfis (nível hierárquico, etc.)
   regras_expediente       — horário de funcionamento por dia da semana
   logs_auditoria          — trilha imutável de auditoria (sem FK intencional)
   historico_config_critica — histórico de campos críticos
@@ -131,23 +132,22 @@ Tabelas independentes (sem FK de entrada):
 | 2 | `usuarios` | Contas de usuário com autenticação, MFA, perfis de acesso e rastreamento |
 | 3 | `sessoes_autenticacao` | Sessões ativas; SHA-256 do token opaco; expiração 12h; sessão única |
 | 4 | `espacos_trabalho` | Agrupamentos lógicos de relatórios Power BI (workspaces) |
-| 5 | `categorias_relatorio` | Categorias visuais de relatório (cor, ícone) |
-| 6 | `relatorios` | Relatórios Power BI individuais vinculados a um workspace |
-| 7 | `acessos_workspace` | Concessão de acesso de um usuário a um workspace |
-| 8 | `acessos_relatorio` | Concessão de acesso de um usuário a um relatório específico |
-| 9 | `permissoes_perfil` | Matriz RBAC: define o que cada perfil pode fazer em cada módulo |
-| 10 | `perfis` | Metadados dos perfis: nome de exibição, nível hierárquico |
-| 11 | `regras_expediente` | Horário de funcionamento por dia da semana |
-| 12 | `grupos_excecao` | Grupos de usuários isentos das regras de expediente |
-| 13 | `membros_grupo_excecao` | Associativa: quais usuários pertencem a quais grupos de exceção |
-| 14 | `favoritos` | Relatórios marcados como favoritos por um usuário |
-| 15 | `logs_auditoria` | Trilha de auditoria imutável (append-only) |
-| 16 | `configuracoes_sistema` | Store chave-valor para configurações globais |
-| 17 | `historico_config_critica` | Histórico de alterações em campos críticos (IDs PBI, credenciais) |
-| 18 | `credenciais_pbi` | Credenciais Azure AD (tenant_id, client_id, client_secret) para embed PBI |
-| 19 | `pacotes_permissao` | Pacotes reutilizáveis de permissão (substitui sobrescritas individuais) |
-| 20 | `pacotes_permissao_itens` | Permissões de cada módulo dentro de um pacote |
-| 21 | `usuarios_pacotes` | Atribuição de pacotes de permissão a usuários específicos |
+| 5 | `relatorios` | Relatórios Power BI individuais vinculados a um workspace |
+| 6 | `acessos_workspace` | Concessão de acesso de um usuário a um workspace |
+| 7 | `acessos_relatorio` | Concessão de acesso de um usuário a um relatório específico |
+| 8 | `permissoes_perfil` | Matriz RBAC: define o que cada perfil pode fazer em cada módulo |
+| 9 | `perfis` | Metadados dos perfis: nome de exibição, nível hierárquico |
+| 10 | `regras_expediente` | Horário de funcionamento por dia da semana |
+| 11 | `grupos_excecao` | Grupos de usuários isentos das regras de expediente |
+| 12 | `membros_grupo_excecao` | Associativa: quais usuários pertencem a quais grupos de exceção |
+| 13 | `favoritos` | Relatórios marcados como favoritos por um usuário |
+| 14 | `logs_auditoria` | Trilha de auditoria imutável (append-only) |
+| 15 | `configuracoes_sistema` | Store chave-valor para configurações globais |
+| 16 | `historico_config_critica` | Histórico de alterações em campos críticos (IDs PBI, credenciais) |
+| 17 | `credenciais_pbi` | Credenciais Azure AD (tenant_id, client_id, client_secret) para embed PBI |
+| 18 | `pacotes_permissao` | Pacotes reutilizáveis de permissão (substitui sobrescritas individuais) |
+| 19 | `pacotes_permissao_itens` | Permissões de cada módulo dentro de um pacote |
+| 20 | `usuarios_pacotes` | Atribuição de pacotes de permissão a usuários específicos |
 
 ---
 
@@ -175,7 +175,7 @@ Tabelas independentes (sem FK de entrada):
 | `nome` | TEXT(255) | NVARCHAR(255) | NÃO | — | NOT NULL | Nome completo |
 | `email` | TEXT(255) | NVARCHAR(255) | NÃO | — | NOT NULL, UNIQUE, INDEX | E-mail corporativo (login) |
 | `hash_senha` | TEXT(255) | NVARCHAR(255) | NÃO | — | NOT NULL | Hash bcrypt da senha |
-| `perfil` | TEXT(30) | NVARCHAR(30) | NÃO | — | NOT NULL | `master` \| `administrador` \| `coordenador` \| `colaborador` \| `convidado` |
+| `perfil` | TEXT(30) | NVARCHAR(30) | NÃO | — | NOT NULL, FK → `perfis.codigo` *(v2.1)* | `master` \| `administrador` \| `coordenador` \| `colaborador` \| `convidado` |
 | `status` | TEXT(20) | NVARCHAR(20) | NÃO | `ativo` | NOT NULL | `ativo` \| `inativo` \| `bloqueado` |
 | `tentativas_login` | INTEGER | SMALLINT | NÃO | `0` | NOT NULL | Contador de falhas (bloqueia ao atingir 5) |
 | `senha_provisoria` | INTEGER(bool) | BIT | NÃO | `0` | NOT NULL | Se `1`, força troca de senha no próximo login |
@@ -231,21 +231,7 @@ Tabelas independentes (sem FK de entrada):
 
 ---
 
-### 4.5 `categorias_relatorio` *(novo em v2.0)*
-
-| Coluna | Tipo | Nulo | Padrão | Restrições | Descrição |
-|--------|------|------|--------|-----------|-----------|
-| `id` | TEXT(36) | NÃO | UUID | PK | Identificador único |
-| `nome` | TEXT(100) | NÃO | — | NOT NULL, UNIQUE | Nome da categoria |
-| `cor` | TEXT(7) | SIM | NULL | — | Cor hexadecimal (ex: `#16a34a`) |
-| `icone` | TEXT(50) | SIM | NULL | — | Classe de ícone (ex: `fa-chart-line`) |
-| `ativo` | INTEGER(bool) | NÃO | `1` | NOT NULL | Status ativo/inativo |
-
-**Seeds padrão:** Financeiro, Operacional, Estratégico, Marketing, RH, Tecnologia.
-
----
-
-### 4.6 `relatorios`
+### 4.5 `relatorios`
 
 | Coluna | Tipo | Nulo | Padrão | Restrições | Descrição |
 |--------|------|------|--------|-----------|-----------|
@@ -253,8 +239,7 @@ Tabelas independentes (sem FK de entrada):
 | `nome` | TEXT(255) | NÃO | — | NOT NULL | Nome do relatório |
 | `espaco_trabalho_id` | TEXT(36) | NÃO | — | FK → `espacos_trabalho.id` CASCADE, INDEX | Workspace pai |
 | `id_relatorio_pbi` | TEXT(255) | SIM | NULL | — | ID do relatório no Power BI Service |
-| `categoria` | TEXT(100) | SIM | NULL | — | Categoria em texto (campo legado, mantido por compatibilidade) |
-| `categoria_id` | TEXT(36) | SIM | NULL | FK → `categorias_relatorio.id` SET NULL | Categoria estruturada *(novo em v2.0)* |
+| `categoria` | TEXT(100) | SIM | NULL | — | Categoria em texto livre (ex: "Financeiro") |
 | `status` | TEXT(20) | NÃO | `publicado` | NOT NULL | `publicado` \| `rascunho` \| `arquivado` |
 | `descricao` | TEXT | SIM | NULL | — | Descrição longa |
 | `criado_em` | DATETIME | NÃO | `CURRENT_TIMESTAMP` | NOT NULL | Criação (UTC) |
@@ -267,7 +252,7 @@ Tabelas independentes (sem FK de entrada):
 
 ---
 
-### 4.7 `acessos_workspace`
+### 4.6 `acessos_workspace`
 
 | Coluna | Tipo | Nulo | Padrão | Restrições | Descrição |
 |--------|------|------|--------|-----------|-----------|
@@ -283,7 +268,7 @@ Tabelas independentes (sem FK de entrada):
 
 ---
 
-### 4.8 `acessos_relatorio`
+### 4.7 `acessos_relatorio`
 
 | Coluna | Tipo | Nulo | Padrão | Restrições | Descrição |
 |--------|------|------|--------|-----------|-----------|
@@ -298,7 +283,7 @@ Tabelas independentes (sem FK de entrada):
 
 ---
 
-### 4.9 `permissoes_perfil`
+### 4.8 `permissoes_perfil`
 
 | Coluna | Tipo | Nulo | Padrão | Restrições | Descrição |
 |--------|------|------|--------|-----------|-----------|
@@ -315,11 +300,11 @@ Tabelas independentes (sem FK de entrada):
 **Constraints:**
 - `uq_pp_perfil_modulo` — UNIQUE em `(perfil, modulo)`
 
-**Módulos válidos (v2.0):** `usuarios`, `permissoes`, `relatorios`, `workspaces`, `auditoria`, `seguranca`, `configuracoes`, `expediente`, `grupos_excecao`, `landbank`, `departamentos`
+**Módulos válidos (v2.1):** `usuarios`, `permissoes`, `relatorios`, `workspaces`, `auditoria`, `seguranca`, `configuracoes`, `expediente`, `grupos_excecao`, `landbank`, `departamentos`
 
 ---
 
-### 4.10 `perfis` *(novo em v2.0)*
+### 4.9 `perfis` *(novo em v2.0)*
 
 | Coluna | Tipo | Nulo | Padrão | Restrições | Descrição |
 |--------|------|------|--------|-----------|-----------|
@@ -329,9 +314,11 @@ Tabelas independentes (sem FK de entrada):
 | `nivel_hierarquia` | INTEGER | NÃO | `0` | NOT NULL | Nível hierárquico (maior = mais privilegiado) |
 | `pode_ser_atribuido` | INTEGER(bool) | NÃO | `1` | NOT NULL | Se pode ser atribuído pela UI |
 
+> A partir da v2.1, `usuarios.perfil` possui FK referenciando `perfis.codigo` (migration `a1b2c3d4e5f6`). A tabela `perfis` deve ser populada antes de `usuarios`.
+
 ---
 
-### 4.11 `regras_expediente`
+### 4.10 `regras_expediente`
 
 | Coluna | Tipo | Nulo | Padrão | Restrições | Descrição |
 |--------|------|------|--------|-----------|-----------|
@@ -348,7 +335,7 @@ Tabelas independentes (sem FK de entrada):
 
 ---
 
-### 4.12 `grupos_excecao`
+### 4.11 `grupos_excecao`
 
 | Coluna | Tipo | Nulo | Padrão | Restrições | Descrição |
 |--------|------|------|--------|-----------|-----------|
@@ -364,7 +351,7 @@ Tabelas independentes (sem FK de entrada):
 
 ---
 
-### 4.13 `membros_grupo_excecao`
+### 4.12 `membros_grupo_excecao`
 
 | Coluna | Tipo | Nulo | Restrições | Descrição |
 |--------|------|------|-----------|-----------|
@@ -377,7 +364,7 @@ Tabelas independentes (sem FK de entrada):
 
 ---
 
-### 4.14 `favoritos`
+### 4.13 `favoritos`
 
 | Coluna | Tipo | Nulo | Padrão | Restrições | Descrição |
 |--------|------|------|--------|-----------|-----------|
@@ -391,7 +378,7 @@ Tabelas independentes (sem FK de entrada):
 
 ---
 
-### 4.15 `logs_auditoria`
+### 4.14 `logs_auditoria`
 
 > **Atenção:** Tabela append-only. Nenhum UPDATE ou DELETE deve ser executado nela.  
 > Em SQL Server, recomenda-se criar um INSTEAD OF trigger para bloquear modificações.
@@ -403,7 +390,7 @@ Tabelas independentes (sem FK de entrada):
 | `usuario_id` | TEXT(36) | SIM | NULL | INDEX (sem FK intencional) | ID do usuário |
 | `nome_usuario` | TEXT(255) | SIM | NULL | — | Snapshot do nome (imutável) |
 | `email_usuario` | TEXT(255) | SIM | NULL | — | Snapshot do e-mail (imutável) |
-| `tipo_evento` | TEXT(50) | NÃO | — | NOT NULL, INDEX | `autenticacao` \| `usuario` \| `acesso` \| `relatorio` \| `seguranca` \| `sistema` \| `critico` |
+| `tipo_evento` | TEXT(50) | NÃO | — | NOT NULL, INDEX | `autenticacao` \| `seguranca` \| `usuario` \| `permissao` \| `acesso` \| `relatorio` \| `sistema` \| `critico` |
 | `modulo` | TEXT(100) | NÃO | — | NOT NULL, INDEX | Módulo afetado |
 | `detalhe` | TEXT | NÃO | — | NOT NULL | Descrição do evento |
 | `endereco_ip` | TEXT(45) | SIM | NULL | — | IPv4 ou IPv6 |
@@ -417,7 +404,7 @@ Registros de auditoria devem sobreviver à exclusão do usuário. A ausência de
 
 ---
 
-### 4.16 `configuracoes_sistema`
+### 4.15 `configuracoes_sistema`
 
 | Coluna | Tipo | Nulo | Padrão | Restrições | Descrição |
 |--------|------|------|--------|-----------|-----------|
@@ -429,7 +416,7 @@ Registros de auditoria devem sobreviver à exclusão do usuário. A ausência de
 
 ---
 
-### 4.17 `historico_config_critica`
+### 4.16 `historico_config_critica`
 
 | Coluna | Tipo | Nulo | Padrão | Restrições | Descrição |
 |--------|------|------|--------|-----------|-----------|
@@ -448,7 +435,7 @@ Registros de auditoria devem sobreviver à exclusão do usuário. A ausência de
 
 ---
 
-### 4.18 `credenciais_pbi` *(novo em v2.0)*
+### 4.17 `credenciais_pbi` *(novo em v2.0)*
 
 | Coluna | Tipo | Nulo | Padrão | Restrições | Descrição |
 |--------|------|------|--------|-----------|-----------|
@@ -462,7 +449,7 @@ Registros de auditoria devem sobreviver à exclusão do usuário. A ausência de
 
 ---
 
-### 4.19 `pacotes_permissao` *(novo em v2.0)*
+### 4.18 `pacotes_permissao` *(novo em v2.0)*
 
 | Coluna | Tipo | Nulo | Padrão | Restrições | Descrição |
 |--------|------|------|--------|-----------|-----------|
@@ -474,7 +461,7 @@ Registros de auditoria devem sobreviver à exclusão do usuário. A ausência de
 
 ---
 
-### 4.20 `pacotes_permissao_itens` *(novo em v2.0)*
+### 4.19 `pacotes_permissao_itens` *(novo em v2.0)*
 
 | Coluna | Tipo | Nulo | Padrão | Restrições | Descrição |
 |--------|------|------|--------|-----------|-----------|
@@ -493,7 +480,7 @@ Registros de auditoria devem sobreviver à exclusão do usuário. A ausência de
 
 ---
 
-### 4.21 `usuarios_pacotes` *(novo em v2.0)*
+### 4.20 `usuarios_pacotes` *(novo em v2.0)*
 
 | Coluna | Tipo | Nulo | Padrão | Restrições | Descrição |
 |--------|------|------|--------|-----------|-----------|
@@ -513,6 +500,7 @@ Registros de auditoria devem sobreviver à exclusão do usuário. A ausência de
 | Origem | Cardinalidade | Destino | Via | Comportamento na exclusão |
 |--------|:---:|--------|-----|--------------------------|
 | `departamentos` | 1:N | `usuarios` | `departamento_id` | SET NULL |
+| `perfis` | 1:N | `usuarios` | `perfil` | *(sem cascade — perfis são imutáveis)* |
 | `usuarios` | 1:N | `sessoes_autenticacao` | `usuario_id` | CASCADE |
 | `usuarios` | 1:N | `acessos_workspace` | `usuario_id` | CASCADE |
 | `usuarios` | 1:N | `acessos_relatorio` | `usuario_id` | CASCADE |
@@ -522,14 +510,14 @@ Registros de auditoria devem sobreviver à exclusão do usuário. A ausência de
 | `usuarios` | self-ref | `usuarios` | `criado_por_id` | SET NULL |
 | `espacos_trabalho` | 1:N | `relatorios` | `espaco_trabalho_id` | CASCADE |
 | `espacos_trabalho` | 1:N | `acessos_workspace` | `espaco_trabalho_id` | CASCADE |
-| `categorias_relatorio` | 1:N | `relatorios` | `categoria_id` | SET NULL |
 | `relatorios` | 1:N | `acessos_relatorio` | `relatorio_id` | CASCADE |
 | `relatorios` | 1:N | `favoritos` | `relatorio_id` | CASCADE |
 | `grupos_excecao` | 1:N | `membros_grupo_excecao` | `grupo_id` | CASCADE |
 | `pacotes_permissao` | 1:N | `pacotes_permissao_itens` | `pacote_id` | CASCADE |
 | `pacotes_permissao` | 1:N | `usuarios_pacotes` | `pacote_id` | CASCADE |
 
-> **v2.0:** O FK `membros_grupo_excecao.usuario_id` agora possui `ondelete="CASCADE"`, corrigindo o comportamento anterior (sem ondelete) que causava erros em SQL Server ao excluir usuários pertencentes a grupos de exceção.
+> **v2.0:** O FK `membros_grupo_excecao.usuario_id` agora possui `ondelete="CASCADE"`, corrigindo o comportamento anterior (sem ondelete) que causava erros em SQL Server ao excluir usuários pertencentes a grupos de exceção.  
+> **v2.1:** `usuarios.perfil` agora possui FK referenciando `perfis.codigo` (migration `a1b2c3d4e5f6`).
 
 ---
 
@@ -555,10 +543,6 @@ Ao excluir um WORKSPACE:
 
 Ao excluir um RELATÓRIO:
   → CASCADE: acessos_relatorio, favoritos
-  → SET NULL: categoria_id permanece na categoria (é o relatório que é removido)
-
-Ao excluir uma CATEGORIA DE RELATÓRIO:
-  → SET NULL: categoria_id em relatorios (relatórios ficam sem categoria estruturada)
 
 Ao excluir um GRUPO DE EXCEÇÃO:
   → CASCADE: membros_grupo_excecao
@@ -588,13 +572,22 @@ CREATE TABLE IF NOT EXISTS departamentos (
     atualizado_em DATETIME NOT NULL DEFAULT (CURRENT_TIMESTAMP)
 );
 
--- 2. usuarios (FK self-referencial e departamento_id adicionadas depois)
+-- 2. perfis (deve existir antes de usuarios em v2.1)
+CREATE TABLE IF NOT EXISTS perfis (
+    codigo             TEXT(30)  NOT NULL PRIMARY KEY,
+    nome_exibicao      TEXT(100) NOT NULL,
+    descricao          TEXT,
+    nivel_hierarquia   INTEGER   NOT NULL DEFAULT 0,
+    pode_ser_atribuido INTEGER   NOT NULL DEFAULT 1
+);
+
+-- 3. usuarios (FK self-referencial, departamento_id e perfil→perfis)
 CREATE TABLE IF NOT EXISTS usuarios (
     id               TEXT(36)  NOT NULL PRIMARY KEY,
     nome             TEXT(255) NOT NULL,
     email            TEXT(255) NOT NULL UNIQUE,
     hash_senha       TEXT(255) NOT NULL,
-    perfil           TEXT(30)  NOT NULL,
+    perfil           TEXT(30)  NOT NULL REFERENCES perfis(codigo),
     status           TEXT(20)  NOT NULL DEFAULT 'ativo',
     tentativas_login INTEGER   NOT NULL DEFAULT 0,
     senha_provisoria INTEGER   NOT NULL DEFAULT 0,
@@ -613,7 +606,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
 CREATE INDEX IF NOT EXISTS ix_usuarios_email  ON usuarios(email);
 CREATE INDEX IF NOT EXISTS ix_usuarios_status ON usuarios(status);
 
--- 3. permissoes_perfil
+-- 4. permissoes_perfil
 CREATE TABLE IF NOT EXISTS permissoes_perfil (
     id              TEXT(36)  NOT NULL PRIMARY KEY,
     perfil          TEXT(30)  NOT NULL,
@@ -625,15 +618,6 @@ CREATE TABLE IF NOT EXISTS permissoes_perfil (
     pode_exportar   INTEGER   NOT NULL DEFAULT 0,
     pode_gerenciar  INTEGER   NOT NULL DEFAULT 0,
     CONSTRAINT uq_pp_perfil_modulo UNIQUE (perfil, modulo)
-);
-
--- 4. perfis
-CREATE TABLE IF NOT EXISTS perfis (
-    codigo             TEXT(30)  NOT NULL PRIMARY KEY,
-    nome_exibicao      TEXT(100) NOT NULL,
-    descricao          TEXT,
-    nivel_hierarquia   INTEGER   NOT NULL DEFAULT 0,
-    pode_ser_atribuido INTEGER   NOT NULL DEFAULT 1
 );
 
 -- 5. regras_expediente
@@ -720,16 +704,7 @@ CREATE TABLE IF NOT EXISTS espacos_trabalho (
     FOREIGN KEY (criado_por_id) REFERENCES usuarios(id) ON DELETE SET NULL
 );
 
--- 10. categorias_relatorio
-CREATE TABLE IF NOT EXISTS categorias_relatorio (
-    id    TEXT(36)  NOT NULL PRIMARY KEY,
-    nome  TEXT(100) NOT NULL UNIQUE,
-    cor   TEXT(7),
-    icone TEXT(50),
-    ativo INTEGER   NOT NULL DEFAULT 1
-);
-
--- 11. grupos_excecao
+-- 10. grupos_excecao
 CREATE TABLE IF NOT EXISTS grupos_excecao (
     id                 TEXT(36)  NOT NULL PRIMARY KEY,
     nome               TEXT(255) NOT NULL,
@@ -743,7 +718,7 @@ CREATE TABLE IF NOT EXISTS grupos_excecao (
     FOREIGN KEY (criado_por_id) REFERENCES usuarios(id) ON DELETE SET NULL
 );
 
--- 12. configuracoes_sistema
+-- 11. configuracoes_sistema
 CREATE TABLE IF NOT EXISTS configuracoes_sistema (
     chave             TEXT(255) NOT NULL PRIMARY KEY,
     valor             TEXT      NOT NULL,
@@ -753,7 +728,7 @@ CREATE TABLE IF NOT EXISTS configuracoes_sistema (
     FOREIGN KEY (atualizado_por_id) REFERENCES usuarios(id) ON DELETE SET NULL
 );
 
--- 13. credenciais_pbi
+-- 12. credenciais_pbi
 CREATE TABLE IF NOT EXISTS credenciais_pbi (
     id                TEXT(36)  NOT NULL PRIMARY KEY,
     tenant_id         TEXT(255),
@@ -765,7 +740,7 @@ CREATE TABLE IF NOT EXISTS credenciais_pbi (
     FOREIGN KEY (atualizado_por_id) REFERENCES usuarios(id) ON DELETE SET NULL
 );
 
--- 14. pacotes_permissao
+-- 13. pacotes_permissao
 CREATE TABLE IF NOT EXISTS pacotes_permissao (
     id            TEXT(36)  NOT NULL PRIMARY KEY,
     nome          TEXT(255) NOT NULL UNIQUE,
@@ -779,28 +754,26 @@ CREATE TABLE IF NOT EXISTS pacotes_permissao (
 ### 7.3 Tabelas com múltiplas dependências
 
 ```sql
--- 15. relatorios (depende de espacos_trabalho, categorias_relatorio e usuarios)
+-- 14. relatorios (depende de espacos_trabalho e usuarios)
 CREATE TABLE IF NOT EXISTS relatorios (
     id                 TEXT(36)  NOT NULL PRIMARY KEY,
     nome               TEXT(255) NOT NULL,
     espaco_trabalho_id TEXT(36)  NOT NULL,
     id_relatorio_pbi   TEXT(255),
     categoria          TEXT(100),
-    categoria_id       TEXT(36),
     status             TEXT(20)  NOT NULL DEFAULT 'publicado',
     descricao          TEXT,
     criado_em          DATETIME  NOT NULL DEFAULT (CURRENT_TIMESTAMP),
     atualizado_em      DATETIME  NOT NULL DEFAULT (CURRENT_TIMESTAMP),
     criado_por_id      TEXT(36),
-    FOREIGN KEY (espaco_trabalho_id) REFERENCES espacos_trabalho(id)     ON DELETE CASCADE,
-    FOREIGN KEY (categoria_id)       REFERENCES categorias_relatorio(id)  ON DELETE SET NULL,
-    FOREIGN KEY (criado_por_id)      REFERENCES usuarios(id)              ON DELETE SET NULL
+    FOREIGN KEY (espaco_trabalho_id) REFERENCES espacos_trabalho(id) ON DELETE CASCADE,
+    FOREIGN KEY (criado_por_id)      REFERENCES usuarios(id)         ON DELETE SET NULL
 );
 
 CREATE INDEX IF NOT EXISTS ix_relatorios_espaco_status ON relatorios(espaco_trabalho_id, status);
 CREATE INDEX IF NOT EXISTS ix_relatorios_status        ON relatorios(status);
 
--- 16. acessos_workspace
+-- 15. acessos_workspace
 CREATE TABLE IF NOT EXISTS acessos_workspace (
     id                 TEXT(36) NOT NULL PRIMARY KEY,
     usuario_id         TEXT(36) NOT NULL,
@@ -814,7 +787,7 @@ CREATE TABLE IF NOT EXISTS acessos_workspace (
     FOREIGN KEY (concedido_por_id)   REFERENCES usuarios(id)          ON DELETE SET NULL
 );
 
--- 17. acessos_relatorio
+-- 16. acessos_relatorio
 CREATE TABLE IF NOT EXISTS acessos_relatorio (
     id               TEXT(36) NOT NULL PRIMARY KEY,
     usuario_id       TEXT(36) NOT NULL,
@@ -822,12 +795,12 @@ CREATE TABLE IF NOT EXISTS acessos_relatorio (
     concedido_por_id TEXT(36),
     concedido_em     DATETIME NOT NULL DEFAULT (CURRENT_TIMESTAMP),
     CONSTRAINT uq_ar_usuario_relatorio UNIQUE (usuario_id, relatorio_id),
-    FOREIGN KEY (usuario_id)     REFERENCES usuarios(id)   ON DELETE CASCADE,
-    FOREIGN KEY (relatorio_id)   REFERENCES relatorios(id) ON DELETE CASCADE,
-    FOREIGN KEY (concedido_por_id) REFERENCES usuarios(id) ON DELETE SET NULL
+    FOREIGN KEY (usuario_id)       REFERENCES usuarios(id)   ON DELETE CASCADE,
+    FOREIGN KEY (relatorio_id)     REFERENCES relatorios(id) ON DELETE CASCADE,
+    FOREIGN KEY (concedido_por_id) REFERENCES usuarios(id)   ON DELETE SET NULL
 );
 
--- 18. favoritos
+-- 17. favoritos
 CREATE TABLE IF NOT EXISTS favoritos (
     id           TEXT(36) NOT NULL PRIMARY KEY,
     usuario_id   TEXT(36) NOT NULL,
@@ -838,7 +811,7 @@ CREATE TABLE IF NOT EXISTS favoritos (
     FOREIGN KEY (relatorio_id) REFERENCES relatorios(id) ON DELETE CASCADE
 );
 
--- 19. membros_grupo_excecao
+-- 18. membros_grupo_excecao
 CREATE TABLE IF NOT EXISTS membros_grupo_excecao (
     grupo_id   TEXT(36) NOT NULL,
     usuario_id TEXT(36) NOT NULL,
@@ -847,7 +820,7 @@ CREATE TABLE IF NOT EXISTS membros_grupo_excecao (
     FOREIGN KEY (usuario_id) REFERENCES usuarios(id)       ON DELETE CASCADE
 );
 
--- 20. pacotes_permissao_itens
+-- 19. pacotes_permissao_itens
 CREATE TABLE IF NOT EXISTS pacotes_permissao_itens (
     id              TEXT(36)  NOT NULL PRIMARY KEY,
     pacote_id       TEXT(36)  NOT NULL,
@@ -862,7 +835,7 @@ CREATE TABLE IF NOT EXISTS pacotes_permissao_itens (
     FOREIGN KEY (pacote_id) REFERENCES pacotes_permissao(id) ON DELETE CASCADE
 );
 
--- 21. usuarios_pacotes
+-- 20. usuarios_pacotes
 CREATE TABLE IF NOT EXISTS usuarios_pacotes (
     id               TEXT(36) NOT NULL PRIMARY KEY,
     usuario_id       TEXT(36) NOT NULL,
@@ -912,18 +885,7 @@ O script é **idempotente** (usa upsert — pode ser executado múltiplas vezes 
 | Marketing | MKT | Marketing e Comunicação |
 | Operações | OPS | Operações e Logística |
 
-### 8.2 Categorias de Relatório (6 registros)
-
-| Nome | Cor | Ícone |
-|------|-----|-------|
-| Financeiro | #16a34a | fa-chart-line |
-| Operacional | #2563eb | fa-cogs |
-| Estratégico | #7c3aed | fa-chess |
-| Marketing | #d97706 | fa-bullhorn |
-| RH | #dc2626 | fa-users |
-| Tecnologia | #0891b2 | fa-laptop-code |
-
-### 8.3 Usuários de demonstração
+### 8.2 Usuários de demonstração
 
 | Nome | E-mail | Senha | Perfil | Departamento |
 |------|--------|-------|--------|-------------|
@@ -934,9 +896,9 @@ O script é **idempotente** (usa upsert — pode ser executado múltiplas vezes 
 
 > **Atenção:** Altere as senhas imediatamente após o primeiro deploy em produção.
 
-### 8.4 Matriz de permissões por perfil
+### 8.3 Matriz de permissões por perfil
 
-Os módulos ativos no seed v2.0 são: `usuarios`, `permissoes`, `relatorios`, `workspaces`, `auditoria`, `seguranca`, `configuracoes`, `expediente`, `grupos_excecao`, `landbank`, `departamentos`.
+Os módulos ativos no seed v2.1 são: `usuarios`, `permissoes`, `relatorios`, `workspaces`, `auditoria`, `seguranca`, `configuracoes`, `expediente`, `grupos_excecao`, `landbank`, `departamentos`.
 
 | Perfil | visualizar | criar | editar | excluir | exportar | gerenciar |
 |--------|:---:|:---:|:---:|:---:|:---:|:---:|
@@ -946,7 +908,7 @@ Os módulos ativos no seed v2.0 são: `usuarios`, `permissoes`, `relatorios`, `w
 | colaborador | relatorios | ✗ | ✗ | ✗ | ✗ | ✗ |
 | convidado | relatorios | ✗ | ✗ | ✗ | ✗ | ✗ |
 
-### 8.5 Regras de expediente (7 linhas)
+### 8.4 Regras de expediente (7 linhas)
 
 ```
 Domingo (0):  08:00–18:00, ativo=false, bloquear=false  (sem restrição)
@@ -958,7 +920,7 @@ Sexta (5):    08:00–18:00, ativo=true,  bloquear=true
 Sábado (6):   08:00–18:00, ativo=false, bloquear=false  (sem restrição)
 ```
 
-### 8.6 Configurações do sistema (7 chaves)
+### 8.5 Configurações do sistema (7 chaves)
 
 | Chave | Valor padrão | Secreto |
 |-------|-------------|:-------:|
@@ -970,9 +932,9 @@ Sábado (6):   08:00–18:00, ativo=false, bloquear=false  (sem restrição)
 | `pbi_client_secret` | `""` | **Sim** |
 | `pbi_integracao_ativa` | `false` | Não |
 
-### 8.7 Workspaces e relatórios de exemplo
+### 8.6 Workspaces e relatórios de exemplo
 
-4 workspaces (Administrativo, Controladoria, Marketing, SAC) com 12 relatórios ao total, cada um com `categoria_id` apontando para as categorias do seed 8.2.
+4 workspaces (Administrativo, Controladoria, Marketing, SAC) com 12 relatórios ao total. O campo `categoria` (texto livre) pode ser preenchido opcionalmente em cada relatório.
 
 ---
 
@@ -981,9 +943,9 @@ Sábado (6):   08:00–18:00, ativo=false, bloquear=false  (sem restrição)
 ```
 ETAPA 1 — Tabelas sem dependências externas
   ├── departamentos       (standalone)
-  ├── usuarios            (FK self-ref e departamento_id — criadas mas constraints adicionadas depois)
+  ├── perfis              (standalone — deve existir antes de usuarios em v2.1)
+  ├── usuarios            (FK self-ref, departamento_id e perfil→perfis)
   ├── permissoes_perfil   (standalone)
-  ├── perfis              (standalone)
   ├── regras_expediente   (standalone)
   ├── logs_auditoria      (standalone — sem FK intencional)
   └── historico_config_critica (standalone — sem FK intencional)
@@ -991,14 +953,13 @@ ETAPA 1 — Tabelas sem dependências externas
 ETAPA 2 — Tabelas dependentes de usuarios
   ├── sessoes_autenticacao  (→ usuarios)
   ├── espacos_trabalho      (→ usuarios)
-  ├── categorias_relatorio  (standalone — sem FK)
   ├── grupos_excecao        (→ usuarios)
   ├── configuracoes_sistema (→ usuarios)
   ├── credenciais_pbi       (→ usuarios)
   └── pacotes_permissao     (→ usuarios)
 
-ETAPA 3 — Tabelas dependentes de espacos_trabalho e categorias_relatorio
-  └── relatorios            (→ espacos_trabalho, → categorias_relatorio, → usuarios)
+ETAPA 3 — Tabelas dependentes de espacos_trabalho
+  └── relatorios            (→ espacos_trabalho, → usuarios)
 
 ETAPA 4 — Tabelas dependentes de múltiplas entidades
   ├── acessos_workspace     (→ usuarios, → espacos_trabalho)
@@ -1009,14 +970,14 @@ ETAPA 4 — Tabelas dependentes de múltiplas entidades
   └── usuarios_pacotes      (→ usuarios, → pacotes_permissao)
 
 ETAPA 5 — Seeds (dados obrigatórios)
+  ├── perfis                (5 registros: master, administrador, coordenador, colaborador, convidado)
   ├── departamentos         (5 registros)
-  ├── categorias_relatorio  (6 registros)
   ├── usuarios              (4 usuários de demonstração)
   ├── permissoes_perfil     (55 linhas — 11 módulos × 5 perfis)
   ├── regras_expediente     (7 linhas)
   ├── configuracoes_sistema (7 chaves)
   ├── espacos_trabalho      (4 workspaces)
-  └── relatorios            (12 relatórios com categoria_id)
+  └── relatorios            (12 relatórios)
 ```
 
 ---
@@ -1037,18 +998,23 @@ uvicorn main:app --reload
 # Acesse: http://localhost:8000/docs
 ```
 
-### Modo Desenvolvimento (SQLite — banco existente, atualizar para v2.0)
+### Modo Desenvolvimento (SQLite — banco existente, atualizar schema)
 
 ```bash
 cd backend
 pip install alembic
 
-# Aplicar migration v2.0
+# Se o banco foi criado via seed.py (sem Alembic), marcar versão base primeiro:
+alembic stamp 60fc08a85566
+
+# Aplicar migrations pendentes:
+#   a1b2c3d4e5f6 → FK usuarios.perfil → perfis.codigo
+#   b2c3d4e5f6a7 → remoção de categorias_relatorio
 alembic upgrade head
 
 # Verificar estado
 alembic current
-# Esperado: 60fc08a85566 (head)
+# Esperado: b2c3d4e5f6a7 (head)
 ```
 
 ### Modo Produção (SQL Server)
@@ -1077,7 +1043,7 @@ uvicorn main:app --host 0.0.0.0 --port 8000
 import sqlite3
 conn = sqlite3.connect('cgid.db')
 tables = conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
-print('Tabelas criadas:', len(tables))  # Esperado: 21
+print('Tabelas criadas:', len(tables))  # Esperado: 20
 conn.close()
 ```
 
@@ -1122,7 +1088,46 @@ PBI_CLIENT_SECRET=sua-chave-secreta-aqui
 
 ---
 
-## 12. Possíveis Erros e Soluções
+## 12. Arquitetura de Permissões (Backend)
+
+A lógica de controle de acesso foi centralizada em v2.1 em dois módulos dedicados:
+
+### `backend/constants.py`
+
+Constantes globais usadas em todo o backend:
+
+| Constante | Tipo | Conteúdo |
+|-----------|------|---------|
+| `PERFIS_VALIDOS` | set | Todos os perfis aceitos pelo sistema |
+| `PERFIS_ATRIBUIVEIS` | set | Perfis que podem ser atribuídos pela UI (exclui `master`) |
+| `PERFIS_SUPER_ADMIN` | set | `{"master"}` — acesso irrestrito sem consulta ao banco |
+| `PERFIS_ADMIN` | set | `{"master", "administrador"}` |
+| `STATUS_VALIDOS` | set | `{"ativo", "inativo", "bloqueado"}` |
+| `SENHA_PADRAO` | str | `"Mudar@123"` — senha provisória gerada pelo sistema |
+| `MODULOS_VALIDOS` | set | 11 módulos: `usuarios`, `permissoes`, `relatorios`, `workspaces`, `auditoria`, `seguranca`, `configuracoes`, `expediente`, `grupos_excecao`, `landbank`, `departamentos` |
+| `ACOES_VALIDAS` | dict | Mapeamento `acao → campo_db` (ex: `"visualizar" → "pode_visualizar"`) |
+
+### `backend/services/permission_service.py`
+
+| Função | Descrição |
+|--------|-----------|
+| `obter_permissoes_efetivas(usuario, db)` | Retorna `dict[modulo → dict[acao → bool]]` combinando `permissoes_perfil` (base) com `pacotes_permissao_itens` (aditivos). Usuários `master` recebem `True` em tudo sem consultar o banco. Usa 3 queries fixas. |
+| `checar_permissao(usuario, modulo, acao, db)` | Atalho que retorna `bool` para um módulo/ação específicos. |
+
+### `backend/dependencies.py`
+
+| Símbolo | Descrição |
+|---------|-----------|
+| `get_usuario_requisicao(request, db)` | Lê `X-Usuario-Id` do header e retorna o `Usuario` do banco. |
+| `exigir_permissao(usuario, modulo, acao, db)` | Lança `HTTP 401/403` se a permissão não for satisfeita. |
+| `require_permission(modulo, acao)` | **Dependency factory** para uso com `Depends()`. Retorna o `Usuario` autenticado ou lança exceção. Uso: `autor: Usuario = Depends(require_permission("usuarios", "criar"))` |
+| `validar_sessao_middleware` | Middleware ASGI que valida `X-Session-Token` (SHA-256) a cada requisição. |
+
+> Re-exporta `checar_permissao`, `PERFIS_VALIDOS`, `PERFIS_ADMIN`, `STATUS_VALIDOS` e `SENHA_PADRAO` de `constants` por compatibilidade com routers existentes.
+
+---
+
+## 13. Possíveis Erros e Soluções
 
 ### `OperationalError: no such table: usuarios`
 
@@ -1131,12 +1136,16 @@ PBI_CLIENT_SECRET=sua-chave-secreta-aqui
 
 ---
 
-### `alembic.util.exc.CommandError: Can't locate revision identified by '...'`
+### `alembic.util.exc.CommandError: Can't locate revision identified by '...'` / `Target database is not up to date`
 
-**Causa:** O banco foi criado com `seed.py` mas o Alembic não sabe que está na versão correta.  
+**Causa:** O banco foi criado com `seed.py` (via `create_all`) mas o Alembic não tem registro da versão aplicada.  
 **Solução:**
 ```bash
-alembic stamp head
+# Marcar o banco como estando na versão base (v2.0)
+alembic stamp 60fc08a85566
+
+# Em seguida aplicar as migrations pendentes
+alembic upgrade head
 ```
 
 ---
@@ -1203,6 +1212,8 @@ UPDATE usuarios SET nome = 'Novo Nome', atualizado_em = CURRENT_TIMESTAMP WHERE 
 | Versão | Data | Autor | Descrição |
 |--------|------|-------|-----------|
 | 1.0 | 2026-06-23 | Vinicius Soares | Criação inicial (15 tabelas) |
-| 2.0 | 2026-06-25 | Vinicius Soares | v2.0: +6 tabelas novas (departamentos, categorias_relatorio, perfis, credenciais_pbi, pacotes_permissao, pacotes_permissao_itens, usuarios_pacotes); remoção de sobrescritas_permissao; departamento_id em usuarios; categoria_id em relatorios; CASCADE corrigido em membros_grupo_excecao.usuario_id; Alembic configurado |
+| 2.0 | 2026-06-25 | Vinicius Soares | +6 tabelas novas (departamentos, perfis, credenciais_pbi, pacotes_permissao, pacotes_permissao_itens, usuarios_pacotes); remoção de sobrescritas_permissao; departamento_id em usuarios; CASCADE corrigido em membros_grupo_excecao.usuario_id; Alembic configurado |
+| 2.1 | 2026-06-25 | Vinicius Soares | Remoção de categorias_relatorio (migration b2c3d4e5f6a7); campo categoria texto livre mantido em relatorios; FK usuarios.perfil → perfis.codigo (migration a1b2c3d4e5f6); lógica de permissões centralizada em permission_service.py; constants.py criado; require_permission() dependency adicionada; schemas.py centralizado |
+| 2.1.1 | 2026-06-26 | Vinicius Soares | Documentação: seção 12 (Arquitetura de Permissões); tipo_evento de logs_auditoria corrigido (adicionado `permissao`); FK usuarios.perfil registrada em §4.2 e §4.9; migration a1b2c3d4e5f6 incluída nos comandos de upgrade; ERD atualizado com FK perfil; ordem de execução atualizada (perfis antes de usuarios); correções de ESLint no frontend (AuditPage, AccessControlPage) |
 
 *Documentação gerada a partir do código-fonte em `backend/models.py` e `backend/seed.py`.*

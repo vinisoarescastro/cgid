@@ -219,7 +219,7 @@ function AbaPacotes({ podeEditar }) {
       .finally(() => setLoading(false))
   }, [])
 
-  useEffect(() => { carregar() }, [carregar])
+  useEffect(() => { carregar() }, [carregar]) // eslint-disable-line react-hooks/set-state-in-effect
 
   async function handleExcluir(id) {
     setExcluindo(true)
@@ -361,12 +361,12 @@ function AbaUsuarios({ podeEditar, isMaster }) {
       ])
       setUsuarios(uRes)
       setPacotes(pRes)
-    } catch {}
+    } catch { /* ignorado */ }
     finally { setLoading(false) }
   }, [])
 
-  useEffect(() => { carregar() }, [carregar])
-  useEffect(() => { setPagina(1) }, [busca, filtroPerfil, filtroStatus])
+  useEffect(() => { carregar() }, [carregar]) // eslint-disable-line react-hooks/set-state-in-effect
+  useEffect(() => { setPagina(1) }, [busca, filtroPerfil, filtroStatus]) // eslint-disable-line react-hooks/set-state-in-effect
 
   // ── Estado efetivo (local sobrepõe original) ──
   function getEfetivoPerfil(u) { return local[u.id]?.perfil ?? u.perfil }

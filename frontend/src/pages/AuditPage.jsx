@@ -89,7 +89,7 @@ export default function AuditPage() {
       .finally(() => setLoading(false))
   }, [filtros])
 
-  useEffect(() => { buscar(1) }, [])
+  useEffect(() => { buscar(1) }, [buscar]) // eslint-disable-line react-hooks/set-state-in-effect
 
   function aplicarFiltros(e) {
     e.preventDefault()

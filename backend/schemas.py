@@ -118,28 +118,6 @@ class FavoritoCriar(BaseModel):
     relatorio_id: str
 
 
-# ─── Categorias de Relatório ──────────────────────────────────────────────────
-
-class CategoriaRelatorioItem(BaseModel):
-    id: str
-    nome: str
-    cor: Optional[str] = None
-    icone: Optional[str] = None
-    ativo: bool
-    model_config = _CFG
-
-class CategoriaRelatorioCriar(BaseModel):
-    nome: str
-    cor: Optional[str] = None
-    icone: Optional[str] = None
-
-class CategoriaRelatorioAtualizar(BaseModel):
-    nome: Optional[str] = None
-    cor: Optional[str] = None
-    icone: Optional[str] = None
-    ativo: Optional[bool] = None
-
-
 # ─── Workspaces ───────────────────────────────────────────────────────────────
 
 class WorkspaceItem(BaseModel):
@@ -173,7 +151,6 @@ class RelatorioItem(BaseModel):
     id: str
     nome: str
     categoria: Optional[str] = None
-    categoria_id: Optional[str] = None
     status: str
     descricao: Optional[str] = None
     id_relatorio_pbi: Optional[str] = None
@@ -182,7 +159,6 @@ class RelatorioItem(BaseModel):
 class RelatorioCreate(BaseModel):
     nome: str
     categoria: Optional[str] = None
-    categoria_id: Optional[str] = None
     status: str = "publicado"
     descricao: Optional[str] = None
     id_relatorio_pbi: Optional[str] = None

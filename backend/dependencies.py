@@ -1,24 +1,12 @@
 from typing import Optional
-from fastapi import Request, HTTPException
+from fastapi import Request, HTTPException, Depends
 from sqlalchemy.orm import Session
 import hashlib
 from datetime import datetime, timezone
-from database import SessionLocal
-from models import Usuario, SessaoAutenticacao, PermissaoPerfil, PacotePermissao, PacotePermissaoItem, UsuarioPacote
-
-PERFIS_VALIDOS  = {"master", "administrador", "coordenador", "colaborador", "convidado"}
-STATUS_VALIDOS  = {"ativo", "inativo", "bloqueado"}
-PERFIS_ADMIN    = {"master", "administrador"}
-SENHA_PADRAO    = "Mudar@123"
-
-_CAMPOS_ACAO = {
-    "visualizar": "pode_visualizar",
-    "criar":      "pode_criar",
-    "editar":     "pode_editar",
-    "excluir":    "pode_excluir",
-    "exportar":   "pode_exportar",
-    "gerenciar":  "pode_gerenciar",
-}
+from database import SessionLocal, get_db
+from models import Usuario, SessaoAutenticacao
+from constants import PERFIS_VALIDOS, PERFIS_ADMIN, STATUS_VALIDOS, SENHA_PADRAO  # noqa: F401 — re-exportados para compatibilidade
+from services.permission_service import checar_permissao  # noqa: F401 — re-exportado
 
 
 def get_ip(request: Request) -> Optional[str]:
@@ -37,31 +25,24 @@ def get_usuario_requisicao(request: Request, db: Session) -> Optional[Usuario]:
     return db.query(Usuario).filter(Usuario.id == uid).first()
 
 
-def checar_permissao(usuario: Usuario, modulo: str, acao: str, db: Session) -> bool:
-    if usuario.perfil == "master":
-        return True
-    campo = _CAMPOS_ACAO.get(acao)
-    if not campo:
-        return False
-    pp = db.query(PermissaoPerfil).filter_by(perfil=usuario.perfil, modulo=modulo).first()
-    if pp and getattr(pp, campo):
-        return True
-    pacote_ids = [up.pacote_id for up in db.query(UsuarioPacote).filter_by(usuario_id=usuario.id).all()]
-    if pacote_ids:
-        itens = db.query(PacotePermissaoItem).filter(
-            PacotePermissaoItem.pacote_id.in_(pacote_ids),
-            PacotePermissaoItem.modulo == modulo,
-        ).all()
-        if any(getattr(item, campo) for item in itens):
-            return True
-    return False
-
-
 def exigir_permissao(usuario: Optional[Usuario], modulo: str, acao: str, db: Session):
     if not usuario:
         raise HTTPException(status_code=401, detail="Nao autenticado.")
     if not checar_permissao(usuario, modulo, acao, db):
         raise HTTPException(status_code=403, detail="Permissao insuficiente.")
+
+
+def require_permission(modulo: str, acao: str):
+    """
+    Dependency factory para validar permissão e retornar o usuário autenticado.
+
+    Uso: autor: Usuario = Depends(require_permission("usuarios", "criar"))
+    """
+    def _dep(request: Request, db: Session = Depends(get_db)) -> Usuario:
+        usuario = get_usuario_requisicao(request, db)
+        exigir_permissao(usuario, modulo, acao, db)
+        return usuario
+    return _dep
 
 
 async def validar_sessao_middleware(request: Request, call_next):

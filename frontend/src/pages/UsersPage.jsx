@@ -41,6 +41,171 @@ const NIVEL_LABELS = {
   apenas_relatorios: 'Relatórios específicos',
 }
 
+// ─── Modal Departamentos ──────────────────────────────────────────────────────
+function ModalDepartamentos({ onClose, onChange }) {
+  const [deps, setDeps]           = useState([])
+  const [loading, setLoading]     = useState(true)
+  const [formNome, setFormNome]   = useState('')
+  const [formCod, setFormCod]     = useState('')
+  const [formDesc, setFormDesc]   = useState('')
+  const [editando, setEditando]   = useState(null) // dep obj
+  const [erro, setErro]           = useState('')
+  const [salvando, setSalvando]   = useState(false)
+
+  async function carregar() {
+    setLoading(true)
+    try {
+      const r = await fetch(`${API}/departamentos?apenas_ativos=false`)
+      setDeps(await r.json())
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { carregar() }, [])
+
+  function iniciarEdicao(dep) {
+    setEditando(dep)
+    setFormNome(dep.nome)
+    setFormCod(dep.codigo ?? '')
+    setFormDesc(dep.descricao ?? '')
+    setErro('')
+  }
+
+  function cancelarEdicao() {
+    setEditando(null)
+    setFormNome('')
+    setFormCod('')
+    setFormDesc('')
+    setErro('')
+  }
+
+  async function salvar() {
+    if (!formNome.trim()) { setErro('Nome obrigatório.'); return }
+    setSalvando(true); setErro('')
+    try {
+      const body = { nome: formNome.trim(), codigo: formCod.trim() || null, descricao: formDesc.trim() || null }
+      const r = editando
+        ? await apiFetch(`/departamentos/${editando.id}`, { method: 'PUT', body })
+        : await apiFetch('/departamentos', { method: 'POST', body })
+      if (r.status === 409) { setErro('Já existe um departamento com esse nome.'); return }
+      if (!r.ok) throw new Error()
+      cancelarEdicao()
+      await carregar()
+      onChange()
+    } catch {
+      setErro('Erro ao salvar.')
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  async function desativar(dep) {
+    await apiFetch(`/departamentos/${dep.id}`, { method: 'DELETE' })
+    await carregar()
+    onChange()
+  }
+
+  async function reativar(dep) {
+    await apiFetch(`/departamentos/${dep.id}`, { method: 'PUT', body: { ativo: true } })
+    await carregar()
+    onChange()
+  }
+
+  return (
+    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal" style={{ maxWidth: 560 }}>
+        <div className="modal-hd">
+          <span className="modal-title">Gerenciar Departamentos</span>
+          <button className="modal-close" onClick={onClose}><i className="fa-solid fa-xmark" /></button>
+        </div>
+
+        <div className="modal-bd" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {/* Formulário */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '14px 16px', background: 'var(--gray-50)', borderRadius: 'var(--r-md)', border: '1px solid var(--gray-200)' }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              {editando ? 'Editar departamento' : 'Novo departamento'}
+            </div>
+            <div className="form-grid-2">
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label">Nome *</label>
+                <input className="form-input" value={formNome} onChange={e => setFormNome(e.target.value)} placeholder="Ex: Financeiro" />
+              </div>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label">Código</label>
+                <input className="form-input" value={formCod} onChange={e => setFormCod(e.target.value)} placeholder="Ex: FIN" />
+              </div>
+            </div>
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label">Descrição</label>
+              <input className="form-input" value={formDesc} onChange={e => setFormDesc(e.target.value)} placeholder="Opcional" />
+            </div>
+            {erro && <div style={{ fontSize: 12, color: '#b91c1c' }}>{erro}</div>}
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              {editando && (
+                <button className="btn-secondary" style={{ fontSize: 13, padding: '6px 14px' }} onClick={cancelarEdicao}>Cancelar</button>
+              )}
+              <button className="btn-primary" style={{ fontSize: 13, padding: '6px 14px' }} onClick={salvar} disabled={salvando}>
+                {salvando ? <><i className="fa-solid fa-circle-notch fa-spin" /> Salvando…</> : editando ? <><i className="fa-solid fa-floppy-disk" /> Salvar</> : <><i className="fa-solid fa-plus" /> Adicionar</>}
+              </button>
+            </div>
+          </div>
+
+          {/* Lista */}
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: 24, color: 'var(--gray-400)' }}>
+              <i className="fa-solid fa-circle-notch fa-spin" />
+            </div>
+          ) : deps.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 24, color: 'var(--gray-400)', fontSize: 13 }}>
+              Nenhum departamento cadastrado.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {deps.map(dep => (
+                <div key={dep.id} style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  padding: '10px 14px', borderRadius: 'var(--r-md)',
+                  border: `1px solid ${dep.ativo ? 'var(--gray-200)' : 'var(--gray-100)'}`,
+                  background: dep.ativo ? '#fff' : 'var(--gray-50)',
+                  opacity: dep.ativo ? 1 : 0.6,
+                }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--gray-800)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {dep.nome}
+                      {dep.codigo && <span style={{ fontWeight: 400, fontSize: 11, color: 'var(--gray-400)', fontFamily: 'monospace' }}>{dep.codigo}</span>}
+                      {!dep.ativo && <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--gray-400)', background: 'var(--gray-100)', borderRadius: 99, padding: '1px 7px' }}>Inativo</span>}
+                    </div>
+                    {dep.descricao && <div style={{ fontSize: 11, color: 'var(--gray-400)', marginTop: 1 }}>{dep.descricao}</div>}
+                  </div>
+                  <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                    <button className="btn-action" title="Editar" onClick={() => iniciarEdicao(dep)}>
+                      <i className="fa-solid fa-pen" />
+                    </button>
+                    {dep.ativo ? (
+                      <button className="btn-action danger" title="Desativar" onClick={() => desativar(dep)}>
+                        <i className="fa-solid fa-ban" />
+                      </button>
+                    ) : (
+                      <button className="btn-action success" title="Reativar" onClick={() => reativar(dep)}>
+                        <i className="fa-solid fa-circle-check" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="modal-ft">
+          <button className="btn-secondary" onClick={onClose}>Fechar</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Modal de Criar/Editar ────────────────────────────────────────────────────
 function ModalUsuario({ usuario, acessosIniciais = [], departamentos = [], onClose, onSave }) {
   const editando = !!usuario
@@ -417,6 +582,8 @@ export default function UsersPage() {
   const [modalNovo, setModalNovo]         = useState(false)
   const [modalExcluir, setModalExcluir]   = useState(null)  // null | usuario
   const [modalResetSenha, setModalResetSenha] = useState(null) // null | usuario
+  const [modalDeps, setModalDeps]         = useState(false)
+  const podeGerenciarDeps = temPermissao('usuarios', 'gerenciar')
 
   const fetchUsuarios = useCallback(async () => {
     setLoading(true)
@@ -478,6 +645,10 @@ export default function UsersPage() {
     }
   }
 
+  function recarregarDepartamentos() {
+    fetch(`${API}/departamentos`).then(r => r.json()).then(setDepartamentos).catch(() => {})
+  }
+
   function handleLogout() { logout(navigate) }
 
   return (
@@ -511,11 +682,18 @@ export default function UsersPage() {
                 <div className="ph-title">Usuários</div>
                 <div className="ph-sub">Cadastro e controle de acesso por usuário</div>
               </div>
-              {podeCriar && (
-                <button className="btn-primary" onClick={() => setModalNovo(true)}>
-                  <i className="fa-solid fa-plus" /> Novo Usuário
-                </button>
-              )}
+              <div style={{ display: 'flex', gap: 8 }}>
+                {podeGerenciarDeps && (
+                  <button className="btn-secondary" onClick={() => setModalDeps(true)}>
+                    <i className="fa-solid fa-sitemap" /> Departamentos
+                  </button>
+                )}
+                {podeCriar && (
+                  <button className="btn-primary" onClick={() => setModalNovo(true)}>
+                    <i className="fa-solid fa-plus" /> Novo Usuário
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="card">
@@ -556,7 +734,6 @@ export default function UsersPage() {
                     <thead>
                       <tr>
                         <th>Usuário</th>
-                        <th>E-mail</th>
                         <th>Perfil</th>
                         <th>Departamento</th>
                         <th>Workspaces</th>
@@ -574,7 +751,6 @@ export default function UsersPage() {
                               <span className="td-bold">{u.nome}</span>
                             </div>
                           </td>
-                          <td style={{ color: 'var(--gray-500)' }}>{u.email}</td>
                           <td>
                             <span className={`perfil-badge perfil-${u.perfil}`}>
                               {PERFIL_LABELS[u.perfil]}
@@ -667,6 +843,12 @@ export default function UsersPage() {
       </div>
 
       {/* ── Modais ── */}
+      {modalDeps && (
+        <ModalDepartamentos
+          onClose={() => setModalDeps(false)}
+          onChange={recarregarDepartamentos}
+        />
+      )}
       {(modalNovo || modalEditar) && (
         <ModalUsuario
           usuario={modalEditar}

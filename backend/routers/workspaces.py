@@ -6,7 +6,7 @@ import json
 from database import get_db
 from models import (
     EspacoTrabalho, Relatorio, AcessoWorkspace, AcessoRelatorio,
-    Usuario, LogAuditoria, CategoriaRelatorio
+    Usuario, LogAuditoria
 )
 from dependencies import get_usuario_requisicao, exigir_permissao
 from services.audit_service import registrar_log, salvar_backup_critico
@@ -15,7 +15,6 @@ from services.pbi_service import pbi_access_token
 from schemas import (
     WorkspaceItem, WorkspaceCreate, WorkspaceUpdate,
     RelatorioItem, RelatorioCreate,
-    CategoriaRelatorioItem, CategoriaRelatorioCriar, CategoriaRelatorioAtualizar,
     UsuarioWorkspaceItem, VincularUsuarioInput, AlterarNivelInput,
     SetAcessosRelatorioInput, EmbedResponse,
 )
@@ -68,7 +67,7 @@ NIVEIS_VALIDOS = {"total", "apenas_relatorios", "nenhum"}
 
 def _rel_to_item(rel: Relatorio) -> RelatorioItem:
     return RelatorioItem(
-        id=rel.id, nome=rel.nome, categoria=rel.categoria, categoria_id=rel.categoria_id,
+        id=rel.id, nome=rel.nome, categoria=rel.categoria,
         status=rel.status, descricao=rel.descricao, id_relatorio_pbi=rel.id_relatorio_pbi,
         criado_em=rel.criado_em.isoformat() if rel.criado_em else None,
     )
@@ -77,58 +76,6 @@ def _rel_to_item(rel: Relatorio) -> RelatorioItem:
 def _rel_snapshot(rel):
     return json.dumps({"nome": rel.nome, "categoria": rel.categoria, "status": rel.status,
                        "descricao": rel.descricao, "id_relatorio_pbi": rel.id_relatorio_pbi}, ensure_ascii=False)
-
-
-# ─── Categorias de Relatório ──────────────────────────────────────────────────
-
-@router.get("/categorias-relatorio", response_model=List[CategoriaRelatorioItem])
-def listar_categorias(apenas_ativas: bool = True, db: Session = Depends(get_db)):
-    q = db.query(CategoriaRelatorio)
-    if apenas_ativas:
-        q = q.filter(CategoriaRelatorio.ativo == True)
-    return q.order_by(CategoriaRelatorio.nome).all()
-
-
-@router.post("/categorias-relatorio", response_model=CategoriaRelatorioItem, status_code=201)
-def criar_categoria(request: Request, dados: CategoriaRelatorioCriar, db: Session = Depends(get_db)):
-    autor = get_usuario_requisicao(request, db)
-    exigir_permissao(autor, "configuracoes", "criar", db)
-    if db.query(CategoriaRelatorio).filter(CategoriaRelatorio.nome == dados.nome).first():
-        raise HTTPException(status_code=409, detail="Categoria já existe.")
-    cat = CategoriaRelatorio(nome=dados.nome, cor=dados.cor, icone=dados.icone)
-    db.add(cat)
-    db.commit()
-    db.refresh(cat)
-    return cat
-
-
-@router.put("/categorias-relatorio/{cat_id}", response_model=CategoriaRelatorioItem)
-def atualizar_categoria(cat_id: str, request: Request, dados: CategoriaRelatorioAtualizar, db: Session = Depends(get_db)):
-    cat = db.query(CategoriaRelatorio).filter(CategoriaRelatorio.id == cat_id).first()
-    if not cat:
-        raise HTTPException(status_code=404, detail="Categoria não encontrada.")
-    autor = get_usuario_requisicao(request, db)
-    exigir_permissao(autor, "configuracoes", "editar", db)
-    cat.nome = dados.nome
-    if dados.cor is not None:
-        cat.cor = dados.cor
-    if dados.icone is not None:
-        cat.icone = dados.icone
-    db.commit()
-    db.refresh(cat)
-    return cat
-
-
-@router.delete("/categorias-relatorio/{cat_id}", status_code=200)
-def excluir_categoria(cat_id: str, request: Request, db: Session = Depends(get_db)):
-    cat = db.query(CategoriaRelatorio).filter(CategoriaRelatorio.id == cat_id).first()
-    if not cat:
-        raise HTTPException(status_code=404, detail="Categoria não encontrada.")
-    autor = get_usuario_requisicao(request, db)
-    exigir_permissao(autor, "configuracoes", "excluir", db)
-    cat.ativo = False
-    db.commit()
-    return {"mensagem": "Categoria desativada."}
 
 
 # ─── Workspaces ───────────────────────────────────────────────────────────────
@@ -353,14 +300,9 @@ def criar_relatorio(workspace_id: str, request: Request, dados: RelatorioCreate,
     autor = get_usuario_requisicao(request, db)
     exigir_permissao(autor, "configuracoes", "criar", db)
     _validar_uuid_pbi(dados.id_relatorio_pbi, dados.status, ws.id_workspace_pbi, db)
-    categoria_nome = dados.categoria
-    if dados.categoria_id and not dados.categoria:
-        cat = db.query(CategoriaRelatorio).filter(CategoriaRelatorio.id == dados.categoria_id).first()
-        if cat:
-            categoria_nome = cat.nome
     rel = Relatorio(
         nome=dados.nome, espaco_trabalho_id=workspace_id,
-        categoria=categoria_nome or None, categoria_id=dados.categoria_id or None,
+        categoria=dados.categoria or None,
         status=dados.status, descricao=dados.descricao or None, id_relatorio_pbi=dados.id_relatorio_pbi or None,
         criado_por_id=autor.id if autor else None,
     )
@@ -384,13 +326,7 @@ def atualizar_relatorio(workspace_id: str, relatorio_id: str, request: Request, 
     _validar_uuid_pbi(dados.id_relatorio_pbi, dados.status, ws.id_workspace_pbi if ws else None, db)
     anterior = _rel_snapshot(rel)
     id_pbi_anterior = rel.id_relatorio_pbi
-    categoria_nome = dados.categoria
-    if dados.categoria_id and not dados.categoria:
-        cat = db.query(CategoriaRelatorio).filter(CategoriaRelatorio.id == dados.categoria_id).first()
-        if cat:
-            categoria_nome = cat.nome
-    rel.nome = dados.nome; rel.categoria = categoria_nome or None
-    rel.categoria_id = dados.categoria_id or None
+    rel.nome = dados.nome; rel.categoria = dados.categoria or None
     rel.status = dados.status; rel.descricao = dados.descricao or None
     rel.id_relatorio_pbi = dados.id_relatorio_pbi or None
     db.commit(); db.refresh(rel)
